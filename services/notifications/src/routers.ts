@@ -41,7 +41,7 @@ function toStored(row: EventRow) {
 }
 
 /** Variables handed to the email template. Only the event's own payload is exposed. */
-function variablesOf(event: NotificationEvent): Record<string, string> {
+export function variablesOf(event: NotificationEvent): Record<string, string> {
   const variables: Record<string, string> = { email: event.recipient.email };
   for (const [key, value] of Object.entries(event.payload)) variables[key] = String(value);
   return variables;

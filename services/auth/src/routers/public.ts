@@ -36,7 +36,7 @@ const EMAIL_CHANGE_TTL_SECONDS = 60 * 60;
  * A fixed hash verified when no identity was found, so a wrong email and a wrong password take
  * comparable time and login cannot be used to probe which addresses exist.
  */
-const DUMMY_PASSWORD_HASH =
+export const DUMMY_PASSWORD_HASH =
   'scrypt$00000000000000000000000000000000$' + '0'.repeat(128);
 
 const os = implement(authPublicContract).$context<PublicContext>();
