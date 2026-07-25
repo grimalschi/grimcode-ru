@@ -1,0 +1,163 @@
+# Local development topology.
+#
+# PostgreSQL is a separate container but is declared here, so the whole project has one lifecycle
+# and one internal network. Only Gateway and PostgreSQL publish a host port, and both bind to
+# LOCAL_BIND_HOST, which defaults to loopback — opening them to the local network takes a
+# deliberate override.
+#
+# Every service receives only the variables it actually needs.
+
+name: ${PROJECT_SLUG:-template}
+
+x-service: &service
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile
+  restart: unless-stopped
+  networks: [internal]
+
+x-database-env: &database-env
+  PROJECT_SLUG: ${PROJECT_SLUG:-template}
+  DATABASE_URL: ${DATABASE_URL:-postgres://template:template@postgres:5432/postgres}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-template}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-template}
+      POSTGRES_DB: postgres
+    ports:
+      # Only for local tools on the host machine. Bound to loopback by default.
+      - '${LOCAL_BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-template} -d postgres']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks: [internal]
+
+  # Creates one database per stateful service. Each service then applies its own versioned
+  # migrations on start; this step only makes the empty databases exist.
+  db-init:
+    image: postgres:17-alpine
+    restart: 'no'
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG:-template}
+      DATABASE_URL: ${DATABASE_URL:-postgres://template:template@postgres:5432/postgres}
+    entrypoint: ['sh', '-ec']
+    command:
+      - |
+        for service in admin auth users notifications email; do
+          db="$${PROJECT_SLUG}_$${service}"
+          if psql "$${DATABASE_URL}" -tAc "SELECT 1 FROM pg_database WHERE datname = '$${db}'" | grep -q 1; then
+            echo "[db-init] $${db} exists"
+          else
+            echo "[db-init] creating $${db}"
+            psql "$${DATABASE_URL}" -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$${db}\""
+          fi
+        done
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+
+  gateway:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: gateway
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG:-template}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://127.0.0.1:8080}
+    ports:
+      # The only container published outside.
+      - '${LOCAL_BIND_HOST:-127.0.0.1}:${GATEWAY_PORT:-8080}:8080'
+    depends_on: [admin, auth, users, notifications, adminer]
+
+  admin:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: admin
+    environment:
+      <<: *database-env
+    expose: ['3002']
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      auth:
+        condition: service_started
+
+  auth:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: auth
+    environment:
+      <<: *database-env
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://127.0.0.1:8080}
+      AUTH_SESSION_TTL_SECONDS: ${AUTH_SESSION_TTL_SECONDS:-2592000}
+    expose: ['3003']
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  users:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: users
+    environment:
+      <<: *database-env
+    expose: ['3004']
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  notifications:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: notifications
+    environment:
+      <<: *database-env
+    expose: ['3005']
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  adminer:
+    build:
+      context: adminer
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://template:template@postgres:5432/postgres}
+    # Internal only. Adminer is reachable exclusively through Gateway's owner-only route and never
+    # gets a host port, in local development or in production.
+    expose: ['8080']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  postgres-data:

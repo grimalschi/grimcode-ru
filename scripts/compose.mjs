@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+/**
+ * Thin wrapper around `docker compose` that always uses the repository's Compose file and the
+ * git-ignored `.env`, so the Compose project name and the ports are the ones bootstrap chose.
+ */
+import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const envPath = join(repoRoot, '.env');
+
+if (!existsSync(envPath)) {
+  console.error('No .env found. Run `pnpm bootstrap` first.');
+  process.exit(1);
+}
+
+// Present only on machines where Docker's default address pools were exhausted; see
+// scripts/allocate-network.mjs.
+const networkOverride = join(repoRoot, 'docker/compose.network.local.yaml');
+
+const files = ['-f', join(repoRoot, 'docker/compose.yaml')];
+if (existsSync(networkOverride)) files.push('-f', networkOverride);
+
+const result = spawnSync(
+  'docker',
+  ['compose', '--env-file', envPath, ...files, ...process.argv.slice(2)],
+  { cwd: repoRoot, stdio: 'inherit' },
+);
+
+process.exit(result.status ?? 1);

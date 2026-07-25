@@ -1,0 +1,21 @@
+# Keep local build output out of the image so every image is built from clean sources.
+node_modules
+**/node_modules
+dist
+**/dist
+.output
+**/.output
+**/*.tsbuildinfo
+.turbo
+**/.turbo
+coverage
+**/coverage
+
+.git
+.idea
+.env
+.env.*
+!.env.example
+*.log
+playwright-report
+test-results

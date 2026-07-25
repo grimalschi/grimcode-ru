@@ -16,3 +16,6 @@ test-results/
 .local/
 *.log
 *.tsbuildinfo
+
+# Generated locally when Docker address pools are exhausted.
+docker/compose.network.local.yaml
