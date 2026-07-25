@@ -1,0 +1,62 @@
+import { THEME_PREFERENCES, type ThemePreference } from "@template/shared/browser"
+import { LaptopIcon, MoonIcon, SunIcon } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { useTheme } from "@/components/theme-provider"
+
+const LABELS: Record<ThemePreference, string> = {
+  light: "Light",
+  dark: "Dark",
+  system: "System",
+}
+
+const ICONS: Record<ThemePreference, typeof SunIcon> = {
+  light: SunIcon,
+  dark: MoonIcon,
+  system: LaptopIcon,
+}
+
+/**
+ * Light, dark and system.
+ *
+ * Renders nothing when an outer surface owns the theme: a service admin embedded in the shell
+ * must not offer a second, disagreeing switch.
+ */
+export function ThemeToggle() {
+  const { preference, setPreference, controlled } = useTheme()
+  if (controlled) return null
+
+  const Icon = ICONS[preference]
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label={`Theme: ${LABELS[preference]}`}>
+          <Icon />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {THEME_PREFERENCES.map((option) => {
+          const OptionIcon = ICONS[option]
+          return (
+            <DropdownMenuItem
+              key={option}
+              onSelect={() => setPreference(option)}
+              data-active={option === preference}
+              className="data-[active=true]:bg-accent"
+            >
+              <OptionIcon />
+              {LABELS[option]}
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
