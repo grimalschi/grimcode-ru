@@ -8,7 +8,10 @@ node_modules/
 .turbo/
 dist/
 .output/
+.vite/
 coverage/
+playwright-report/
+test-results/
 
 .local/
 *.log

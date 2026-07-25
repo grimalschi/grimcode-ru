@@ -1,0 +1,35 @@
+{
+  "name": "template",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "bootstrap": "node scripts/bootstrap.mjs",
+    "worktree:bootstrap": "node scripts/worktree-bootstrap.mjs",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "check:compose": "node scripts/check-compose.mjs",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build && pnpm run check:boundaries && pnpm run check:compose",
+    "up": "node scripts/compose.mjs up -d --build",
+    "down": "node scripts/compose.mjs down",
+    "logs": "node scripts/compose.mjs logs -f"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.1",
+    "eslint": "10.8.0",
+    "globals": "17.7.0",
+    "prettier": "3.9.6",
+    "turbo": "2.10.7",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.65.0",
+    "vitest": "4.1.10"
+  }
+}
