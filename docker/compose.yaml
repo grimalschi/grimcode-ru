@@ -78,7 +78,7 @@ services:
     ports:
       # The only container published outside.
       - '${LOCAL_BIND_HOST:-127.0.0.1}:${GATEWAY_PORT:-8080}:8080'
-    depends_on: [admin, auth, users, notifications, adminer]
+    depends_on: [admin, auth, users, notifications, email, adminer]
 
   admin:
     <<: *service
@@ -136,6 +136,26 @@ services:
     environment:
       <<: *database-env
     expose: ['3005']
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  email:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: email
+    environment:
+      <<: *database-env
+      # `log` keeps messages inside the delivery log; `unisender` is the ready production transport.
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-log}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-no-reply@example.com}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Template}
+      UNISENDER_GO_API_KEY: ${UNISENDER_GO_API_KEY:-}
+      UNISENDER_GO_API_URL: ${UNISENDER_GO_API_URL:-}
+    expose: ['3006']
     depends_on:
       db-init:
         condition: service_completed_successfully
