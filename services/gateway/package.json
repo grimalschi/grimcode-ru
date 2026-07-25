@@ -1,0 +1,27 @@
+{
+  "name": "@template/gateway",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc -b tsconfig.json",
+    "test": "vitest run",
+    "lint": "eslint src",
+    "start": "node dist/index.js",
+    "dev": "node --watch dist/index.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.0.11",
+    "@orpc/client": "1.14.10",
+    "@template/contracts": "workspace:*",
+    "@template/shared": "workspace:*",
+    "hono": "4.12.32"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}
