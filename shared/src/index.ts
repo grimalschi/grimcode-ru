@@ -8,6 +8,7 @@ export * from './http/cookies.js';
 export * from './http/admin-context.js';
 export * from './http/csrf.js';
 export * from './http/service-app.js';
+export * from './http/spa.js';
 
 export * from './orpc/client.js';
 export * from './orpc/handler.js';
