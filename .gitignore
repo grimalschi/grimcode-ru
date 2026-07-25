@@ -1,0 +1,15 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+
+node_modules/
+.pnpm-store/
+.turbo/
+dist/
+.output/
+coverage/
+
+.local/
+*.log
+*.tsbuildinfo

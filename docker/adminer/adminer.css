@@ -1,0 +1,5026 @@
+/*!
+ * Template Adminer theme
+ * A local shadcn-inspired system theme for the isolated Adminer service.
+ */
+
+:root {
+  color-scheme: light dark;
+  --background: #f6f7f9;
+  --foreground: #1b1f24;
+  --card: #ffffff;
+  --card-foreground: #1b1f24;
+  --popover: #ffffff;
+  --popover-foreground: #1b1f24;
+  --primary: #1f6feb;
+  --primary-foreground: #ffffff;
+  --secondary: #eef1f4;
+  --secondary-foreground: #1b1f24;
+  --muted: #eef1f4;
+  --muted-foreground: #5b636c;
+  --accent: #e8f0ff;
+  --accent-foreground: #17345f;
+  --destructive: #b42318;
+  --destructive-foreground: #ffffff;
+  --success: #146c43;
+  --success-foreground: #ffffff;
+  --warning: #8a5c00;
+  --warning-foreground: #1b1f24;
+  --border: #e1e5ea;
+  --input: #d8dee6;
+  --ring: #1f6feb;
+  --sidebar: #ffffff;
+  --sidebar-accent: #eef4ff;
+  --sidebar-border: #e1e5ea;
+  --table-row: #ffffff;
+  --table-row-alt: #f8fafc;
+  --table-row-hover: #eef4ff;
+  --code: #f8fafc;
+  --content-glow: rgb(255 255 255 / 0.72);
+  --surface-glass: rgb(255 255 255 / 0.94);
+  --surface-glass-strong: rgb(255 255 255 / 0.96);
+  --surface-glass-transparent: rgb(255 255 255 / 0);
+  --control-hover: #dfe8ff;
+  --primary-hover: #185abd;
+  --destructive-hover: #991b1b;
+  --control-border-strong: #9aa5b1;
+  --scrollbar-thumb: #c4ccd6;
+  --scrollbar-thumb-hover: #9aa5b1;
+  --file-button: #c4ccd6;
+  --table-edge-fade: rgb(246 247 249 / 0.72);
+  --subtle-inset: rgb(17 19 21 / 0.04);
+  --selection-bg: rgb(31 111 235 / 0.18);
+  --shadow: 0 1px 2px rgb(17 19 21 / 0.04);
+  --radius: 8px;
+  --radius-sm: 6px;
+  --sidebar-width: 304px;
+  --sidebar-x-padding: 12px;
+  --control-gap: 8px;
+  --group-gap: 12px;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #09090b;
+    --foreground: #fafafa;
+    --card: #18181b;
+    --card-foreground: #fafafa;
+    --popover: #18181b;
+    --popover-foreground: #fafafa;
+    --primary: #fafafa;
+    --primary-foreground: #09090b;
+    --secondary: #27272a;
+    --secondary-foreground: #fafafa;
+    --muted: #27272a;
+    --muted-foreground: #a1a1aa;
+    --accent: #27272a;
+    --accent-foreground: #fafafa;
+    --destructive: #ef4444;
+    --destructive-foreground: #fef2f2;
+    --success: #22c55e;
+    --success-foreground: #052e16;
+    --warning: #f59e0b;
+    --warning-foreground: #451a03;
+    --border: #27272a;
+    --input: #27272a;
+    --ring: #a1a1aa;
+    --sidebar: #0f0f11;
+    --sidebar-accent: #18181b;
+    --sidebar-border: #242427;
+    --table-row: #111113;
+    --table-row-alt: #111113;
+    --table-row-hover: #19191c;
+    --code: #101012;
+    --content-glow: rgb(255 255 255 / 0.045);
+    --surface-glass: rgb(24 24 27 / 0.94);
+    --surface-glass-strong: rgb(24 24 27 / 0.96);
+    --surface-glass-transparent: rgb(24 24 27 / 0);
+    --control-hover: #303036;
+    --primary-hover: #e4e4e7;
+    --destructive-hover: #dc2626;
+    --control-border-strong: #52525b;
+    --scrollbar-thumb: #3f3f46;
+    --scrollbar-thumb-hover: #52525b;
+    --file-button: #27272a;
+    --table-edge-fade: rgb(9 9 11 / 0.72);
+    --subtle-inset: rgb(255 255 255 / 0.04);
+    --selection-bg: rgb(250 250 250 / 0.14);
+    --shadow: none;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #18181b;
+  --card-foreground: #fafafa;
+  --popover: #18181b;
+  --popover-foreground: #fafafa;
+  --primary: #fafafa;
+  --primary-foreground: #09090b;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --accent: #27272a;
+  --accent-foreground: #fafafa;
+  --destructive: #ef4444;
+  --destructive-foreground: #fef2f2;
+  --success: #22c55e;
+  --success-foreground: #052e16;
+  --warning: #f59e0b;
+  --warning-foreground: #451a03;
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #a1a1aa;
+  --sidebar: #0f0f11;
+  --sidebar-accent: #18181b;
+  --sidebar-border: #242427;
+  --table-row: #111113;
+  --table-row-alt: #111113;
+  --table-row-hover: #19191c;
+  --code: #101012;
+  --content-glow: rgb(255 255 255 / 0.045);
+  --surface-glass: rgb(24 24 27 / 0.94);
+  --surface-glass-strong: rgb(24 24 27 / 0.96);
+  --surface-glass-transparent: rgb(24 24 27 / 0);
+  --control-hover: #303036;
+  --primary-hover: #e4e4e7;
+  --destructive-hover: #dc2626;
+  --control-border-strong: #52525b;
+  --scrollbar-thumb: #3f3f46;
+  --scrollbar-thumb-hover: #52525b;
+  --file-button: #27272a;
+  --table-edge-fade: rgb(9 9 11 / 0.72);
+  --subtle-inset: rgb(255 255 255 / 0.04);
+  --selection-bg: rgb(250 250 250 / 0.14);
+  --shadow: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  background: var(--background) !important;
+  color: var(--foreground);
+}
+
+html {
+  scrollbar-color: var(--scrollbar-thumb) var(--background);
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+
+body {
+  min-width: 980px;
+  font:
+    13px/1.5 Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  letter-spacing: 0;
+}
+
+::selection {
+  background: var(--selection-bg);
+  color: var(--foreground);
+}
+
+a {
+  color: var(--foreground);
+  text-decoration: none;
+  text-underline-offset: 3px;
+}
+
+a:visited {
+  color: var(--foreground);
+}
+
+a:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.active,
+a.active {
+  color: var(--foreground) !important;
+  font-weight: 600;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: 0;
+}
+
+h1 {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+h2 {
+  margin: 0 0 18px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--foreground);
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+#content > h2:has(~ .links) {
+  margin-bottom: 10px;
+}
+
+h3 {
+  margin: 28px 0 10px;
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+p {
+  margin: 10px 0;
+}
+
+small,
+.time,
+.version,
+.footer,
+label,
+legend,
+td,
+th {
+  color: var(--muted-foreground);
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 18px 0;
+}
+
+#content {
+  min-height: 100vh;
+  margin: 0 0 0 var(--sidebar-width);
+  padding: 64px 28px 48px;
+  background:
+    linear-gradient(180deg, var(--content-glow), transparent 240px),
+    var(--background);
+}
+
+#content > h2,
+#content > h3,
+#content > p:not(#breadcrumb),
+#content > form,
+#content > table,
+#content > .scrollable,
+#content > .message,
+#content > .error,
+#content > .links,
+#content > fieldset {
+  max-width: 1320px;
+}
+
+#breadcrumb {
+  position: fixed;
+  z-index: 20;
+  top: 0;
+  left: var(--sidebar-width);
+  right: 0;
+  max-width: none;
+  min-height: 50px;
+  margin: 0;
+  padding: 0 156px 0 28px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-glass);
+  color: var(--muted-foreground);
+  line-height: 50px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  backdrop-filter: blur(12px);
+}
+
+#breadcrumb a {
+  color: var(--muted-foreground);
+}
+
+#breadcrumb a:hover {
+  color: var(--foreground);
+}
+
+#foot {
+  position: fixed;
+  z-index: 30;
+  inset: 0 auto 0 0;
+  display: flex;
+  flex-direction: column;
+  width: var(--sidebar-width);
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--sidebar-border);
+  background: var(--sidebar);
+}
+
+#menu {
+  position: relative;
+  top: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 10px var(--sidebar-x-padding) 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-right: 0;
+  background: transparent;
+}
+
+#menu h1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  margin-bottom: 8px;
+  padding: 0 4px;
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#menu h1::before {
+  display: none;
+  content: none;
+}
+
+#menu h1 .version {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--sidebar-border);
+  border-radius: 999px;
+  background: var(--sidebar-accent);
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 550;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+#menu h1 .version::before {
+  content: "v";
+}
+
+#menu h1 #version {
+  display: inline-flex;
+  align-items: center;
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+#menu h1 #version::before {
+  margin: 0 3px;
+  color: var(--muted-foreground);
+  content: "→";
+}
+
+#menu h1 #version:hover {
+  color: var(--foreground);
+}
+
+#lang {
+  position: fixed !important;
+  z-index: 80;
+  inset: 10px 16px auto auto !important;
+  display: block;
+  width: 120px;
+  margin: 0;
+  padding: 0;
+  color: var(--muted-foreground);
+}
+
+#lang label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 0;
+  font-weight: 500;
+  line-height: 0;
+}
+
+#lang select {
+  width: 100%;
+  min-height: 30px;
+  height: 30px;
+  padding: 0 28px 0 8px;
+  font-size: 12px;
+  line-height: 30px;
+}
+
+#dbs {
+  order: 1;
+  margin: 0;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#dbs label {
+  display: block;
+  margin: 0 0 8px;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 0;
+  font-weight: 500;
+  line-height: 0;
+}
+
+#dbs label::before {
+  display: block;
+  height: 18px;
+  margin: 0 6px 5px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+#dbs label:nth-of-type(1)::before {
+  content: "DB";
+}
+
+#dbs label:nth-of-type(2)::before {
+  content: "Schema";
+}
+
+#dbs br {
+  display: none;
+}
+
+#dbs select {
+  width: 100%;
+  min-height: 34px;
+  height: 34px;
+  padding: 0 30px 0 10px;
+  font-size: 12px;
+  line-height: 34px;
+}
+
+#menu .links {
+  position: sticky;
+  z-index: 3;
+  bottom: 0;
+  order: 20;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin: 12px 0 0;
+  padding: 10px 0 0;
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+  background:
+    linear-gradient(180deg, var(--surface-glass-transparent), var(--sidebar) 10px),
+    var(--sidebar);
+}
+
+#menu .links a,
+#logins a,
+#tables a,
+#tables span {
+  border-radius: var(--radius-sm);
+  background: transparent;
+}
+
+#menu .links a {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--sidebar-border);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+#menu .links a:hover,
+#menu .links a.active {
+  border-color: var(--sidebar-border);
+  background: var(--sidebar-accent);
+  color: var(--foreground) !important;
+}
+
+#tables,
+#logins {
+  order: 2;
+  flex: 1 1 auto;
+  min-height: 120px;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  border: 0 !important;
+  list-style: none;
+  scrollbar-gutter: stable;
+}
+
+#tables {
+  padding-bottom: 0;
+  border-bottom: 0 !important;
+}
+
+#tables::before,
+#logins::before {
+  display: block;
+  height: 18px;
+  margin: 6px 6px 5px;
+  line-height: 18px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+#tables::before {
+  content: "Tables";
+}
+
+#logins::before {
+  content: "Connections";
+}
+
+#tables li,
+#logins li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
+  margin: 1px 0;
+  padding: 4px 6px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  contain: layout style;
+  transition: background-color 120ms ease;
+}
+
+#tables li {
+  --table-action-gap: 4px;
+  --table-action-size: 24px;
+  --table-action-space: calc(
+    var(--table-action-size) + var(--table-action-gap) * 2
+  );
+
+  gap: 0;
+  padding: 0;
+}
+
+#tables a,
+#logins a,
+#tables span {
+  min-width: 0;
+  color: var(--muted-foreground);
+  font-weight: 500 !important;
+  letter-spacing: 0;
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+
+#tables a.structure,
+#logins a {
+  display: block;
+  flex: 1 1 auto;
+  height: 20px;
+  min-height: 20px;
+  max-height: 20px;
+  overflow: hidden;
+  padding: 0;
+  line-height: 20px;
+  border: 0 !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#tables a.structure {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  padding: 0 var(--table-action-space) 0 8px;
+  line-height: 32px;
+  pointer-events: auto;
+}
+
+#tables a.structure::after {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  right: var(--table-action-gap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--table-action-size);
+  height: var(--table-action-size);
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--muted-foreground);
+  content: "⚙";
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: auto;
+  transform: translateY(-50%) scale(0.96);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease,
+    color 120ms ease,
+    background-color 120ms ease;
+}
+
+#tables a.select {
+  position: absolute;
+  z-index: 2;
+  inset: 0 var(--table-action-space) 0 0;
+  display: block;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  color: transparent;
+  font-size: 0;
+}
+
+#tables a.select::before {
+  display: none;
+}
+
+#tables li:hover,
+#logins li:hover {
+  background: var(--sidebar-accent);
+}
+
+#tables li:has(a.active),
+#logins li:has(a.active) {
+  background: var(--sidebar-accent);
+  color: var(--foreground);
+}
+
+#tables li:hover a.structure,
+#logins li:hover a,
+#tables li:hover a.select,
+#tables li:has(a.active) a {
+  color: var(--foreground) !important;
+  font-weight: 500 !important;
+  text-decoration: none !important;
+}
+
+#tables a:hover,
+#tables a:focus-visible,
+#logins a:hover,
+#logins a:focus-visible {
+  text-decoration: none !important;
+}
+
+#tables li:hover a.structure::after,
+#tables li:focus-within a.structure::after {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+#tables a.structure:hover::after,
+#tables a.structure:focus-visible::after {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+#menu a:hover,
+#menu a:focus-visible {
+  color: var(--foreground) !important;
+  text-decoration: none !important;
+}
+
+#menuopen {
+  display: none !important;
+}
+
+#foot > form {
+  display: none !important;
+}
+
+.logout {
+  display: none !important;
+}
+
+.logout span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logout input[type="submit"] {
+  min-height: 32px;
+  padding: 0 10px !important;
+  border-color: var(--sidebar-border) !important;
+  background: var(--secondary) !important;
+  color: var(--secondary-foreground) !important;
+  font-size: 12px;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--control-gap);
+  align-items: center;
+  justify-content: flex-start;
+  margin: 12px 0 18px;
+}
+
+#content > h2 + .links,
+#content > h2 + #ajaxstatus + .links {
+  margin-top: 0;
+}
+
+.links a,
+p.links a,
+.pages a,
+.pages strong {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.links a,
+p.links a,
+.pages a,
+.pages strong,
+input[type="submit"],
+input[type="button"],
+input[type="reset"],
+button,
+.button {
+  margin: 0 !important;
+}
+
+.links a:hover,
+p.links a:hover,
+.pages a:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+  text-decoration: none;
+}
+
+.pages strong {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+form {
+  margin: 0;
+}
+
+#content form > p:not(#breadcrumb, .links, .logout) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--control-gap);
+  align-items: center;
+  margin: 12px 0;
+}
+
+#content form > p label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+fieldset {
+  position: relative;
+  min-width: 0;
+  margin: 12px 0;
+  padding: 38px 14px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+legend {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  display: block;
+  max-width: calc(100% - 28px);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+fieldset > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--control-gap);
+}
+
+fieldset:target,
+fieldset:has(> div:target) {
+  border-color: var(--ring) !important;
+  box-shadow: 0 0 0 1px rgb(31 111 235 / 0.18);
+}
+
+#content :target {
+  background: transparent !important;
+  scroll-margin-top: 104px;
+}
+
+#content > h3:target {
+  padding-top: 0;
+  color: var(--foreground) !important;
+}
+
+#content > h3:is(#routines, #sequences, #user-types) {
+  display: flex;
+  align-items: center;
+  min-height: 0;
+  margin-top: 24px;
+  margin-bottom: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent !important;
+}
+
+#content > #user-types + .links {
+  width: max-content;
+  margin: 0 0 18px;
+}
+
+fieldset:target legend,
+fieldset:target legend a,
+fieldset:has(> div:target) legend,
+fieldset:has(> div:target) legend a {
+  color: var(--foreground) !important;
+}
+
+#form > fieldset {
+  display: inline-grid;
+  width: min(100%, 270px);
+  margin: 0 var(--control-gap) var(--control-gap) 0;
+  vertical-align: top;
+}
+
+#form:not(:has(.sqlarea)):not(:has(#edit-fields)):has(> fieldset) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--control-gap);
+  align-items: flex-start;
+  margin: 0 0 16px;
+}
+
+#form:not(:has(.sqlarea)):not(:has(#edit-fields)):has(> fieldset) > fieldset {
+  margin: 0;
+}
+
+#form:not(:has(.sqlarea)):not(:has(#edit-fields)):has(> fieldset)
+  > fieldset:has(> div.hidden) {
+  margin: 0;
+}
+
+#form:not(:has(.sqlarea)):not(:has(#edit-fields)):has(> fieldset)
+  > fieldset:not(:has(> div.hidden)) {
+  width: min(100%, 252px);
+  min-height: 92px;
+  height: 92px;
+}
+
+#form:not(:has(.sqlarea)):not(:has(#edit-fields)):has(> fieldset)
+  > fieldset:not(:has(> div.hidden))
+  input:not([type="submit"]):not([type="button"]):not([type="hidden"]):not(
+    [type="checkbox"]
+  ):not([type="radio"]),
+#form:not(:has(.sqlarea)):not(:has(#edit-fields)):has(> fieldset)
+  > fieldset:not(:has(> div.hidden))
+  select {
+  width: 100%;
+}
+
+#form > fieldset:has(> div.hidden) {
+  display: inline-flex;
+  width: auto;
+  min-width: 0;
+  margin: 0 8px 10px 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+#form > fieldset:has(> div.hidden) legend {
+  position: static;
+  max-width: none;
+  padding: 0;
+  overflow: visible;
+}
+
+#form > fieldset:has(> div.hidden) legend a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+#form > fieldset:has(> div.hidden) legend a:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+#form > fieldset:has(> div:not(.hidden)) legend,
+#form > fieldset:has(> div:not(.hidden)) legend a {
+  color: var(--foreground) !important;
+}
+
+#form > fieldset > div {
+  display: grid;
+  gap: var(--control-gap);
+}
+
+#form > fieldset input[type="search"],
+#form > fieldset input[type="text"],
+#form > fieldset input[type="number"],
+#form > fieldset select {
+  width: 100%;
+  min-width: 170px;
+}
+
+#form > fieldset label {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 24px;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted-foreground);
+}
+
+#form > fieldset input[type="checkbox"],
+#form > fieldset input[type="radio"] {
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
+#form > fieldset input[type="submit"],
+#form > fieldset input[type="button"] {
+  width: auto;
+  min-width: 118px;
+  justify-self: start;
+}
+
+#form input[type="submit"][value="Select"] {
+  border-color: var(--border) !important;
+  background: var(--secondary) !important;
+  color: var(--secondary-foreground) !important;
+}
+
+#form input[type="submit"][value="Select"]:hover {
+  background: var(--control-hover) !important;
+}
+
+#noindex:empty {
+  display: none;
+}
+
+@media (min-width: 1280px) {
+  html:has(#content > #form input[name="select"]),
+  body:has(#content > #form input[name="select"]) {
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  #content:has(> #form input[name="select"]) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto minmax(0, 1fr);
+    height: 100vh;
+    gap: 8px;
+    align-items: start;
+    margin-top: 0;
+    overflow: hidden;
+    padding-bottom: 16px;
+  }
+
+  #content:has(> #form input[name="select"]) > h2 {
+    grid-column: 1;
+    margin-bottom: 2px;
+  }
+
+  #content:has(> #form input[name="select"]) > .links {
+    grid-column: 1;
+    grid-row: 2;
+    flex-wrap: nowrap;
+    margin: 0;
+  }
+
+  #content:has(> #form input[name="select"]) > #form {
+    position: relative;
+    z-index: 12;
+    top: auto;
+    grid-row: 3;
+    grid-column: 1;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 6px;
+    align-items: flex-start;
+    width: 100%;
+    height: auto;
+    max-height: 144px;
+    max-width: none;
+    min-height: 0;
+    margin: 0;
+    padding: 8px;
+    overflow-x: auto;
+    overflow-y: hidden !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--card);
+  }
+
+  #content:has(> #form input[name="select"]) > #form > fieldset {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 28px 10px 10px;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:has(> div.hidden) {
+    display: inline-flex;
+    flex: 0 0 auto;
+    width: auto;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:has(> div.hidden)
+    legend {
+    position: static;
+    width: auto;
+    max-width: none;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:has(> div.hidden)
+    legend
+    a {
+    width: auto;
+    min-height: 34px;
+    justify-content: center;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:not(:has(> div.hidden)) {
+    width: auto;
+    height: auto;
+    min-height: 58px;
+  }
+
+  #content:has(> #form input[name="select"]) > #form > fieldset > div:target {
+    background: transparent !important;
+  }
+
+  #content:has(> #form input[name="select"]) > #form > fieldset:last-of-type {
+    position: sticky;
+    z-index: 6;
+    right: 0;
+    bottom: auto;
+    flex: 0 0 auto;
+    align-self: stretch;
+    width: 104px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin-left: auto;
+    padding: 0 0 0 6px;
+    border: 0;
+    border-left: 1px solid var(--border);
+    border-radius: 0;
+    background: var(--card);
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:last-of-type::after {
+    position: absolute;
+    top: 0;
+    right: -9px;
+    bottom: 0;
+    width: 9px;
+    background: var(--card);
+    content: "";
+    pointer-events: none;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:last-of-type
+    legend {
+    display: none;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:last-of-type
+    > div {
+    display: flex;
+    height: 100%;
+    align-items: stretch;
+    justify-content: center;
+  }
+
+  #content:has(> #form input[name="select"]) > #form > fieldset:nth-of-type(4),
+  #content:has(> #form input[name="select"]) > #form > fieldset:nth-of-type(5) {
+    display: block;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 2px;
+  }
+
+  #content:has(> #form input[name="select"]) > #form > fieldset:nth-of-type(4) {
+    width: auto !important;
+    min-width: 98px;
+    flex-basis: auto;
+    padding-left: 48px;
+  }
+
+  #content:has(> #form input[name="select"]) > #form > fieldset:nth-of-type(5) {
+    width: auto !important;
+    min-width: 144px;
+    flex-basis: auto;
+    padding-left: 88px;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(4)
+    legend,
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(5)
+    legend {
+    position: absolute;
+    top: 50%;
+    left: 8px;
+    width: auto;
+    max-width: none;
+    transform: translateY(-50%);
+    color: var(--foreground);
+    line-height: 1.25;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(4)
+    > div,
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(5)
+    > div {
+    display: flex;
+    height: 100%;
+    align-items: center;
+    min-width: 0;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(4)
+    input,
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(5)
+    input {
+    width: auto;
+    min-width: 46px;
+    max-width: none;
+    height: 28px;
+    min-height: 28px;
+    padding: 0 8px;
+    appearance: textfield;
+    field-sizing: content;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(4)
+    input::-webkit-inner-spin-button,
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(4)
+    input::-webkit-outer-spin-button,
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(5)
+    input::-webkit-inner-spin-button,
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(5)
+    input::-webkit-outer-spin-button {
+    margin: 0;
+    -webkit-appearance: none;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(5)
+    input {
+    min-width: 52px;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:not(:has(> div.hidden))
+    input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:not(:has(> div.hidden))
+    select {
+    min-width: 0;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(4):not(:has(> div.hidden))
+    input {
+    min-width: 46px !important;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(5):not(:has(> div.hidden))
+    input {
+    min-width: 52px !important;
+  }
+
+  #content:has(> #form input[name="select"]) > #form input[type="submit"] {
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:last-of-type
+    input[type="submit"] {
+    height: 34px;
+    align-self: center;
+  }
+
+  #content:has(> #form input[name="select"]) > #form #noindex {
+    display: none !important;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:has(> #fieldset-select):not(:has(> div.hidden)) {
+    width: 256px !important;
+    min-height: 0;
+    padding: 34px 8px 8px;
+  }
+
+  #content:has(> #form input[name="select"]) > #form #fieldset-select > div {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 6px;
+    align-items: center;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    #fieldset-select
+    select:first-of-type {
+    grid-column: 1 / -1;
+  }
+
+  #content:has(> #form input[name="select"]) > #form #fieldset-select {
+    color: var(--muted-foreground);
+  }
+
+  #content:has(> #form input[name="select"]) > #form #fieldset-select select {
+    min-width: 0;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:has(> #fieldset-search):not(:has(> div.hidden)) {
+    width: auto !important;
+    max-width: none;
+    min-height: 0;
+    padding: 34px 8px 8px;
+  }
+
+  #content:has(> #form input[name="select"]) > #form #fieldset-search > div,
+  #content:has(> #form input[name="select"]) > #form #fieldset-sort > div {
+    display: grid;
+    gap: 8px;
+  }
+
+  #content:has(> #form input[name="select"]) > #form #fieldset-search {
+    display: flex;
+    width: max-content;
+    max-width: none;
+    flex-flow: row nowrap;
+    gap: 6px;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    #fieldset-search:not(:has(> div.hidden)) {
+    max-height: none;
+    overflow: visible;
+  }
+
+  #content:has(> #form input[name="select"]) > #form #fieldset-search > div {
+    display: grid;
+    flex: 0 0 224px;
+    width: 224px;
+    max-width: 100%;
+    grid-template-columns: minmax(0, 1fr) 72px;
+    gap: 6px;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    #fieldset-search
+    > div
+    input[type="search"] {
+    grid-column: 1 / -1;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:has(> #fieldset-sort):not(:has(> div.hidden)) {
+    width: 340px !important;
+    min-height: 0;
+    padding: 34px 8px 8px;
+  }
+
+  #content:has(> #form input[name="select"]) > #form #fieldset-sort > div {
+    grid-template-columns: minmax(0, 1fr) minmax(104px, max-content);
+    align-items: center;
+  }
+
+  #content:has(> #form input[name="select"]) > #form #fieldset-sort label {
+    width: auto;
+    min-width: 104px;
+    white-space: nowrap;
+  }
+
+  #content:has(> #form input[name="select"]) > table,
+  #content:has(> #form input[name="select"]) > .scrollable,
+  #content:has(> #form input[name="select"]) > .message,
+  #content:has(> #form input[name="select"]) > .error,
+  #content:has(> #form input[name="select"]) > form:not(#form) {
+    grid-column: 1;
+    min-width: 0;
+  }
+
+  #content:has(> #form input[name="select"]) > #form + p {
+    position: relative;
+    z-index: 18;
+    display: flex;
+    grid-row: 4;
+    grid-column: 1;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 34px;
+    gap: 6px;
+    align-items: center;
+    align-self: start;
+    margin: 0;
+    overflow: visible;
+    white-space: nowrap;
+  }
+
+  #content:has(> #form input[name="select"]) > #form + p:hover,
+  #content:has(> #form input[name="select"]) > #form + p:focus-within {
+    z-index: 80;
+  }
+
+  #content:has(> #form input[name="select"]) > #form + p > a:last-child {
+    position: relative;
+    z-index: 100;
+    display: inline-flex;
+    order: 2;
+    min-height: 32px;
+    flex: 0 0 auto;
+    align-items: center;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--card);
+    color: var(--foreground);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  #content:has(> #form input[name="select"]) > #form + p > a:last-child:hover {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  #content:has(> #form input[name="select"]) > #form + p > code {
+    position: relative;
+    display: block;
+    order: 0;
+    min-width: 0;
+    height: 34px;
+    min-height: 34px;
+    flex: 1 1 auto;
+    overflow: hidden;
+    align-content: center;
+    padding: 5px 8px;
+  }
+
+  #content:has(> #form input[name="select"]) > #form + p > code > .jush {
+    display: block;
+    max-width: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  #content:has(> #form input[name="select"]) > #form + p > code:hover,
+  #content:has(> #form input[name="select"]) > #form + p > code:focus-within {
+    overflow: visible;
+  }
+
+  #content:has(> #form input[name="select"]) > #form + p > code:hover > .jush,
+  #content:has(> #form input[name="select"])
+    > #form
+    + p
+    > code:focus-within
+    > .jush {
+    position: absolute;
+    z-index: 90;
+    top: 0;
+    right: 0;
+    left: 0;
+    box-sizing: border-box;
+    max-height: min(44vh, 360px);
+    padding: 5.25px 8px 4.75px;
+    overflow: auto;
+    border-radius: var(--radius-sm);
+    background: var(--code);
+    box-shadow: 0 18px 36px rgb(0 0 0 / 0.42);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    scrollbar-width: thin;
+  }
+
+  #content:has(> #form input[name="select"]) > #form + p > code:hover > .jush *,
+  #content:has(> #form input[name="select"])
+    > #form
+    + p
+    > code:focus-within
+    > .jush
+    * {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    + p
+    > code
+    > .jush::-webkit-scrollbar {
+    display: none;
+  }
+
+  #content:has(> #form input[name="select"]) > #form + p > .time {
+    position: relative;
+    z-index: 100;
+    order: 1;
+    flex: 0 0 auto;
+    color: var(--muted-foreground);
+    font-size: 11px;
+  }
+
+  #content:has(> #form input[name="select"]) > form:has(#table):not(#form) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto auto auto;
+    grid-row: 5;
+    gap: 8px;
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #content:has(> #form input[name="select"])
+    > form:has(#table):has(#import.hidden):not(#form) {
+    grid-template-rows: minmax(0, 1fr) auto auto;
+  }
+
+  #content:has(> #form input[name="select"])
+    > form:not(#form):not(:has(#table)) {
+    display: grid;
+    grid-row: 5;
+    gap: 8px;
+    align-content: start;
+    height: 100%;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  #content:has(> #form input[name="select"]) > form:has(#table):not(#form) > p {
+    margin: 0;
+  }
+
+  #content:has(> #form input[name="select"]) form:has(#table) .scrollable {
+    grid-row: 1;
+    grid-column: 1 / -1;
+    max-height: none;
+    height: 100%;
+    min-height: 0;
+    margin-bottom: 0;
+  }
+
+  #content:has(> #form input[name="select"])
+    form:has(#table)
+    > p:has(a.loadmore) {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    min-height: 34px;
+  }
+
+  #content:has(> #form input[name="select"]) form:has(#table) .footer {
+    grid-row: 3;
+    grid-column: 1 / -1;
+    position: static;
+    max-width: none;
+    margin-top: 0;
+  }
+
+  #content:has(> #form input[name="select"])
+    form:has(#table):has(#import.hidden)
+    .footer
+    > div {
+    padding-right: 124px;
+  }
+
+  #content:has(> #form input[name="select"])
+    form:has(#table):has(> p a.loadmore)
+    .footer {
+    position: relative;
+    overflow: visible;
+  }
+
+  #content:has(> #form input[name="select"])
+    form:has(#table):has(> p a.loadmore)
+    .footer
+    > div {
+    overflow: visible;
+  }
+
+  #content:has(> #form input[name="select"])
+    form:has(#table):has(> p a.loadmore)
+    .footer
+    fieldset:first-child {
+    position: absolute;
+    top: -43px;
+    left: 148px;
+    display: inline-flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+    align-items: center;
+    align-content: center;
+    height: 34px !important;
+    min-height: 34px;
+    padding: 0 4px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-glass);
+    color: var(--foreground);
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 750;
+    line-height: 20px;
+  }
+
+  #content:has(> #form input[name="select"])
+    form:has(#table):has(> p a.loadmore)
+    .footer
+    fieldset:first-child
+    legend {
+    display: none !important;
+  }
+
+  #content:has(> #form input[name="select"])
+    form:has(#table):has(> p a.loadmore)
+    .footer
+    fieldset:first-child
+    a:not(:first-child),
+  #content:has(> #form input[name="select"])
+    form:has(#table):has(> p a.loadmore)
+    .footer
+    fieldset:first-child
+    .page-current {
+    width: auto;
+    min-width: 28px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0 8px;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--muted-foreground);
+    font-weight: 650;
+    line-height: 28px;
+  }
+
+  #content:has(> #form input[name="select"])
+    form:has(#table):has(> p a.loadmore)
+    .footer
+    fieldset:first-child
+    .page-current {
+    background: rgb(31 111 235 / 0.08);
+    color: var(--foreground);
+  }
+
+  #content:has(> #form input[name="select"])
+    form:has(#table):has(> p a.loadmore)
+    .footer
+    fieldset:first-child
+    a:not(:first-child):hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+
+  #content:has(> #form input[name="select"])
+    form:has(#table)
+    > p:has(a[href="#import"]) {
+    grid-row: 4;
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: var(--control-gap);
+    align-items: center;
+    margin-top: 0;
+  }
+
+  #content:has(> #form input[name="select"])
+    form:has(#table)
+    > p:has(a[href="#import"]):has(#import.hidden) {
+    position: relative;
+    z-index: 30;
+    grid-row: 3;
+    grid-column: 1;
+    display: flex;
+    align-self: stretch;
+    align-items: stretch;
+    justify-content: center;
+    justify-self: end;
+    width: 96px;
+    min-width: 96px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-glass);
+  }
+
+  #content:has(> #form input[name="select"])
+    form:has(#table)
+    > p:has(a[href="#import"]):has(#import.hidden)
+    > a[href="#import"] {
+    width: 100%;
+    justify-content: center;
+  }
+
+  #content:has(> #form input[name="select"])
+    form:has(#table)
+    > p:has(a[href="#import"])
+    #import:not(.hidden) {
+    display: flex !important;
+    flex-wrap: nowrap;
+    gap: var(--control-gap);
+    align-items: center;
+    width: min(100%, 604px);
+  }
+
+  #content:has(> #form input[name="select"])
+    form:has(#table)
+    > p:has(a[href="#import"])
+    #import:not(.hidden)
+    input[type="file"] {
+    flex: 0 1 420px;
+    width: 420px;
+    min-width: 220px;
+  }
+
+  #content:has(> #form input[name="select"])
+    form:has(#table)
+    > p:has(a[href="#import"])
+    #import:not(.hidden)
+    select {
+    flex: 0 0 72px;
+    width: 72px;
+    min-width: 72px;
+  }
+
+  #content:has(> #form input[name="select"])
+    form:has(#table)
+    > p:has(a[href="#import"])
+    #import:not(.hidden)
+    input[type="submit"] {
+    flex: 0 0 88px;
+    width: 88px;
+    min-width: 88px;
+  }
+
+  #content:has(> #form input[name="select"])
+    > form:not(#form)
+    > p:has(a[href="#import"]) {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: var(--control-gap);
+    align-items: center;
+    margin: 0;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-glass);
+  }
+
+  #content:has(> #form input[name="select"])
+    > form:not(#form)
+    > p:has(a[href="#import"])
+    > script {
+    display: none;
+  }
+
+  #content:has(> #form input[name="select"])
+    > form:not(#form)
+    > p:has(a[href="#import"])
+    #import:not(.hidden) {
+    display: flex !important;
+    flex-wrap: nowrap;
+    gap: var(--control-gap);
+    align-items: center;
+    width: min(100%, 604px);
+    min-width: 0;
+    font-size: 0;
+  }
+
+  #content:has(> #form input[name="select"])
+    > form:not(#form)
+    > p:has(a[href="#import"])
+    #import:not(.hidden)
+    > * {
+    font-size: 13px;
+  }
+
+  #content:has(> #form input[name="select"])
+    > form:not(#form)
+    > p:has(a[href="#import"])
+    #import:not(.hidden)
+    input[type="file"] {
+    flex: 0 1 420px;
+    width: 420px;
+    min-width: 220px;
+  }
+
+  #content:has(> #form input[name="select"])
+    > form:not(#form)
+    > p:has(a[href="#import"])
+    #import:not(.hidden)
+    select {
+    flex: 0 0 72px;
+    width: 72px;
+    min-width: 72px;
+  }
+
+  #content:has(> #form input[name="select"])
+    > form:not(#form)
+    > p:has(a[href="#import"])
+    #import:not(.hidden)
+    input[type="submit"] {
+    flex: 0 0 88px;
+    width: 88px;
+    min-width: 88px;
+  }
+}
+
+@media (max-width: 1279px) {
+  #content:has(> #form input[name="select"]) > #form {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--control-gap);
+    align-items: flex-start;
+    align-content: flex-start;
+    max-height: clamp(320px, calc(100svh - 176px), 640px);
+    overflow-x: hidden;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  #content:has(> #form input[name="select"]) > #form > fieldset {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:has(> div.hidden) {
+    width: auto;
+    height: 34px;
+    min-height: 34px;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(1):not(:has(> div.hidden)),
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(2):not(:has(> div.hidden)),
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(3):not(:has(> div.hidden)) {
+    width: 100%;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:has(> #fieldset-select):not(:has(> div.hidden)) {
+    padding-bottom: 14px;
+  }
+
+  #content:has(> #form input[name="select"]) > #form #fieldset-select > div {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    color: var(--muted-foreground);
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    #fieldset-select
+    > div
+    select:first-of-type {
+    grid-column: 1 / -1;
+  }
+
+  #content:has(> #form input[name="select"]) > #form #fieldset-select select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #content:has(> #form input[name="select"]) > #form > fieldset:last-of-type {
+    position: sticky;
+    z-index: 5;
+    bottom: 0;
+    height: auto !important;
+    min-height: 0 !important;
+    margin-top: 0;
+    padding: 10px 0 0;
+    border: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    background:
+      linear-gradient(180deg, var(--surface-glass-transparent), var(--surface-glass-strong) 10px),
+      var(--surface-glass-strong);
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:last-of-type
+    legend {
+    display: none;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:last-of-type
+    > div {
+    display: block;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    input[type="submit"][value="Select"] {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #content:has(> #form input[name="select"]) > #form > fieldset:nth-of-type(4),
+  #content:has(> #form input[name="select"]) > #form > fieldset:nth-of-type(5) {
+    display: block;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 2px;
+  }
+
+  #content:has(> #form input[name="select"]) > #form > fieldset:nth-of-type(4) {
+    padding-left: 48px;
+  }
+
+  #content:has(> #form input[name="select"]) > #form > fieldset:nth-of-type(5) {
+    padding-left: 88px;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(4)
+    legend,
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(5)
+    legend {
+    position: absolute;
+    top: 50%;
+    left: 8px;
+    width: auto;
+    max-width: none;
+    transform: translateY(-50%);
+    color: var(--foreground);
+    line-height: 1.25;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(4)
+    > div,
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(5)
+    > div {
+    display: flex;
+    height: 100%;
+    align-items: center;
+    min-width: 0;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(4)
+    input,
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(5)
+    input {
+    width: auto;
+    min-width: 46px;
+    max-width: none;
+    height: 28px;
+    min-height: 28px;
+    padding: 0 8px;
+    appearance: textfield;
+    field-sizing: content;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(4)
+    input::-webkit-inner-spin-button,
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(4)
+    input::-webkit-outer-spin-button,
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(5)
+    input::-webkit-inner-spin-button,
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(5)
+    input::-webkit-outer-spin-button {
+    margin: 0;
+    -webkit-appearance: none;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form
+    > fieldset:nth-of-type(5)
+    input {
+    min-width: 52px;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form:has(> fieldset:nth-of-type(1) > div.hidden):has(
+      > fieldset:nth-of-type(2) > div.hidden
+    ):has(> fieldset:nth-of-type(3) > div.hidden)
+    > fieldset:nth-of-type(4),
+  #content:has(> #form input[name="select"])
+    > #form:has(> fieldset:nth-of-type(1) > div.hidden):has(
+      > fieldset:nth-of-type(2) > div.hidden
+    ):has(> fieldset:nth-of-type(3) > div.hidden)
+    > fieldset:nth-of-type(5) {
+    width: auto;
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form:has(> fieldset:nth-of-type(1) > div.hidden):has(
+      > fieldset:nth-of-type(2) > div.hidden
+    ):has(> fieldset:nth-of-type(3) > div.hidden)
+    > fieldset:nth-of-type(4)
+    legend,
+  #content:has(> #form input[name="select"])
+    > #form:has(> fieldset:nth-of-type(1) > div.hidden):has(
+      > fieldset:nth-of-type(2) > div.hidden
+    ):has(> fieldset:nth-of-type(3) > div.hidden)
+    > fieldset:nth-of-type(5)
+    legend {
+    width: auto;
+    max-width: none;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form:has(> fieldset:nth-of-type(1) > div.hidden):has(
+      > fieldset:nth-of-type(2) > div.hidden
+    ):has(> fieldset:nth-of-type(3) > div.hidden)
+    > fieldset:nth-of-type(4)
+    input {
+    min-width: 46px !important;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form:has(> fieldset:nth-of-type(1) > div.hidden):has(
+      > fieldset:nth-of-type(2) > div.hidden
+    ):has(> fieldset:nth-of-type(3) > div.hidden)
+    > fieldset:nth-of-type(5)
+    input {
+    min-width: 52px !important;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form:has(> fieldset:nth-of-type(1) > div.hidden):has(
+      > fieldset:nth-of-type(2) > div.hidden
+    ):has(> fieldset:nth-of-type(3) > div.hidden)
+    > fieldset:nth-of-type(4) {
+    width: auto;
+    min-width: 98px;
+    flex-basis: auto;
+    padding-left: 48px;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form:has(> fieldset:nth-of-type(1) > div.hidden):has(
+      > fieldset:nth-of-type(2) > div.hidden
+    ):has(> fieldset:nth-of-type(3) > div.hidden)
+    > fieldset:nth-of-type(4)
+    legend {
+    width: auto;
+    max-width: none;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form:has(> fieldset:nth-of-type(1) > div.hidden):has(
+      > fieldset:nth-of-type(2) > div.hidden
+    ):has(> fieldset:nth-of-type(3) > div.hidden)
+    > fieldset:nth-of-type(5) {
+    width: auto;
+    min-width: 144px;
+    flex-basis: auto;
+    padding-left: 88px;
+  }
+
+  #content:has(> #form input[name="select"])
+    > #form:has(> fieldset:nth-of-type(1) > div.hidden):has(
+      > fieldset:nth-of-type(2) > div.hidden
+    ):has(> fieldset:nth-of-type(3) > div.hidden)
+    > fieldset:nth-of-type(5)
+    legend {
+    width: auto;
+    max-width: none;
+  }
+}
+
+@media (max-width: 760px) {
+  #content:has(> #form input[name="select"]) > #form {
+    max-height: clamp(280px, calc(100svh - 360px), 560px);
+  }
+
+  #content:has(> #form input[name="select"]) > #form + p {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 4px;
+    align-items: center;
+    margin: 10px 0 8px;
+  }
+
+  #content:has(> #form input[name="select"]) > #form + p > code {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #content:has(> #form input[name="select"]) > #form + p > .time {
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  #content:has(> #form input[name="select"]) > #form + p > a:last-child {
+    display: inline-flex;
+    min-height: 28px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--card);
+    color: var(--foreground);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+  }
+}
+
+@media (max-width: 760px) and (min-height: 761px) {
+  #content:has(> #form input[name="select"]) > #form {
+    max-height: none;
+    overflow: visible !important;
+  }
+
+  #content:has(> #form input[name="select"]) > #form > fieldset:last-of-type {
+    position: static;
+    margin-top: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+}
+
+#form:has(#edit-fields) {
+  display: block;
+  width: 100%;
+}
+
+#form:has(#edit-fields) > p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--control-gap);
+  align-items: center;
+  width: 100%;
+  margin: 12px 0;
+}
+
+#form:has(#edit-fields) > p:first-child {
+  margin-top: 0;
+}
+
+#form:has(#edit-fields) > p input.size,
+#form:has(#edit-fields) > p input[type="number"] {
+  width: 76px;
+  min-width: 76px;
+}
+
+#form:has(#edit-fields) > p label {
+  min-height: 34px;
+  gap: 8px;
+}
+
+#form:has(#edit-fields) > fieldset {
+  display: block;
+  width: min(100%, 420px);
+  margin: 12px 0;
+}
+
+#form:has(#edit-fields) > fieldset:has(> div.hidden) {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+#form:has(#edit-fields) > fieldset:has(> div.hidden) legend {
+  position: static;
+  max-width: none;
+  overflow: visible;
+}
+
+#form:has(#edit-fields) > fieldset:has(> div.hidden) legend a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+#form:has(#edit-fields) > fieldset:has(> div.hidden) legend a:hover {
+  background: var(--accent);
+}
+
+#form:has(#edit-fields) > fieldset:has(> div:not(.hidden)) legend,
+#form:has(#edit-fields) > fieldset:has(> div:not(.hidden)) legend a {
+  color: var(--foreground) !important;
+}
+
+#form:has(#edit-fields) > fieldset > div > p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--control-gap);
+  align-items: center;
+  margin: 0;
+}
+
+#form:has(#edit-fields) > fieldset select,
+#form:has(#edit-fields)
+  > fieldset
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
+  min-width: 0;
+}
+
+#form:has(#edit-fields) > fieldset input[name="partition"] {
+  width: 180px;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+input,
+select,
+textarea {
+  max-width: 100%;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  outline: none;
+}
+
+select {
+  appearance: none;
+  min-height: 34px;
+  padding: 0 34px 0 10px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 15px) 50%,
+    calc(100% - 10px) 50%;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+}
+
+input:not([type]),
+input[type="email"],
+input[type="file"],
+input[type="number"],
+input[type="password"],
+input[type="search"],
+input[type="text"],
+input[type="url"] {
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+textarea {
+  min-height: 92px;
+  padding: 10px 12px;
+  resize: vertical;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px rgb(161 161 170 / 0.24);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted-foreground);
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  margin: 0;
+  border: 1px solid var(--control-border-strong);
+  background: var(--card);
+  color: var(--primary-foreground);
+  vertical-align: middle;
+}
+
+input[type="checkbox"] {
+  border-radius: 4px;
+}
+
+input[type="radio"] {
+  border-radius: 999px;
+}
+
+input[type="checkbox"]::before {
+  width: 10px;
+  height: 8px;
+  background: var(--primary-foreground);
+  clip-path: polygon(14% 44%, 0 62%, 40% 100%, 100% 18%, 82% 0, 37% 62%);
+  transform: scale(0);
+  transition: transform 120ms ease;
+  content: "";
+}
+
+input[type="radio"]::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--primary-foreground);
+  transform: scale(0);
+  transition: transform 120ms ease;
+  content: "";
+}
+
+input[type="checkbox"]:checked,
+input[type="radio"]:checked {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+
+input[type="checkbox"]:checked {
+  background: var(--primary);
+}
+
+input[type="radio"]:checked {
+  background:
+    radial-gradient(
+      circle at center,
+      var(--primary-foreground) 0 3px,
+      transparent 3.5px
+    ),
+    var(--primary);
+}
+
+input[type="checkbox"]:checked::before,
+input[type="radio"]:checked::before {
+  transform: scale(1);
+}
+
+input[type="file"] {
+  min-height: 34px;
+  padding: 0;
+  overflow: hidden;
+}
+
+input[type="file"]::file-selector-button {
+  min-height: 32px;
+  margin: 0 10px 0 0;
+  padding: 0 12px;
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: var(--file-button);
+  color: var(--foreground);
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+input[type="submit"],
+input[type="button"],
+input[type="reset"],
+button,
+.button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm);
+  background: var(--secondary) !important;
+  color: var(--secondary-foreground) !important;
+  font-weight: 550;
+  line-height: 1;
+  text-decoration: none;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+input[type="submit"]:focus,
+input[type="button"]:focus,
+input[type="reset"]:focus,
+button:focus,
+.button:focus {
+  border-color: var(--border) !important;
+  outline: none;
+  box-shadow: none;
+}
+
+input[type="submit"]:focus-visible,
+input[type="button"]:focus-visible,
+input[type="reset"]:focus-visible,
+button:focus-visible,
+.button:focus-visible {
+  outline: 2px solid rgb(161 161 170 / 0.5);
+  outline-offset: 2px;
+}
+
+input[type="submit"]:hover,
+input[type="button"]:hover,
+input[type="reset"]:hover,
+button:hover,
+.button:hover {
+  background: var(--control-hover) !important;
+  text-decoration: none;
+}
+
+input[value="Search"],
+input[value="Select"],
+input[value="Execute"],
+input[value="Login"],
+input[value="Save"],
+input[name="save"],
+input[name="insert"] {
+  border-color: transparent !important;
+  background: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+
+input[value="Search"]:hover,
+input[value="Select"]:hover,
+input[value="Execute"]:hover,
+input[value="Login"]:hover,
+input[value="Save"]:hover,
+input[name="save"]:hover,
+input[name="insert"]:hover {
+  background: var(--primary-hover) !important;
+}
+
+input[name="drop"],
+input[name="truncate"],
+input[name="delete"],
+input[value="Delete"],
+button[name*="drop"] {
+  border-color: rgb(239 68 68 / 0.45) !important;
+  background: rgb(239 68 68 / 0.08) !important;
+  color: var(--destructive) !important;
+}
+
+.error input[type="submit"] {
+  background: var(--destructive) !important;
+  color: var(--destructive-foreground) !important;
+}
+
+input[name="drop"]:hover,
+input[name="truncate"]:hover,
+input[name="delete"]:hover,
+input[value="Delete"]:hover,
+button[name*="drop"]:hover,
+input[name="drop"]:focus-visible,
+input[name="truncate"]:focus-visible,
+input[name="delete"]:focus-visible,
+input[value="Delete"]:focus-visible,
+button[name*="drop"]:focus-visible {
+  border-color: var(--destructive) !important;
+  background: var(--destructive-hover) !important;
+  color: var(--destructive-foreground) !important;
+}
+
+input.hidden,
+.hidden {
+  display: none !important;
+}
+
+.block {
+  display: block;
+}
+
+.wayoff {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  border: 0 !important;
+}
+
+.scrollable {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+form:has(#table) .scrollable {
+  max-height: max(320px, calc(100vh - 470px));
+  margin-bottom: var(--group-gap);
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+form:has(#table) .footer {
+  min-height: 70px;
+  overflow: hidden;
+}
+
+.scrollable table {
+  width: max-content;
+  min-width: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  box-shadow: none;
+}
+
+.scrollable:has(
+  > table:not(.checkable):not(#table):not(#edit-fields):not(.layout)
+) {
+  display: inline-block;
+  max-width: 100%;
+}
+
+.scrollable > table:not(.checkable):not(#table):not(#edit-fields):not(.layout) {
+  min-width: 0;
+}
+
+table {
+  width: auto;
+  max-width: 100%;
+  margin: 12px 0 18px;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+table.layout,
+table#edit-fields {
+  width: 100%;
+}
+
+td,
+th,
+.js .column {
+  padding: 9px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  background: transparent;
+  vertical-align: middle;
+}
+
+tr > :last-child {
+  border-right: 0;
+}
+
+tbody tr:last-child > td,
+tbody tr:last-child > th,
+table > tr:last-child > td,
+table > tr:last-child > th {
+  border-bottom: 0;
+}
+
+.scrollable tbody tr:last-child > td,
+.scrollable tbody tr:last-child > th,
+.scrollable table > tr:last-child > td,
+.scrollable table > tr:last-child > th {
+  border-bottom: 1px solid var(--border);
+}
+
+thead td,
+thead th,
+table:not(.layout) > tbody:first-child > tr:first-child > th,
+table:not(.layout) > tbody:first-child > tr:first-child > td {
+  background: var(--secondary);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.scrollable thead td,
+.scrollable thead th,
+.scrollable table:not(.layout) > tbody:first-child > tr:first-child > th,
+.scrollable table:not(.layout) > tbody:first-child > tr:first-child > td,
+.scrollable table > tr:first-child > th,
+.scrollable table > tr:first-child > td {
+  position: sticky;
+  z-index: 4;
+  top: 0;
+  background: var(--secondary) !important;
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
+.scrollable thead td:hover,
+.scrollable thead th:hover {
+  z-index: 170;
+}
+
+tbody tr:nth-child(odd),
+table tr:nth-child(odd) {
+  background: var(--table-row) !important;
+}
+
+.odds tbody tr:nth-child(2n),
+tbody tr:nth-child(even),
+table tr:nth-child(even) {
+  background: var(--table-row-alt) !important;
+}
+
+table tr:hover {
+  background: var(--table-row-hover) !important;
+}
+
+tbody tr:nth-child(odd) > td,
+tbody tr:nth-child(odd) > th,
+table tr:nth-child(odd) > td,
+table tr:nth-child(odd) > th {
+  background: var(--table-row) !important;
+}
+
+.odds tbody tr:nth-child(2n) > td,
+.odds tbody tr:nth-child(2n) > th,
+tbody tr:nth-child(even) > td,
+tbody tr:nth-child(even) > th,
+table tr:nth-child(even) > td,
+table tr:nth-child(even) > th {
+  background: var(--table-row-alt) !important;
+}
+
+table tr:hover > td,
+table tr:hover > th {
+  background: var(--table-row-hover) !important;
+}
+
+#table tr:has(input[type="checkbox"]:checked) > td,
+#table tr:has(input[type="checkbox"]:checked) > th {
+  background: var(--accent) !important;
+  box-shadow: inset 0 1px 0 var(--subtle-inset);
+  color: var(--foreground);
+}
+
+#table tr:has(input[type="checkbox"]:checked) > td:first-child,
+#table tr:has(input[type="checkbox"]:checked) > th:first-child {
+  box-shadow:
+    inset 3px 0 0 var(--primary),
+    inset 0 1px 0 var(--subtle-inset);
+}
+
+th {
+  color: var(--foreground);
+  font-weight: 650;
+  text-align: left;
+}
+
+table.nowrap thead th label.jsonly,
+table.nowrap thead td label.jsonly {
+  display: inline-flex;
+  width: auto;
+  min-height: 18px;
+  gap: 5px;
+  align-items: center;
+  margin: 0 0 0 4px;
+  vertical-align: middle;
+  line-height: 18px;
+}
+
+table.nowrap thead th label.jsonly input[type="checkbox"],
+table.nowrap thead td label.jsonly input[type="checkbox"] {
+  flex: 0 0 16px;
+  margin: 0;
+}
+
+table:has(input[name="options"]) th:nth-child(3) {
+  min-width: 430px;
+}
+
+table:has(input[name="options"]) th:nth-child(3) label.jsonly {
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+  color: var(--muted-foreground);
+}
+
+table:has(input[name="options"]) td:nth-child(3) {
+  min-width: 430px;
+}
+
+table:has(input[name="options"]) td:nth-child(3) > span {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  margin: 2px 10px 2px 0;
+  vertical-align: middle;
+}
+
+table:has(input[name="options"]) td:nth-child(3) > span select {
+  width: 180px;
+  min-width: 180px;
+}
+
+table:has(input[name="options"]) td:nth-child(3) > span .idxopts {
+  display: inline-flex;
+  align-items: center;
+}
+
+table:has(input[name="options"]) td:nth-child(3) > span .idxopts label {
+  display: inline-flex;
+  min-height: 32px;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+table:has(input[name="options"]) td:nth-child(3) > span .idxopts input {
+  flex: 0 0 16px;
+  margin: 0;
+}
+
+td {
+  color: var(--muted-foreground);
+}
+
+td a,
+th a {
+  color: var(--foreground);
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.checkable td:first-child,
+.checkable th:first-child {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.checkable td:first-child input[type="checkbox"],
+.checkable th:first-child input[type="checkbox"],
+table td:first-child > input[type="checkbox"],
+table th:first-child > input[type="checkbox"] {
+  display: inline-grid;
+  margin: 0;
+  vertical-align: middle;
+}
+
+.scrollable table:not(.layout):not(#edit-fields) tr > :first-child {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background: inherit !important;
+  box-shadow: inset -1px 0 0 var(--border);
+  white-space: nowrap;
+}
+
+.scrollable table:not(.layout):not(#edit-fields) thead tr > :first-child,
+.scrollable
+  table:not(.layout):not(#edit-fields)
+  > tbody:first-child
+  > tr:first-child
+  > :first-child,
+.scrollable
+  table:not(.layout):not(#edit-fields)
+  > tr:first-child
+  > :first-child {
+  z-index: 8;
+  background: var(--secondary) !important;
+}
+
+#table.checkable td:first-child,
+#table.checkable th:first-child {
+  min-width: 78px;
+  text-align: left;
+}
+
+#table.checkable tr:has(input[type="checkbox"]:checked) > td:first-child,
+#table.checkable tr:has(input[type="checkbox"]:checked) > th:first-child {
+  box-shadow:
+    inset 3px 0 0 var(--primary),
+    inset -1px 0 0 var(--border),
+    inset 0 1px 0 var(--subtle-inset);
+}
+
+#table.checkable td:first-child input[type="checkbox"],
+#table.checkable th:first-child input[type="checkbox"] {
+  margin-right: var(--control-gap);
+}
+
+#table thead th > a:hover,
+#table thead td > a:hover,
+#table thead th:hover > a,
+#table thead td:hover > a {
+  color: var(--foreground) !important;
+  text-decoration: none !important;
+}
+
+#table thead th,
+#table thead td {
+  text-align: left;
+}
+
+#table td,
+#table th {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 12px;
+  padding-block: 6px;
+  padding-inline: 12px;
+}
+
+table.layout th {
+  width: 190px;
+  color: var(--foreground);
+}
+
+table.layout {
+  width: 100%;
+  border: 0;
+  border-spacing: 0 8px;
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
+}
+
+table.layout tr,
+table.layout tbody tr:nth-child(odd),
+table.layout tbody tr:nth-child(even),
+table.layout tr:nth-child(odd),
+table.layout tr:nth-child(even) {
+  background: var(--card) !important;
+}
+
+table.layout tr:hover,
+table.layout tr:hover > td,
+table.layout tr:hover > th {
+  background: var(--accent) !important;
+}
+
+table.layout th,
+table.layout td {
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-right: 0;
+  vertical-align: top;
+}
+
+table.layout th {
+  border-left: 1px solid var(--border);
+  border-radius: var(--radius) 0 0 var(--radius);
+  background: var(--secondary) !important;
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+table.layout td:last-child {
+  border-right: 1px solid var(--border);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+table.layout td.function {
+  background: var(--code) !important;
+}
+
+table.layout td,
+table.layout th,
+#edit-fields td,
+#edit-fields th {
+  background: transparent !important;
+}
+
+table.layout th {
+  background: var(--secondary) !important;
+}
+
+table.layout td.function {
+  background: var(--code) !important;
+}
+
+table.layout td.function {
+  width: 112px;
+  text-align: center;
+}
+
+table.layout td.function select {
+  width: 96px;
+  min-width: 96px;
+}
+
+table.layout textarea {
+  width: min(100%, 820px);
+  height: 96px;
+  min-height: 96px;
+}
+
+table.layout td label,
+table.layout th label {
+  display: inline-flex;
+  min-height: 28px;
+  gap: 7px;
+  align-items: center;
+  margin: 0 12px 6px 0;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+table.layout label.block {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  margin: 0;
+}
+
+table.layout td select + label,
+table.layout td label + label {
+  margin-left: 2px;
+}
+
+form:has(input[name="output"]) > table:not(.layout) {
+  width: min(100%, 1120px);
+  min-width: 520px;
+  margin: 0;
+}
+
+form:has(input[name="output"]) > table:not(.layout) th,
+form:has(input[name="output"]) > table:not(.layout) td {
+  padding: 12px 14px;
+}
+
+form:has(input[name="output"]) > table:not(.layout) label.block {
+  display: inline-flex;
+  width: 100%;
+  min-height: 34px;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 0;
+  white-space: nowrap;
+}
+
+form:has(input[name="output"])
+  > table:not(.layout)
+  td[align="right"]
+  label.block {
+  justify-content: flex-end;
+}
+
+form:has(input[name="output"]) {
+  display: grid;
+  width: min(100%, 1120px);
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+form:has(input[name="output"]) > table.layout {
+  display: grid;
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  grid-template-columns: repeat(2, minmax(340px, 1fr));
+  gap: 12px;
+  box-shadow: none;
+}
+
+form:has(input[name="output"]) > table.layout > tbody {
+  display: contents;
+}
+
+form:has(input[name="output"]) > table.layout tr {
+  display: grid;
+  min-height: 82px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card) !important;
+  gap: 14px;
+  grid-template-columns: 88px minmax(0, 1fr);
+}
+
+form:has(input[name="output"]) > table.layout tr:nth-child(5) {
+  grid-column: 1 / -1;
+  grid-template-columns: 88px minmax(220px, 320px) 1fr;
+}
+
+form:has(input[name="output"]) > table.layout tr:hover,
+form:has(input[name="output"]) > table.layout tr:hover > th,
+form:has(input[name="output"]) > table.layout tr:hover > td {
+  background: var(--accent) !important;
+}
+
+form:has(input[name="output"]) > table.layout th,
+form:has(input[name="output"]) > table.layout td {
+  display: flex;
+  width: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  align-items: center;
+  background: transparent !important;
+}
+
+form:has(input[name="output"]) > table.layout th {
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+form:has(input[name="output"]) > table.layout td {
+  min-width: 0;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+form:has(input[name="output"]) > table.layout td label {
+  min-height: 34px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--code);
+  color: var(--muted-foreground);
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    color 120ms ease;
+}
+
+form:has(input[name="output"]) > table.layout td label:has(input:checked) {
+  border-color: var(--control-border-strong);
+  background: var(--secondary);
+  color: var(--foreground);
+}
+
+form:has(input[name="output"]) > table.layout td label:hover {
+  border-color: var(--control-border-strong);
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+form:has(input[name="output"]) > table.layout input[type="radio"],
+form:has(input[name="output"]) > table.layout input[type="checkbox"] {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+form:has(input[name="output"]) > table.layout select {
+  width: auto;
+  min-width: 148px;
+  max-width: 100%;
+}
+
+form:has(input[name="output"]) > p {
+  display: flex;
+  width: min(100%, 1120px);
+  min-height: 56px;
+  align-items: center;
+  justify-content: flex-end;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+form:has(input[name="output"]) > p input[type="submit"] {
+  min-width: 148px;
+  border-color: var(--primary) !important;
+  background: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+
+#content form:has(input[name="output"]) > table:not(.layout),
+#content form:has(input[name="output"]) > p {
+  width: 100%;
+  justify-self: stretch;
+}
+
+#content form:has(input[name="output"]) > p {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  justify-content: flex-end;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+#content form:has(input[name="output"]) > p input[type="submit"] {
+  min-width: 148px;
+  border-color: var(--primary) !important;
+  background: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+
+form:has(input[name="output"])
+  > table:not(.layout):has(input[name="tables[]"]) {
+  overflow: hidden;
+  border-color: var(--border);
+  background: var(--card);
+}
+
+form:has(input[name="output"])
+  > table:not(.layout):has(input[name="tables[]"])
+  th {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  background: var(--secondary) !important;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 650;
+  text-transform: uppercase;
+}
+
+form:has(input[name="output"])
+  > table:not(.layout):has(input[name="tables[]"])
+  th,
+form:has(input[name="output"])
+  > table:not(.layout):has(input[name="tables[]"])
+  td {
+  border-right: 1px solid var(--border);
+}
+
+form:has(input[name="output"])
+  > table:not(.layout):has(input[name="tables[]"])
+  tr
+  > :last-child {
+  width: 240px;
+  border-right: 0;
+}
+
+form:has(input[name="output"])
+  > table:not(.layout):has(input[name="tables[]"])
+  tbody
+  tr {
+  background: var(--card) !important;
+}
+
+form:has(input[name="output"])
+  > table:not(.layout):has(input[name="tables[]"])
+  tbody
+  tr:has(input[type="checkbox"]:checked)
+  > td {
+  background: rgb(31 111 235 / 0.04) !important;
+}
+
+form:has(input[name="output"])
+  > table:not(.layout):has(input[name="tables[]"])
+  tbody
+  tr:hover
+  > td {
+  background: var(--table-row-hover) !important;
+}
+
+form:has(input[name="output"])
+  > table:not(.layout):has(input[name="tables[]"])
+  td:first-child
+  label.block {
+  justify-content: flex-start;
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+
+form:has(input[name="output"])
+  > table:not(.layout):has(input[name="tables[]"])
+  td:first-child
+  label.block:has(input:checked) {
+  color: var(--foreground);
+}
+
+form:has(input[name="output"])
+  > table:not(.layout):has(input[name="tables[]"])
+  td[align="right"]
+  label.block {
+  justify-content: space-between;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+form:has(input[name="output"])
+  > table:not(.layout):has(input[name="tables[]"])
+  td[align="right"]
+  span {
+  margin-left: auto;
+}
+
+@media (max-width: 1280px) {
+  form:has(input[name="output"]) > table.layout {
+    grid-template-columns: 1fr;
+  }
+
+  form:has(input[name="output"]) > table.layout tr:nth-child(5) {
+    grid-column: auto;
+  }
+}
+
+table.layout
+  td:not(.function)
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+table.layout td:not(.function) textarea {
+  width: min(100%, 820px);
+}
+
+table.layout input[name="auth[server]"] {
+  width: min(100%, 560px);
+}
+
+#form:has([name^="fields["]) > table.layout {
+  table-layout: fixed;
+}
+
+#form:has([name^="fields["]) > table.layout th,
+#form:has([name^="fields["]) > table.layout td {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+#form:has([name^="fields["])
+  > table.layout
+  td:not(.function)
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+#form:has([name^="fields["])
+  > table.layout
+  td:not(.function)
+  > textarea:not(.jush):not(.jush-js):not(.jush-pgsql):not(.sqlarea) {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  margin: 0;
+}
+
+#form:has([name^="fields["])
+  > table.layout
+  td:not(.function)
+  > textarea:not(.jush):not(.jush-js):not(.jush-pgsql):not(.sqlarea) {
+  height: auto;
+  max-height: 220px;
+  min-height: 34px;
+  padding: 7px 10px;
+  field-sizing: content;
+  line-height: 18px;
+  resize: vertical;
+}
+
+#form:has([name^="fields["]) > table.layout td:not(.function) > pre.jush {
+  box-sizing: border-box;
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 34px;
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+}
+
+@media (min-width: 761px) {
+  #content:has(> form input[name="auth[server]"]) {
+    display: grid;
+    grid-template-columns: minmax(0, 560px);
+    grid-auto-rows: max-content;
+    gap: 18px;
+    align-content: center;
+    justify-content: center;
+    padding-top: 64px;
+    padding-bottom: 64px;
+  }
+
+  #content:has(> form input[name="auth[server]"]) > h2,
+  #content:has(> form input[name="auth[server]"]) > form {
+    width: 100%;
+    max-width: none;
+  }
+
+  #content:has(> form input[name="auth[server]"]) > h2 {
+    margin: 0;
+  }
+}
+
+form:has(input[name="auth[server]"]) {
+  width: min(100%, 560px);
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+form:has(input[name="auth[server]"]) table.layout {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-spacing: 0;
+  background: transparent;
+}
+
+form:has(input[name="auth[server]"]) table.layout tr,
+form:has(input[name="auth[server]"]) table.layout tbody tr:nth-child(odd),
+form:has(input[name="auth[server]"]) table.layout tbody tr:nth-child(even) {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin: 0 0 12px;
+  background: transparent !important;
+}
+
+form:has(input[name="auth[server]"]) table.layout tr:hover,
+form:has(input[name="auth[server]"]) table.layout tr:hover > td,
+form:has(input[name="auth[server]"]) table.layout tr:hover > th {
+  background: transparent !important;
+}
+
+form:has(input[name="auth[server]"]) table.layout th,
+form:has(input[name="auth[server]"]) table.layout td {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent !important;
+}
+
+form:has(input[name="auth[server]"]) table.layout th {
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+}
+
+form:has(input[name="auth[server]"])
+  input:not([type="checkbox"]):not([type="hidden"]),
+form:has(input[name="auth[server]"]) select {
+  width: 100%;
+  min-width: 0;
+}
+
+form:has(input[name="auth[server]"]) > p {
+  display: flex;
+  gap: var(--control-gap);
+  align-items: center;
+  margin: 14px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+form:has(input[name="auth[server]"]) > p label {
+  display: inline-flex;
+  min-height: 34px;
+  gap: 8px;
+  align-items: center;
+}
+
+#edit-fields th,
+#edit-fields td {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+#edit-fields {
+  min-width: 1180px;
+  table-layout: fixed;
+}
+
+#form:has(#label-default:not(.hidden)) #edit-fields {
+  min-width: 1240px;
+}
+
+#form:has(#label-comment:not(.hidden)) #edit-fields {
+  min-width: 1460px;
+}
+
+#form:has(#label-default:not(.hidden)) #edit-fields tr > :nth-child(1),
+#form:has(#label-comment:not(.hidden)) #edit-fields tr > :nth-child(1) {
+  width: 260px;
+}
+
+#form:has(#label-default:not(.hidden)) #edit-fields tr > :nth-child(2),
+#form:has(#label-comment:not(.hidden)) #edit-fields tr > :nth-child(2) {
+  width: 180px;
+}
+
+#form:has(#label-default:not(.hidden)) #edit-fields tr > :nth-child(3),
+#form:has(#label-comment:not(.hidden)) #edit-fields tr > :nth-child(3) {
+  width: 110px;
+}
+
+#form:has(#label-default:not(.hidden)) #edit-fields tr > :nth-child(4),
+#form:has(#label-comment:not(.hidden)) #edit-fields tr > :nth-child(4) {
+  width: 170px;
+}
+
+#form:has(#label-default:not(.hidden)) #edit-fields tr > :nth-child(5),
+#form:has(#label-comment:not(.hidden)) #edit-fields tr > :nth-child(5),
+#form:has(#label-default:not(.hidden)) #edit-fields tr > :nth-child(9),
+#form:has(#label-comment:not(.hidden)) #edit-fields tr > :nth-child(9) {
+  width: 72px;
+}
+
+#form:has(#label-default:not(.hidden)) #edit-fields tr > :nth-child(6),
+#form:has(#label-comment:not(.hidden)) #edit-fields tr > :nth-child(6) {
+  width: 82px;
+}
+
+#form:has(#label-default:not(.hidden)) #edit-fields tr > :nth-child(7),
+#form:has(#label-comment:not(.hidden)) #edit-fields tr > :nth-child(7) {
+  width: 240px;
+  text-align: left;
+}
+
+#form:has(#label-comment:not(.hidden)) #edit-fields tr > :nth-child(8) {
+  width: 220px;
+}
+
+#edit-fields tr > :nth-child(7):not(.hidden) select {
+  width: 76px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+#edit-fields
+  tr
+  > :nth-child(7):not(.hidden)
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
+  width: calc(100% - 88px);
+  min-width: 108px;
+  vertical-align: middle;
+}
+
+#edit-fields
+  tr
+  > :nth-child(8):not(.hidden)
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
+  width: 100%;
+}
+
+#edit-fields th:first-child,
+#edit-fields td:first-child {
+  width: 260px;
+  min-width: 260px;
+  max-width: 260px;
+}
+
+#edit-fields th:first-child {
+  text-align: center;
+}
+
+#edit-fields td:nth-child(2) {
+  width: 18%;
+}
+
+#edit-fields td:nth-child(3) {
+  width: 12%;
+}
+
+#edit-fields td:nth-child(4) {
+  width: 20%;
+}
+
+#edit-fields td:nth-child(5),
+#edit-fields td:nth-child(6),
+#edit-fields td:nth-child(9),
+#edit-fields td:last-child {
+  width: 72px;
+  text-align: center;
+}
+
+#edit-fields td:nth-child(5) input,
+#edit-fields td:nth-child(6) input,
+#edit-fields td:nth-child(9) button,
+#edit-fields td:last-child button {
+  margin-inline: auto !important;
+}
+
+#edit-fields tr:first-child td:nth-child(6) {
+  text-align: center;
+  white-space: nowrap;
+}
+
+#edit-fields tr:first-child td:nth-child(6) input[type="radio"] {
+  margin: 0 6px 0 0 !important;
+  vertical-align: -3px;
+}
+
+#edit-fields
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+#edit-fields select,
+#edit-fields textarea {
+  width: 100%;
+  min-width: 0;
+}
+
+#edit-fields input[type="checkbox"],
+#edit-fields input[type="radio"] {
+  display: inline-grid;
+  margin: 0 auto;
+}
+
+#form:has(#edit-fields) .scrollable {
+  scrollbar-gutter: stable both-edges;
+  background:
+    linear-gradient(90deg, transparent calc(100% - 42px), var(--table-edge-fade)),
+    var(--card);
+}
+
+#edit-fields tr > :last-child {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  background: var(--card) !important;
+  box-shadow:
+    -12px 0 18px rgb(17 19 21 / 0.12),
+    inset 1px 0 0 var(--border);
+}
+
+#edit-fields thead tr > :last-child,
+#edit-fields tr:first-child > :last-child {
+  z-index: 7;
+  background: var(--secondary) !important;
+}
+
+#form:has(#edit-fields) > fieldset:has(> #fieldset-partition:not(.hidden)) {
+  width: min(100%, 650px);
+}
+
+#fieldset-partition > p {
+  display: grid !important;
+  width: 100%;
+  gap: 8px;
+  align-items: center;
+  grid-template-columns:
+    180px auto minmax(180px, 220px) auto
+    minmax(76px, 100px);
+  justify-content: start;
+  margin: 0;
+  white-space: nowrap;
+}
+
+#fieldset-partition > p select {
+  width: 100%;
+  min-width: 0;
+}
+
+#fieldset-partition > p input[name="partition"] {
+  width: 100%;
+  min-width: 120px;
+}
+
+#fieldset-partition > p input[name="partitions"] {
+  width: 100%;
+  min-width: 0;
+}
+
+form:has(select[name^="indexes"]) thead th label.jsonly {
+  display: inline-flex;
+  min-height: 20px;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 0 10px;
+  color: var(--muted-foreground);
+  vertical-align: middle;
+}
+
+form:has(select[name^="indexes"]) thead th label.jsonly input[type="checkbox"] {
+  flex: 0 0 auto;
+  margin: 0 !important;
+}
+
+#form:has(textarea[name="definition"]) {
+  display: grid;
+  width: min(100%, 1040px);
+  gap: 10px;
+}
+
+#form:has(textarea[name="definition"]) > p:first-child {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) auto minmax(120px, 170px) auto;
+  gap: var(--control-gap);
+  align-items: center;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+#form:has(textarea[name="definition"]) > p:first-child label {
+  display: contents;
+}
+
+#form:has(textarea[name="definition"]) > p:first-child input[name="name"],
+#form:has(textarea[name="definition"]) > p:first-child select[name="language"] {
+  width: 100%;
+  min-width: 0;
+}
+
+#form:has(textarea[name="definition"]) > p:first-child input[type="submit"] {
+  min-width: 72px;
+}
+
+#form:has(textarea[name="definition"]) > .scrollable {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+}
+
+#form:has(textarea[name="definition"]) > p:has(.sqlarea) {
+  margin: 0;
+}
+
+#form:has(textarea[name="definition"]) > p:last-of-type:not(:first-child) {
+  margin: 0;
+}
+
+#form:has(textarea[name="definition"]) > p:last-of-type > input[type="submit"] {
+  min-width: 104px;
+}
+
+.message,
+.error {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 12px 0 18px;
+  padding: 10px 12px 10px 14px;
+  border: 0;
+  border-left: 2px solid var(--border);
+  border-radius: 0;
+  background: linear-gradient(
+    90deg,
+    rgb(255 255 255 / 0.035),
+    rgb(255 255 255 / 0.012) 42%,
+    transparent
+  );
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  box-shadow: none;
+}
+
+.message {
+  border-left-color: rgb(161 161 170 / 0.55);
+  color: var(--muted-foreground);
+}
+
+#menu .message {
+  margin: 8px 0 0;
+  padding: 10px 12px 10px 14px;
+  border: 0;
+  border-left: 2px solid rgb(161 161 170 / 0.55);
+  background: linear-gradient(
+    90deg,
+    rgb(255 255 255 / 0.035),
+    rgb(255 255 255 / 0.012) 42%,
+    transparent
+  );
+  color: var(--muted-foreground);
+}
+
+.error {
+  border-left-color: rgb(239 68 68 / 0.7);
+  background: linear-gradient(
+    90deg,
+    rgb(239 68 68 / 0.12),
+    rgb(239 68 68 / 0.04) 42%,
+    transparent
+  );
+  color: var(--destructive);
+}
+
+.footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  max-width: 1320px;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-glass);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+
+.footer > div {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 10px 12px;
+  align-items: stretch;
+  min-height: 68px;
+  padding: 8px 12px 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: transparent;
+  scrollbar-gutter: stable;
+}
+
+.footer fieldset {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 4px var(--control-gap);
+  align-content: flex-start;
+  align-items: center;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0 12px 0 0;
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.footer fieldset:last-child {
+  padding-right: 0;
+  border-right: 0;
+}
+
+.footer fieldset:has(input[name="move"]) {
+  padding-right: 0;
+  border-right: 0;
+}
+
+.footer fieldset:has(input[name="drop"]) {
+  row-gap: 0;
+}
+
+.footer fieldset:has(input[name="drop"]) > div {
+  margin-top: 6px;
+}
+
+.footer fieldset:has(> div) {
+  display: flex;
+}
+
+.footer fieldset > div {
+  display: flex;
+  gap: var(--control-gap);
+  align-items: center;
+}
+
+.footer legend {
+  position: static;
+  flex: 0 0 100%;
+  top: auto;
+  left: auto;
+  max-width: none;
+  padding: 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.footer fieldset:first-child {
+  gap: 4px;
+}
+
+.footer fieldset:first-child a:not(:first-child),
+.footer fieldset:first-child strong,
+.footer fieldset:first-child .page-current {
+  display: inline-flex;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.footer fieldset:first-child .page-current {
+  background: rgb(31 111 235 / 0.08);
+}
+
+.footer fieldset:first-child a:not(:first-child):hover {
+  background: var(--accent);
+}
+
+.footer label {
+  display: inline-flex;
+  min-height: 34px;
+  gap: 6px;
+  align-items: center;
+}
+
+.footer a {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+}
+
+.footer fieldset:has(> div.hidden) legend {
+  flex-basis: auto;
+}
+
+.footer fieldset:has(> div.hidden) legend a {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  font-size: 12px;
+  font-weight: 550;
+  text-decoration: none;
+}
+
+.footer fieldset:has(> div.hidden) legend a:hover {
+  background: var(--control-hover);
+}
+
+.footer fieldset:has(> #fieldset-export) {
+  width: max-content;
+  min-width: 0;
+  padding-right: 0;
+  border-right: 0;
+}
+
+.footer fieldset:has(> #fieldset-export) legend {
+  flex: 0 0 100%;
+}
+
+.footer fieldset:has(> #fieldset-export) legend a {
+  min-height: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.footer fieldset:has(> #fieldset-export) legend a:hover {
+  background: transparent;
+}
+
+.footer #fieldset-export.hidden {
+  display: flex !important;
+}
+
+.footer #fieldset-export {
+  flex-wrap: nowrap;
+}
+
+.footer #fieldset-export select {
+  width: 82px;
+  min-width: 82px;
+}
+
+.footer #fieldset-export input[type="submit"] {
+  min-width: 82px;
+}
+
+#content > table + script + p.links,
+#content > .scrollable + script + p.links,
+#content > form:has(.footer) + script + p.links {
+  margin-top: 18px;
+}
+
+#content > p:has(input[type="file"]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--control-gap);
+  align-items: center;
+  max-width: 1320px;
+  margin: 14px 0 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-glass);
+}
+
+#content > p:has(input[type="file"]) input[type="file"] {
+  width: min(100%, 360px);
+}
+
+form:has(#table) > p:has(a.loadmore) {
+  margin: 0 0 var(--group-gap);
+}
+
+form:has(#table) > p:has(a.loadmore) a.loadmore,
+form:has(#table) > p:has(a[href="#import"]) > a[href="#import"] {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  font-weight: 550;
+  text-decoration: none;
+}
+
+form:has(#table) > p:has(a.loadmore) a.loadmore:hover,
+form:has(#table) > p:has(a[href="#import"]) > a[href="#import"]:hover {
+  background: var(--control-hover);
+}
+
+form:has(#table) > p:has(a[href="#import"]) {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 8px 12px;
+  align-items: center;
+  margin: 14px 0 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-glass);
+}
+
+form:has(#table) > p:has(a[href="#import"]) > script {
+  display: none;
+}
+
+form:has(#table) > p:has(a[href="#import"]) #import:not(.hidden) {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: var(--control-gap);
+  align-items: center;
+  min-width: 0;
+  font-size: 0;
+}
+
+form:has(#table) > p:has(a[href="#import"]) #import:not(.hidden) > * {
+  font-size: 13px;
+}
+
+form:has(#table) > p:has(a[href="#import"]) input[type="file"] {
+  width: min(100%, 420px);
+}
+
+#form:has(input[name="sql_file[]"]) {
+  display: grid !important;
+  grid-template-columns: minmax(0, 420px) minmax(0, 420px);
+  gap: 12px;
+  align-items: start;
+  max-width: 960px;
+}
+
+#form:has(input[name="sql_file[]"]) fieldset {
+  display: grid !important;
+  width: auto !important;
+  height: auto !important;
+  min-height: 154px !important;
+  margin: 0;
+  padding: 40px 14px 14px;
+}
+
+#form:has(input[name="sql_file[]"]) fieldset > div {
+  display: grid;
+  gap: var(--control-gap);
+  align-content: start;
+}
+
+#form:has(input[name="sql_file[]"]) input[type="file"],
+#form:has(input[name="sql_file[]"])
+  input:not([type="checkbox"]):not([type="hidden"]) {
+  width: 100%;
+  min-width: 0;
+}
+
+#form:has(input[name="sql_file[]"]) > p {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--control-gap);
+  align-items: center;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+#form:has(input[name="sql_file[]"]) > p label {
+  display: inline-flex;
+  min-height: 34px;
+  gap: 8px;
+  align-items: center;
+}
+
+code,
+pre,
+.jush,
+.sqlarea {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+}
+
+code {
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--code);
+  color: var(--foreground);
+}
+
+#content > pre[id^="sql-"] {
+  margin: 14px 0 10px;
+}
+
+#content > .scrollable + form {
+  margin-top: 12px;
+}
+
+#content > .scrollable + form > p.sql-footer {
+  display: flex;
+  min-height: 34px;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+#content > .scrollable + form > p.sql-footer .time {
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+
+#content > .scrollable + form > p.sql-footer a {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--secondary);
+  color: var(--foreground);
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  box-shadow: none;
+}
+
+#content > .scrollable + form > p.sql-footer a[href^="#"] {
+  margin-left: -15px;
+}
+
+#content > .scrollable + form > p.sql-footer a:hover,
+#content > .scrollable + form > p.sql-footer a:focus-visible {
+  border-color: var(--control-border-strong);
+  background: var(--secondary);
+  color: var(--foreground);
+}
+
+#content > .scrollable + form > p.sql-footer span[id^="export-"]:not(.hidden) {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: 2px;
+}
+
+#content > .scrollable + form > p.sql-footer span[id^="export-"] select {
+  min-height: 32px;
+}
+
+.sqlarea {
+  width: min(100%, 980px);
+  min-height: 360px;
+  border-radius: var(--radius);
+  background: var(--code);
+}
+
+#form:has(.sqlarea) {
+  width: min(100%, 1040px);
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+#content #form:has(.sqlarea) > p {
+  margin: 0 !important;
+}
+
+#content #form:has(.sqlarea):not(:has(textarea[name="definition"]))
+  > p:first-child {
+  display: block;
+}
+
+#content #form:has(textarea[name="definition"]) > p:first-child {
+  display: grid;
+  grid-template-columns:
+    auto minmax(220px, 1fr) auto minmax(120px, 160px)
+    auto;
+  gap: var(--control-gap);
+  align-items: center;
+  margin: 0 !important;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+#content #form:has(textarea[name="definition"]) > p:first-child label {
+  display: contents;
+}
+
+#content #form:has(textarea[name="definition"])
+  > p:first-child
+  input[name="name"],
+#content #form:has(textarea[name="definition"])
+  > p:first-child
+  select[name="language"] {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
+
+#content #form:has(.sqlarea) > p + p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  align-items: center;
+  min-height: 38px;
+  margin-top: 10px !important;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 34px;
+}
+
+#form:has(.sqlarea) .sqlarea {
+  display: block;
+  width: 100%;
+  margin: 0 !important;
+  min-height: 390px;
+  border-color: var(--border);
+  background: var(--card);
+}
+
+#form:has(.sqlarea) input[name="limit"] {
+  width: 74px;
+  height: 34px;
+  min-height: 34px;
+  margin-left: 2px;
+  padding: 0 10px;
+}
+
+#form:has(.sqlarea) label {
+  display: inline-flex;
+  min-height: 34px;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+#content #form:has(.sqlarea) > p + p br {
+  display: none;
+}
+
+#content #form:has(.sqlarea) > p + p > input[type="submit"],
+#content #form:has(.sqlarea) > p + p > a {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--secondary);
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+}
+
+#content #form:has(.sqlarea) > p + p > input[type="submit"] {
+  min-width: 104px;
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+#content #form:has(.sqlarea) > p + p > a {
+  min-width: 84px;
+}
+
+#content #form:has(.sqlarea) > p + p > a:hover,
+#content #form:has(.sqlarea) > p + p > a:focus-visible {
+  border-color: var(--control-border-strong);
+  background: var(--secondary);
+  color: var(--foreground);
+}
+
+textarea.jush,
+textarea.jush-js,
+textarea.jush-pgsql,
+textarea.sqlarea,
+pre.jush,
+pre.sqlarea {
+  border: 1px solid var(--border) !important;
+  background: var(--code) !important;
+  color: var(--foreground) !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.jush-autocomplete {
+  padding: 4px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm) !important;
+  background: var(--popover) !important;
+  color: var(--foreground) !important;
+  box-shadow: 0 10px 24px rgb(17 19 21 / 0.12) !important;
+}
+
+.jush-autocomplete option {
+  padding: 3px 8px;
+  background: var(--popover);
+  color: var(--foreground);
+}
+
+.jush {
+  --text-color: var(--foreground);
+  --bg-color: var(--code);
+  --php-color: var(--foreground);
+  --string-color: #137333;
+  --string-plain-color: #137333;
+  --keyword-color: #1f6feb;
+  --identifier-color: #b42318;
+  --value-color: #6f42c1;
+  --number-color: #0a7f8f;
+  --attribute-color: #0f766e;
+  --js-bg-color: var(--code);
+  --css-bg-color: var(--code);
+  --php-bg-color: var(--code);
+  --php-sql-bg-color: var(--card);
+}
+
+#help {
+  z-index: 80;
+  max-width: 340px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  font-size: 12px;
+  line-height: 1.45;
+  box-shadow: var(--shadow);
+}
+
+th {
+  position: relative;
+}
+
+.js .column {
+  position: absolute;
+  z-index: 220;
+  top: 50%;
+  right: 6px;
+  left: auto;
+  display: inline-flex;
+  min-width: max-content;
+  gap: 1px;
+  align-items: center;
+  min-height: 24px;
+  padding: 1px !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card) !important;
+  color: var(--popover-foreground);
+  transform: translateY(-50%);
+  box-shadow: 0 6px 14px rgb(0 0 0 / 0.24);
+  margin: 0 !important;
+  pointer-events: auto;
+}
+
+.js .column::before {
+  display: none;
+  content: none;
+}
+
+.js .column::after {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  left: -8px;
+  width: 8px;
+  content: "";
+}
+
+.js .column a {
+  position: relative;
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 5px;
+  color: var(--foreground);
+  font-size: 0;
+  font-weight: 650;
+  line-height: 1;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.js .column a::before {
+  display: block;
+  width: 11px;
+  height: 11px;
+  background: currentColor;
+  content: "";
+}
+
+.js .column a[title="ascending"]::before {
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 19V5'/%3E%3Cpath d='m5 12 7-7 7 7'/%3E%3C/svg%3E")
+    center / 11px 11px no-repeat;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 19V5'/%3E%3Cpath d='m5 12 7-7 7 7'/%3E%3C/svg%3E")
+    center / 11px 11px no-repeat;
+}
+
+.js .column a[title="descending"]::before {
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14'/%3E%3Cpath d='m19 12-7 7-7-7'/%3E%3C/svg%3E")
+    center / 11px 11px no-repeat;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14'/%3E%3Cpath d='m19 12-7 7-7-7'/%3E%3C/svg%3E")
+    center / 11px 11px no-repeat;
+}
+
+.js .column a[title="Search"]::before {
+  width: 11px;
+  height: 11px;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.7' stroke-linecap='round'%3E%3Cpath d='M5 9h14'/%3E%3Cpath d='M5 15h14'/%3E%3C/svg%3E")
+    center / 11px 11px no-repeat;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.7' stroke-linecap='round'%3E%3Cpath d='M5 9h14'/%3E%3Cpath d='M5 15h14'/%3E%3C/svg%3E")
+    center / 11px 11px no-repeat;
+}
+
+.js .column a:hover {
+  background: var(--accent);
+}
+
+#schema {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  align-content: start;
+  gap: 10px;
+  width: 100%;
+  max-width: 1320px;
+  height: calc(100vh - 150px) !important;
+  max-height: none;
+  min-height: 560px;
+  margin: 0 0 8px;
+  padding: 10px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+#schema .table {
+  position: static !important;
+  min-width: 190px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--muted-foreground);
+  line-height: 1.65;
+}
+
+#schema .table a {
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+#schema .table b {
+  color: var(--foreground);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+#schema .table span {
+  color: var(--foreground) !important;
+}
+
+#schema .table span.char {
+  color: #86a99a !important;
+}
+
+#schema .table span[title*="timestamp"],
+#schema .table span[title*="date"],
+#schema .table span[title*="time"] {
+  color: #a78bba !important;
+}
+
+#schema .table span[title*="integer"],
+#schema .table span[title*="numeric"],
+#schema .table span[title*="real"],
+#schema .table span[title*="double"],
+#schema .table span[title*="money"],
+#schema .table span[title*="boolean"] {
+  color: #8fb8c5 !important;
+}
+
+#content:has(#schema) > p:not(#breadcrumb) {
+  margin-top: 8px;
+}
+
+@supports (left: anchor(right)) and (anchor-name: --adminer-column-title) {
+  #table thead th,
+  #table thead td {
+    anchor-scope: --adminer-column-title;
+  }
+
+  #table thead th > a,
+  #table thead td > a {
+    display: inline-block;
+    anchor-name: --adminer-column-title;
+  }
+
+  #table thead th > .column,
+  #table thead td > .column {
+    position-anchor: --adminer-column-title;
+    top: anchor(center);
+    right: auto;
+    left: anchor(right);
+    margin-left: 6px !important;
+  }
+}
+
+.icon {
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0 !important;
+}
+
+.icon span {
+  display: inline-block;
+  font-size: 12px;
+}
+
+@media (max-width: 1040px) {
+  body {
+    min-width: 0;
+  }
+
+  #foot {
+    width: 270px;
+  }
+
+  #content {
+    margin-left: 270px;
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  #breadcrumb {
+    left: 270px;
+    padding-right: 146px;
+    padding-left: 18px;
+  }
+}
+
+@media (max-width: 760px) {
+  body {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  #menuopen {
+    display: none !important;
+  }
+
+  #foot,
+  #foot.foot {
+    position: relative !important;
+    z-index: 30;
+    inset: auto !important;
+    order: -1;
+    display: block;
+    width: 100%;
+    max-width: none;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    border-right: 0;
+    border-bottom: 1px solid var(--sidebar-border);
+    background: var(--sidebar);
+    box-shadow: none;
+    pointer-events: auto;
+  }
+
+  #foot.foot {
+    border-bottom: 1px solid var(--sidebar-border);
+  }
+
+  #menu {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+    width: 100%;
+    height: auto;
+    max-height: none;
+    padding: 7px 10px 8px;
+    overflow: visible;
+  }
+
+  #foot.foot #menu {
+    display: grid;
+    width: 100%;
+    height: auto;
+    padding: 7px 10px 8px;
+    overflow: visible;
+  }
+
+  #menu h1 {
+    min-height: 28px;
+    margin: 0;
+    padding: 0;
+    font-size: 13px;
+  }
+
+  #menu h1 .version {
+    display: none;
+  }
+
+  #menu > form:has(#lang) {
+    display: block;
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    width: 116px;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  #lang,
+  #foot.foot #lang {
+    position: static !important;
+    width: 116px !important;
+    height: 28px;
+    display: block;
+    pointer-events: auto;
+  }
+
+  #lang select {
+    min-height: 28px;
+    height: 28px;
+    line-height: 28px;
+  }
+
+  #menu > form:has(#dbs) {
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+
+  #dbs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  #dbs label {
+    margin: 0;
+  }
+
+  #dbs label::before {
+    height: 14px;
+    margin: 0 2px 2px;
+    font-size: 11px;
+    line-height: 14px;
+  }
+
+  #dbs select {
+    min-height: 30px;
+    height: 30px;
+  }
+
+  #menu .links {
+    position: static;
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+  }
+
+  #menu .links a {
+    min-height: 28px;
+    justify-content: center;
+    padding: 0 6px;
+    font-size: 11px;
+    text-align: center;
+  }
+
+  #tables,
+  #logins {
+    grid-column: 1 / -1;
+    display: flex;
+    flex: 0 0 auto;
+    min-height: 0;
+    gap: 6px;
+    padding: 0 0 2px;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-gutter: auto;
+  }
+
+  #tables::before,
+  #logins::before {
+    flex: 0 0 auto;
+    height: 28px;
+    margin: 0;
+    line-height: 28px;
+  }
+
+  #tables li,
+  #logins li {
+    flex: 0 0 auto;
+    width: auto;
+    height: 28px;
+    min-height: 28px;
+    max-height: 28px;
+    margin: 0;
+    padding: 4px 8px;
+    contain: layout style;
+  }
+
+  #tables a.structure,
+  #logins a {
+    max-width: 150px;
+    height: 20px;
+    min-height: 20px;
+    padding: 0;
+    line-height: 20px;
+  }
+
+  #tables a.structure::after {
+    display: none;
+  }
+
+  #tables a.select {
+    inset: 0;
+  }
+
+  #menu .message {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 10px 12px;
+  }
+
+  #foot > form {
+    display: none !important;
+  }
+
+  .logout {
+    display: none !important;
+  }
+
+  .logout span {
+    display: none;
+  }
+
+  .logout input[type="submit"] {
+    min-height: 28px;
+    padding: 0 9px !important;
+    font-size: 11px;
+  }
+
+  #content {
+    order: 0;
+    margin-left: 0;
+    padding: 18px 12px 36px;
+    overflow-x: hidden;
+  }
+
+  #breadcrumb {
+    position: sticky;
+    left: 0;
+    padding: 0 136px 0 12px;
+  }
+
+  #tables li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  #form:has([name^="fields["]) > table.layout,
+  #form:has([name^="fields["]) > table.layout > tbody,
+  #form:has([name^="fields["]) > table.layout tr,
+  #form:has([name^="fields["]) > table.layout th,
+  #form:has([name^="fields["]) > table.layout td {
+    display: block;
+  }
+
+  #form:has([name^="fields["]) > table.layout {
+    border-spacing: 0;
+  }
+
+  #form:has([name^="fields["]) > table.layout tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(96px, auto);
+    gap: 10px 8px;
+    margin: 0 0 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--card) !important;
+  }
+
+  #form:has([name^="fields["]) > table.layout tr:hover,
+  #form:has([name^="fields["]) > table.layout tr:hover > th,
+  #form:has([name^="fields["]) > table.layout tr:hover > td {
+    background: var(--card) !important;
+  }
+
+  #form:has([name^="fields["]) > table.layout th,
+  #form:has([name^="fields["]) > table.layout td {
+    width: auto !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+
+  #form:has([name^="fields["]) > table.layout th {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+  }
+
+  #form:has([name^="fields["]) > table.layout td.function {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    text-align: right;
+  }
+
+  #form:has([name^="fields["]) > table.layout td.function select {
+    width: 100%;
+    min-width: 96px;
+  }
+
+  #form:has([name^="fields["]) > table.layout td:not(.function) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  #form:has([name^="fields["])
+    > table.layout
+    td:not(.function)
+    input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+  #form:has([name^="fields["])
+    > table.layout
+    td:not(.function)
+    > textarea:not(.jush):not(.jush-js):not(.jush-pgsql):not(.sqlarea) {
+    width: 100%;
+  }
+
+  #form:has([name^="fields["])
+    > table.layout
+    td:not(.function)
+    > textarea:not(.jush):not(.jush-js):not(.jush-pgsql):not(.sqlarea) {
+    height: auto;
+    min-height: 34px;
+  }
+
+  form:has(input[name="output"]) > table.layout tr,
+  form:has(input[name="output"]) > table.layout tr:nth-child(5) {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    min-height: 0;
+    padding: 14px;
+  }
+
+  form:has(input[name="output"]) > table.layout th,
+  form:has(input[name="output"]) > table.layout td {
+    justify-content: flex-start;
+  }
+
+  form:has(input[name="output"]) > table.layout td label {
+    min-width: 0;
+  }
+
+  form:has(input[name="output"]) > table.layout select {
+    width: 100%;
+  }
+
+  form:has(input[name="output"]) > p {
+    justify-content: stretch;
+  }
+
+  form:has(input[name="output"]) > p input[type="submit"] {
+    width: 100%;
+  }
+
+  form:has(input[name="output"]) > table:not(.layout) {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+  }
+
+  form:has(input[name="output"]) > table:not(.layout) > tbody {
+    display: table;
+    width: 100%;
+    min-width: 100%;
+  }
+
+  form:has(input[name="output"]) > table:not(.layout) th,
+  form:has(input[name="output"]) > table:not(.layout) td {
+    min-width: 0;
+    white-space: normal;
+  }
+
+  form:has(input[name="output"])
+    > table:not(.layout):has(input[name="tables[]"])
+    tr
+    > :last-child {
+    width: auto;
+    min-width: 116px;
+  }
+
+  form:has(input[name="output"]) > table:not(.layout) label.block {
+    white-space: normal;
+  }
+
+  #content > table.odds {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  #content > table.odds > tbody {
+    display: table;
+    width: 100%;
+    min-width: 100%;
+  }
+
+  #form:has(input[name="sql_file[]"]) {
+    grid-template-columns: 1fr;
+  }
+
+  #form:has(input[name="sql_file[]"]) fieldset {
+    min-height: 0 !important;
+  }
+
+  #form:has(input[name="sql_file[]"]) > p {
+    grid-column: auto;
+  }
+}
