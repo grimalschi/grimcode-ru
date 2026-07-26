@@ -347,6 +347,22 @@ describe('the public site', () => {
 
     expect(body).toMatch(/Disallow: \/app\//);
     expect(body).toMatch(/Disallow: \/admin\//);
+    // The sitemap has to be named by its full address, which is why this file is generated.
+    expect(body).toMatch(new RegExp(`Sitemap: ${BASE_URL}/sitemap\\.xml`));
+  });
+
+  it('offers a sitemap of the public pages and nothing behind sign-in', async () => {
+    const response = await fetch(`${BASE_URL}/sitemap.xml`);
+    const body = await response.text();
+
+    expect(response.headers.get('content-type')).toMatch(/application\/xml/);
+    expect(body).toContain(`<loc>${BASE_URL}/</loc>`);
+    expect(body).toContain(`<loc>${BASE_URL}/about</loc>`);
+
+    // Placeholders and protected areas stay out until they have something to say.
+    expect(body).not.toContain('/legal/');
+    expect(body).not.toContain('/app/');
+    expect(body).not.toContain('/admin');
   });
 });
 
