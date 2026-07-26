@@ -61,27 +61,6 @@ export const notificationEventSchema = z.discriminatedUnion('type', [
 
 export type NotificationEvent = z.infer<typeof notificationEventSchema>;
 
-/**
- * Whether an event may be turned off by the person receiving it.
- *
- * `account` messages are about the account itself — confirming an address, recovering a password,
- * being told the address changed. They are always sent: a person who could switch off the notice
- * that their email was changed would lose the one signal that someone else took their account.
- *
- * `product` messages are everything a product decides to say. They are sent only to people whose
- * `productEmails` preference allows it.
- *
- * Every event the template ships is `account`. The first product message a project adds is governed
- * by this the moment it is listed here, without touching Notifications.
- */
-export const NOTIFICATION_EVENT_CATEGORY: Record<NotificationEventType, 'account' | 'product'> = {
-  'auth.user.registered': 'account',
-  'auth.email.verification_requested': 'account',
-  'auth.password.reset_requested': 'account',
-  'auth.email.change_requested': 'account',
-  'auth.email.changed': 'account',
-};
-
 /** Template key each event is routed to in Email. */
 export const EVENT_TEMPLATE_KEYS: Record<NotificationEventType, string> = {
   'auth.user.registered': 'auth-welcome',
@@ -96,8 +75,7 @@ export const storedNotificationEventSchema = z.object({
   type: z.enum(NOTIFICATION_EVENT_TYPES),
   dedupeKey: z.string().min(1).max(200),
   recipientEmail: emailSchema,
-  /** `suppressed` means the recipient's preferences told Notifications not to send this. */
-  status: z.enum(['accepted', 'routed', 'failed', 'suppressed']),
+  status: z.enum(['accepted', 'routed', 'failed']),
   error: z.string().max(1000).nullable(),
   deliveryId: idSchema.nullable(),
   createdAt: isoDateTimeSchema,
@@ -125,7 +103,7 @@ export const notificationsAdminContract = {
     .input(
       paginationInputSchema.extend({
         type: z.enum(NOTIFICATION_EVENT_TYPES).optional(),
-        status: z.enum(['accepted', 'routed', 'failed', 'suppressed']).optional(),
+        status: z.enum(['accepted', 'routed', 'failed']).optional(),
       }),
     )
     .output(pageOf(storedNotificationEventSchema)),

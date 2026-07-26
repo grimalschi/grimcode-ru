@@ -2,56 +2,18 @@ import { ORPCError } from '@orpc/client';
 import { implement } from '@orpc/server';
 import {
   EVENT_TEMPLATE_KEYS,
-  NOTIFICATION_EVENT_CATEGORY,
   notificationsAdminContract,
   notificationsInternalContract,
   type AdminContext,
   type ContractRouterClient,
   type emailInternalContract,
   type NotificationEvent,
-  type usersInternalContract,
 } from '@template/contracts';
 import { createRpcClient, internalServiceUrl, REQUEST_ID_HEADER, type Logger } from '@template/shared';
 
 import type { EventRow, NotificationsRepository } from './repository.js';
 
 type EmailClient = ContractRouterClient<typeof emailInternalContract>;
-type UsersClient = ContractRouterClient<typeof usersInternalContract>;
-
-/**
- * Whether this person wants to hear about this.
- *
- * Account messages are always sent — someone who could switch off the notice that their address
- * changed would lose the one signal that another person took their account. Everything else is
- * sent only if their preferences allow it.
- *
- * A profile that cannot be read is treated as consent: the alternative is silently dropping mail
- * because another service was briefly unavailable, and a person who never asked to be silenced
- * would simply stop hearing from the product.
- */
-async function mayReceive(
-  event: NotificationEvent,
-  requestId: string,
-  logger: Logger,
-): Promise<boolean> {
-  if (NOTIFICATION_EVENT_CATEGORY[event.type] === 'account') return true;
-
-  try {
-    const users = createRpcClient<UsersClient>({
-      url: `${internalServiceUrl('users')}/internal/rpc`,
-      headers: { [REQUEST_ID_HEADER]: requestId },
-    });
-
-    const { profile } = await users.getProfileByIdentityId({
-      identityId: event.recipient.identityId,
-    });
-
-    return profile?.preferences.productEmails ?? true;
-  } catch (error) {
-    logger.error('could not read the recipient’s preferences; sending anyway', { error });
-    return true;
-  }
-}
 
 export interface InternalContext {
   repo: NotificationsRepository;
@@ -107,11 +69,6 @@ export const internalRouter = internalOs.router({
     if (!created) {
       context.logger.info('event already accepted, not routed again', { dedupeKey });
       return { ok: true as const, eventId: row.id, deduplicated: true };
-    }
-
-    if (!(await mayReceive(event, context.requestId, context.logger))) {
-      await context.repo.markSuppressed(row.id, 'The recipient has product email switched off.');
-      return { ok: true as const, eventId: row.id, deduplicated: false };
     }
 
     const templateKey = EVENT_TEMPLATE_KEYS[event.type];

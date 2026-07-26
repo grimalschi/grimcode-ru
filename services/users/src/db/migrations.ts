@@ -44,4 +44,17 @@ export const migrations: readonly Migration[] = [
       ALTER TABLE profiles DROP COLUMN onboarding_completed_at;
     `,
   },
+  {
+    version: 4,
+    name: 'reduce-profile-to-name-and-locale',
+    sql: `
+      -- The template's profile is a display name, and a locale Email needs to pick a template
+      -- version. A theme the application never read, a time zone nothing set and an email
+      -- preference nothing could switch are not a starting point — they are three things every
+      -- project would delete before adding its own.
+      ALTER TABLE profiles DROP COLUMN theme;
+      ALTER TABLE profiles DROP COLUMN product_emails;
+      ALTER TABLE profiles DROP COLUMN time_zone;
+    `,
+  },
 ];

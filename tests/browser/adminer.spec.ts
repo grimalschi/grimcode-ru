@@ -14,7 +14,13 @@ import { signIn } from './support.js';
 const DARK_BACKGROUND_MAX = 90;
 const LIGHT_BACKGROUND_MIN = 200;
 
-/** Average channel value of the element's own background colour. */
+/**
+ * Average channel value of the element's own background colour.
+ *
+ * Read through `expect.poll` by every caller: clicking a link inside Adminer starts a navigation,
+ * and a measurement taken while it is in flight fails with a destroyed execution context. Polling
+ * retries until the new page is the one being measured.
+ */
 async function backgroundBrightness(frame: FrameLocator, selector: string): Promise<number> {
   return frame.locator(selector).first().evaluate((element) => {
     const colour = getComputedStyle(element).backgroundColor;
@@ -60,29 +66,27 @@ test.describe('the database interface', () => {
     const frame = await openAdminer(page, 'dark');
 
     // The database overview.
-    expect(await backgroundBrightness(frame, 'body')).toBeLessThan(DARK_BACKGROUND_MAX);
+    await expect.poll(() => backgroundBrightness(frame, 'body')).toBeLessThan(DARK_BACKGROUND_MAX);
 
     // A table listing inside one database.
     await frame.getByRole('link', { name: /_email$/ }).click();
-    await expect(frame.locator('#content')).toBeVisible();
-    await expect.poll(() => frame.locator('html').getAttribute('data-theme')).toBe('dark');
-    expect(await backgroundBrightness(frame, 'body')).toBeLessThan(DARK_BACKGROUND_MAX);
+    await expect(frame.getByRole('link', { name: 'deliveries', exact: true }).first()).toBeVisible();
+    await expect.poll(() => backgroundBrightness(frame, 'body')).toBeLessThan(DARK_BACKGROUND_MAX);
 
     // And the rows of a table, which Adminer styles separately.
     await frame.getByRole('link', { name: 'deliveries', exact: true }).first().click();
     await expect(frame.locator('#content')).toBeVisible();
-    expect(await backgroundBrightness(frame, 'body')).toBeLessThan(DARK_BACKGROUND_MAX);
+    await expect.poll(() => backgroundBrightness(frame, 'body')).toBeLessThan(DARK_BACKGROUND_MAX);
   });
 
   test('follows it back into the light theme', async ({ page }) => {
     await signIn(page);
     const frame = await openAdminer(page, 'light');
 
-    expect(await backgroundBrightness(frame, 'body')).toBeGreaterThan(LIGHT_BACKGROUND_MIN);
+    await expect.poll(() => backgroundBrightness(frame, 'body')).toBeGreaterThan(LIGHT_BACKGROUND_MIN);
 
     await frame.getByRole('link', { name: /_auth$/ }).click();
-    await expect(frame.locator('#content')).toBeVisible();
-    await expect.poll(() => frame.locator('html').getAttribute('data-theme')).toBe('light');
-    expect(await backgroundBrightness(frame, 'body')).toBeGreaterThan(LIGHT_BACKGROUND_MIN);
+    await expect(frame.getByRole('link', { name: 'identities', exact: true }).first()).toBeVisible();
+    await expect.poll(() => backgroundBrightness(frame, 'body')).toBeGreaterThan(LIGHT_BACKGROUND_MIN);
   });
 });

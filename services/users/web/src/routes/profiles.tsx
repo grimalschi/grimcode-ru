@@ -5,7 +5,6 @@ import type { z } from 'zod';
 import { api } from '@/api';
 import { AdminPage, ErrorState } from '@/components/layout/admin-page';
 import { DataTable, Pagination } from '@/components/layout/data-table';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -25,9 +24,9 @@ const LIMIT = 25;
 /**
  * Product profiles.
  *
- * This is who a person is inside the product — their name, language, time zone and preferences —
- * and nothing about how they sign in. Passwords, sessions and admin rights live in Auth and Admin,
- * and are neither shown nor editable here.
+ * This is who a person is inside the product — a display name, and the language Email uses to pick
+ * a template version. Passwords, sessions and admin rights live in Auth and Admin, and are neither
+ * shown nor editable here.
  *
  * The sign-in address is not stored here either: Users asks Auth for it, in one call for the page.
  */
@@ -100,11 +99,6 @@ export function ProfilesPage() {
             ),
           },
           {
-            key: 'locale',
-            header: 'Language',
-            cell: (row) => <Badge variant="outline">{row.preferences.locale}</Badge>,
-          },
-          {
             key: 'created',
             header: 'Joined',
             className: 'whitespace-nowrap',
@@ -158,13 +152,7 @@ function ProfileDialog({ profile, onClose }: { profile: Profile | null; onClose:
             <code className="text-xs break-all">{profile.id}</code>
           </dd>
           <dt className="text-muted-foreground">Language</dt>
-          <dd>{profile.preferences.locale}</dd>
-          <dt className="text-muted-foreground">Theme</dt>
-          <dd>{profile.preferences.theme}</dd>
-          <dt className="text-muted-foreground">Product email</dt>
-          <dd>{profile.preferences.productEmails ? 'Wanted' : 'Switched off'}</dd>
-          <dt className="text-muted-foreground">Time zone</dt>
-          <dd>{profile.timeZone ?? '—'}</dd>
+          <dd>{profile.locale}</dd>
           <dt className="text-muted-foreground">Joined</dt>
           <dd>{new Date(profile.createdAt).toLocaleString()}</dd>
         </dl>

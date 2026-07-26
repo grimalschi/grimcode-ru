@@ -9,15 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAsync } from '@/hooks/use-async';
 import { useSession } from '@/session';
@@ -59,14 +51,12 @@ export function SettingsScreen() {
 function ProfileSection() {
   const state = useAsync<{ profile: UserProfile }>(() => users.getOwnProfile({}), []);
   const [displayName, setDisplayName] = React.useState('');
-  const [locale, setLocale] = React.useState('en');
   const [prefilled, setPrefilled] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
 
   React.useEffect(() => {
     if (prefilled || !state.data) return;
     setDisplayName(state.data.profile.displayName ?? '');
-    setLocale(state.data.profile.preferences.locale);
     setPrefilled(true);
   }, [prefilled, state.data]);
 
@@ -77,8 +67,7 @@ function ProfileSection() {
       await users.updateOwnProfile({
         displayName: displayName.trim() === '' ? null : displayName.trim(),
       });
-      await users.updateOwnPreferences({ locale });
-      toast.success('Profile saved');
+      toast.success('Saved');
       state.reload();
     } catch (error) {
       toast.error(messageOf(error));
@@ -87,74 +76,30 @@ function ProfileSection() {
     }
   };
 
-  const setProductEmails = async (productEmails: boolean) => {
-    try {
-      await users.updateOwnPreferences({ productEmails });
-      state.reload();
-    } catch (error) {
-      toast.error(messageOf(error));
-    }
-  };
-
-  if (state.loading) return <Skeleton className="h-64 w-full" />;
-
-  const preferences = state.data?.profile.preferences;
+  if (state.loading) return <Skeleton className="h-48 w-full" />;
 
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Profile</CardTitle>
-          <CardDescription>How you appear inside the product.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={save} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="displayName">Display name</Label>
-              <Input
-                id="displayName"
-                value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="locale">Language</Label>
-              <Select value={locale} onValueChange={setLocale}>
-                <SelectTrigger id="locale">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="en">en</SelectItem>
-                  <SelectItem value="ru">ru</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button type="submit" disabled={busy}>
-              Save
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Email preferences</CardTitle>
-          <CardDescription>
-            Confirming your address, recovering your password and notices about your account are
-            always sent — switching those off would remove the warning that someone else took it.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <label className="flex items-center justify-between gap-4 text-sm">
-            <span>News and product updates</span>
-            <Switch
-              checked={preferences?.productEmails ?? true}
-              onCheckedChange={(value) => void setProductEmails(value)}
+    <Card>
+      <CardHeader>
+        <CardTitle>Profile</CardTitle>
+        <CardDescription>How you appear inside the product.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={save} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="displayName">Display name</Label>
+            <Input
+              id="displayName"
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
             />
-          </label>
-        </CardContent>
-      </Card>
-    </>
+          </div>
+          <Button type="submit" disabled={busy}>
+            Save
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 

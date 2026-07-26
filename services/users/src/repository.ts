@@ -5,17 +5,13 @@ export interface ProfileRow {
   id: string;
   identity_id: string;
   display_name: string | null;
-  time_zone: string | null;
   locale: string;
-  theme: 'light' | 'dark' | 'system';
-  product_emails: boolean;
   created_at: Date;
   updated_at: Date;
 }
 
 const COLUMNS = `
-  id, identity_id, display_name, time_zone, locale, theme, product_emails,
-  created_at, updated_at
+  id, identity_id, display_name, locale, created_at, updated_at
 `;
 
 export function toProfile(row: ProfileRow): UserProfile {
@@ -23,12 +19,7 @@ export function toProfile(row: ProfileRow): UserProfile {
     id: row.id,
     identityId: row.identity_id,
     displayName: row.display_name,
-    timeZone: row.time_zone,
-    preferences: {
-      locale: row.locale,
-      theme: row.theme,
-      productEmails: row.product_emails,
-    },
+    locale: row.locale,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -70,37 +61,12 @@ export class UsersRepository {
     return row;
   }
 
-  async updateProfile(
-    identityId: string,
-    patch: { displayName?: string | null; timeZone?: string | null },
-  ): Promise<ProfileRow> {
+  /** `null` clears the name; the column is nullable because a person need not have one. */
+  async updateProfile(identityId: string, displayName: string | null): Promise<ProfileRow> {
     const { rows } = await this.pool.query<ProfileRow>(
-      `UPDATE profiles
-          SET display_name = COALESCE($2, display_name),
-              time_zone    = COALESCE($3, time_zone),
-              updated_at   = now()
-        WHERE identity_id = $1
-      RETURNING ${COLUMNS}`,
-      [identityId, patch.displayName ?? null, patch.timeZone ?? null],
-    );
-    const row = rows[0];
-    if (!row) throw new Error('Profile not found');
-    return row;
-  }
-
-  async updatePreferences(
-    identityId: string,
-    patch: { locale?: string; theme?: 'light' | 'dark' | 'system'; productEmails?: boolean },
-  ): Promise<ProfileRow> {
-    const { rows } = await this.pool.query<ProfileRow>(
-      `UPDATE profiles
-          SET locale         = COALESCE($2, locale),
-              theme          = COALESCE($3, theme),
-              product_emails = COALESCE($4, product_emails),
-              updated_at     = now()
-        WHERE identity_id = $1
-      RETURNING ${COLUMNS}`,
-      [identityId, patch.locale ?? null, patch.theme ?? null, patch.productEmails ?? null],
+      `UPDATE profiles SET display_name = $2, updated_at = now()
+        WHERE identity_id = $1 RETURNING ${COLUMNS}`,
+      [identityId, displayName],
     );
     const row = rows[0];
     if (!row) throw new Error('Profile not found');

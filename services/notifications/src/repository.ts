@@ -71,17 +71,6 @@ export class NotificationsRepository {
     );
   }
 
-  /**
-   * Recorded rather than dropped.
-   *
-   * "Why did they not get it" needs an answer, and "they asked not to" is the answer here.
-   */
-  async markSuppressed(id: string, reason: string): Promise<void> {
-    await this.pool.query(`UPDATE events SET status = 'suppressed', error = $2 WHERE id = $1`, [
-      id,
-      reason.slice(0, 1000),
-    ]);
-  }
 
   async markFailed(id: string, error: string): Promise<void> {
     await this.pool.query(`UPDATE events SET status = 'failed', error = $2 WHERE id = $1`, [

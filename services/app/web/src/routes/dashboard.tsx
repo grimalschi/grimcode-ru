@@ -63,10 +63,6 @@ export function DashboardScreen() {
               <dd>{identity?.email}</dd>
               <dt className="text-muted-foreground">Display name</dt>
               <dd>{profile.data?.profile.displayName ?? '—'}</dd>
-              <dt className="text-muted-foreground">Language</dt>
-              <dd>{profile.data?.profile.preferences.locale}</dd>
-              <dt className="text-muted-foreground">Time zone</dt>
-              <dd>{profile.data?.profile.timeZone ?? '—'}</dd>
             </dl>
           )}
         </CardContent>

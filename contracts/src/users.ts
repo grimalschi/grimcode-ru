@@ -10,21 +10,20 @@ import {
   paginationInputSchema,
 } from './common.js';
 
-export const themePreferenceSchema = z.enum(['light', 'dark', 'system']);
-
-export const userPreferencesSchema = z.object({
-  locale: localeSchema,
-  theme: themePreferenceSchema,
-  productEmails: z.boolean(),
-});
-
-/** Product profile. Users never stores passwords, OAuth identities, sessions or admin rights. */
+/**
+ * Product profile. Users never stores passwords, OAuth identities, sessions or admin rights.
+ *
+ * It is deliberately small. A product adds the fields it actually has; a template that guessed at
+ * them would leave every project deleting things before adding its own.
+ *
+ * `locale` is not something a person sets here — one language is the common case — but Email needs
+ * it to choose which version of a template to send, so it is stored with a default.
+ */
 export const userProfileSchema = z.object({
   id: idSchema,
   identityId: idSchema,
   displayName: z.string().min(1).max(120).nullable(),
-  timeZone: z.string().max(64).nullable(),
-  preferences: userPreferencesSchema,
+  locale: localeSchema,
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
@@ -47,16 +46,7 @@ export const usersPublicContract = {
   getOwnProfile: oc.input(z.object({})).output(z.object({ profile: userProfileSchema })),
 
   updateOwnProfile: oc
-    .input(
-      z.object({
-        displayName: z.string().min(1).max(120).nullable().optional(),
-        timeZone: z.string().max(64).nullable().optional(),
-      }),
-    )
-    .output(z.object({ ok: z.literal(true), profile: userProfileSchema })),
-
-  updateOwnPreferences: oc
-    .input(userPreferencesSchema.partial())
+    .input(z.object({ displayName: z.string().min(1).max(120).nullable() }))
     .output(z.object({ ok: z.literal(true), profile: userProfileSchema })),
 
 };

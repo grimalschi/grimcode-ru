@@ -43,4 +43,18 @@ export const migrations: readonly Migration[] = [
         CHECK (status IN ('accepted', 'routed', 'failed', 'suppressed'));
     `,
   },
+  {
+    version: 4,
+    name: 'drop-suppressed-events',
+    sql: `
+      -- The email preference it existed for is gone, so nothing can produce this status any more.
+      -- Applied forward rather than by editing migration 3, which has already run elsewhere.
+      UPDATE events SET status = 'failed', error = 'Suppressed before the preference was removed.'
+       WHERE status = 'suppressed';
+
+      ALTER TABLE events DROP CONSTRAINT events_status_check;
+      ALTER TABLE events ADD CONSTRAINT events_status_check
+        CHECK (status IN ('accepted', 'routed', 'failed'));
+    `,
+  },
 ];

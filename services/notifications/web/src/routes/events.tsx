@@ -30,16 +30,13 @@ type Event = z.infer<typeof storedNotificationEventSchema>;
 const LIMIT = 50;
 const ANY = 'any';
 
-const STATUSES = ['accepted', 'routed', 'failed', 'suppressed'] as const;
+const STATUSES = ['accepted', 'routed', 'failed'] as const;
 
-const STATUS_VARIANT: Record<Event['status'], 'default' | 'outline' | 'destructive' | 'secondary'> =
-  {
-    accepted: 'outline',
-    routed: 'default',
-    failed: 'destructive',
-    // Not sent on purpose: the recipient's preferences said no.
-    suppressed: 'secondary',
-  };
+const STATUS_VARIANT: Record<Event['status'], 'default' | 'outline' | 'destructive'> = {
+  accepted: 'outline',
+  routed: 'default',
+  failed: 'destructive',
+};
 
 /**
  * Everything the product asked to notify someone about.
@@ -166,14 +163,7 @@ function EventDialog({ event, onClose }: { event: Event | null; onClose: () => v
           <dt className="text-muted-foreground">Recipient</dt>
           <dd>{event.recipientEmail}</dd>
           <dt className="text-muted-foreground">Status</dt>
-          <dd>
-            {event.status}
-            {event.status === 'suppressed' ? (
-              <span className="text-muted-foreground block text-xs">
-                Not sent: this person has product email switched off.
-              </span>
-            ) : null}
-          </dd>
+          <dd>{event.status}</dd>
           <dt className="text-muted-foreground">Accepted</dt>
           <dd>{new Date(event.createdAt).toLocaleString()}</dd>
           <dt className="text-muted-foreground">Routed</dt>

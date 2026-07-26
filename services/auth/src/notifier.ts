@@ -39,7 +39,7 @@ export class Notifier {
     try {
       const users = this.client<UsersClient>('users', '/internal/rpc');
       const { profile } = await users.getProfileByIdentityId({ identityId });
-      return profile?.preferences.locale ?? 'en';
+      return profile?.locale ?? 'en';
     } catch (error) {
       this.logger.warn('could not read recipient locale, falling back to en', { error });
       return 'en';

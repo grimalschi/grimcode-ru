@@ -78,16 +78,8 @@ export const publicRouter = publicOs.router({
   updateOwnProfile: publicOs.updateOwnProfile.handler(async ({ input, context }) => {
     const identity = requireIdentity(context);
     await context.repo.ensure(identity.id);
-    return { ok: true as const, profile: toProfile(await context.repo.updateProfile(identity.id, input)) };
-  }),
-
-  updateOwnPreferences: publicOs.updateOwnPreferences.handler(async ({ input, context }) => {
-    const identity = requireIdentity(context);
-    await context.repo.ensure(identity.id);
-    return {
-      ok: true as const,
-      profile: toProfile(await context.repo.updatePreferences(identity.id, input)),
-    };
+    const row = await context.repo.updateProfile(identity.id, input.displayName);
+    return { ok: true as const, profile: toProfile(row) };
   }),
 
 });
