@@ -1,7 +1,11 @@
 import { HeadContent, Link, Outlet, Scripts, createRootRoute } from '@tanstack/react-router';
 
 import { Separator } from '@/components/ui/separator';
-import styles from '@/styles.css?url';
+
+// Imported for its side effect, not as a URL: the client and server builds hash assets
+// independently, so a `?url` import here produces a link to a file that does not exist. The
+// framework collects the stylesheet from this import and emits the correct tag.
+import '@/styles.css';
 
 /**
  * The public shell.
@@ -22,10 +26,7 @@ export const Route = createRootRoute({
       { property: 'og:title', content: 'Template' },
       { property: 'og:type', content: 'website' },
     ],
-    links: [
-      { rel: 'stylesheet', href: styles },
-      { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
-    ],
+    links: [{ rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
   }),
   component: RootLayout,
   notFoundComponent: NotFound,

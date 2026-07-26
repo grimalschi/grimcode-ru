@@ -411,6 +411,9 @@ importers:
       clsx:
         specifier: 2.1.1
         version: 2.1.1
+      hono:
+        specifier: 4.12.32
+        version: 4.12.32
       lucide-react:
         specifier: 1.26.0
         version: 1.26.0(react@19.2.8)

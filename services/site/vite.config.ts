@@ -2,7 +2,6 @@ import { fileURLToPath } from 'node:url';
 
 import tailwindcss from '@tailwindcss/vite';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
-import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 /**
@@ -14,11 +13,9 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   publicDir: 'public',
   server: { port: 3000 },
-  plugins: [
-    tailwindcss(),
-    tanstackStart(),
-    react(),
-  ],
+  // The framework plugin brings its own React plugin; adding a second one leaves the stylesheet
+  // out of the rendered head.
+  plugins: [tailwindcss(), tanstackStart()],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
