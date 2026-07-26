@@ -1,5 +1,5 @@
 import { THEME_PREFERENCES, type ThemePreference } from "@template/shared/browser"
-import { LaptopIcon, MoonIcon, SunIcon } from "lucide-react"
+import { MoonIcon, SunIcon, SunMoonIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -19,7 +19,9 @@ const LABELS: Record<ThemePreference, string> = {
 const ICONS: Record<ThemePreference, typeof SunIcon> = {
   light: SunIcon,
   dark: MoonIcon,
-  system: LaptopIcon,
+  // Sun and moon together: the option is about following whichever the system is on, not about
+  // the device it runs on.
+  system: SunMoonIcon,
 }
 
 /**
