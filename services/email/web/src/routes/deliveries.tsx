@@ -3,7 +3,6 @@ import * as React from 'react';
 import { api, messageOf } from '@/api';
 import { AdminPage, ErrorState } from '@/components/layout/admin-page';
 import { DataTable, Pagination } from '@/components/layout/data-table';
-import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -45,10 +44,16 @@ const LIMIT = 50;
 const ANY = 'any';
 const STATUSES = ['queued', 'sent', 'failed'] as const;
 
-const STATUS_VARIANT: Record<DeliveryRow['status'], 'default' | 'outline' | 'destructive'> = {
-  sent: 'default',
-  queued: 'outline',
-  failed: 'destructive',
+/**
+ * A status is something the row *is*, not something to press.
+ *
+ * A filled badge inside a clickable row reads as a button that does something of its own, so this
+ * is a coloured dot next to plain text instead.
+ */
+const STATUS_DOT: Record<DeliveryRow['status'], string> = {
+  sent: 'bg-emerald-500',
+  queued: 'bg-muted-foreground',
+  failed: 'bg-destructive',
 };
 
 /**
@@ -162,8 +167,14 @@ export function DeliveriesPage() {
             key: 'status',
             header: 'Status',
             cell: (row) => (
-              <div className="flex flex-col gap-1">
-                <Badge variant={STATUS_VARIANT[row.status]}>{row.status}</Badge>
+              <div className="flex flex-col gap-0.5">
+                <span className="flex items-center gap-2">
+                  <span
+                    aria-hidden
+                    className={`size-2 shrink-0 rounded-full ${STATUS_DOT[row.status]}`}
+                  />
+                  {row.status}
+                </span>
                 <span className="text-muted-foreground text-xs">{row.transport}</span>
               </div>
             ),

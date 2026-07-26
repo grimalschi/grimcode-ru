@@ -52,11 +52,6 @@ export const usersPublicContract = {
 };
 
 export const usersInternalContract = {
-  /** Idempotently creates the product profile bound to an Auth identity. */
-  ensureProfile: oc
-    .input(z.object({ identityId: idSchema }))
-    .output(z.object({ profile: userProfileSchema })),
-
   getProfileByIdentityId: oc
     .input(z.object({ identityId: idSchema }))
     .output(z.object({ profile: userProfileSchema.nullable() })),

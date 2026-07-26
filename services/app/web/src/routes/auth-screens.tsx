@@ -304,6 +304,79 @@ export function ResetPasswordScreen() {
   );
 }
 
+/**
+ * The link sent to a new address when someone changes their email.
+ *
+ * Separate from confirming a first address: this one moves the account to a different address, and
+ * the old one is told about it afterwards.
+ */
+export function ConfirmEmailChangeScreen() {
+  const search = useSearch({ strict: false }) as { token?: string };
+  const { refresh } = useSession();
+  const [state, setState] = React.useState<'working' | 'done' | 'failed'>('working');
+  const [message, setMessage] = React.useState('');
+
+  const token = search.token ?? '';
+
+  React.useEffect(() => {
+    if (token === '') {
+      setState('failed');
+      setMessage('This link is incomplete. Open it from the email exactly as it was sent.');
+      return;
+    }
+
+    auth
+      .confirmEmailChange({ token })
+      .then(() => refresh())
+      .then(() => setState('done'))
+      .catch((error: unknown) => {
+        setState('failed');
+        setMessage(messageOf(error));
+      });
+  }, [refresh, token]);
+
+  if (state === 'working') {
+    return (
+      <AuthCard title="Confirming the change">
+        <p className="text-muted-foreground text-sm">One moment.</p>
+      </AuthCard>
+    );
+  }
+
+  if (state === 'failed') {
+    return (
+      <AuthCard
+        title="This link did not work"
+        description={message}
+        footer={
+          <Link to="/settings" className="text-sm underline underline-offset-4">
+            Try again from settings
+          </Link>
+        }
+      >
+        <p className="text-muted-foreground text-sm">
+          The link works once and expires. Your address has not changed.
+        </p>
+      </AuthCard>
+    );
+  }
+
+  return (
+    <AuthCard
+      title="Your address has changed"
+      footer={
+        <Link to="/" className="text-sm underline underline-offset-4">
+          Continue
+        </Link>
+      }
+    >
+      <p className="text-muted-foreground text-sm">
+        Sign in with the new address from now on. The old one has been told about the change.
+      </p>
+    </AuthCard>
+  );
+}
+
 export function VerifyEmailScreen() {
   const search = useSearch({ strict: false }) as { token?: string };
   const { refresh } = useSession();

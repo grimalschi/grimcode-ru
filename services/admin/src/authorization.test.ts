@@ -66,7 +66,6 @@ function fakeAuth(options: { session?: Identity | null; first?: Identity | null 
   return {
     resolveSession: async () => ({ identity: options.session ?? null }),
     getFirstIdentity: async () => ({ identity: options.first ?? null }),
-    getIdentityById: async () => ({ identity: null }),
     getIdentityByEmail: async () => ({ identity: null }),
   } as unknown as AuthClient;
 }

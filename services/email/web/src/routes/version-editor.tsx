@@ -21,6 +21,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAsync } from '@/hooks/use-async';
 
 import '@maily-to/core/style.css';
@@ -159,6 +160,17 @@ export function VersionEditorPage() {
             </p>
           </div>
 
+          <Tabs defaultValue="edit">
+            <TabsList>
+              <TabsTrigger value="edit">{editable ? 'Edit' : 'Document'}</TabsTrigger>
+              <TabsTrigger value="preview">Preview</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="preview">
+              <VersionPreview versionId={versionId} />
+            </TabsContent>
+
+            <TabsContent value="edit">
           <div className="rounded-lg border p-4">
             <Editor
               key={version.id}
@@ -168,6 +180,8 @@ export function VersionEditorPage() {
               config={{ hasMenuBar: editable, spellCheck: true, immediatelyRender: false }}
             />
           </div>
+            </TabsContent>
+          </Tabs>
 
           {version.compiledHtml ? (
             <details className="rounded-lg border p-4">
@@ -186,6 +200,47 @@ export function VersionEditorPage() {
         </>
       )}
     </AdminPage>
+  );
+}
+
+/**
+ * The message as a recipient would see it.
+ *
+ * Rendered by the server from the stored document, so it is the same pipeline publishing uses —
+ * the editor's own canvas shows the document, which is not the same thing as the email.
+ *
+ * Shown in a fully sandboxed frame: no scripts, no access to this origin.
+ */
+function VersionPreview({ versionId }: { versionId: string }) {
+  const state = useAsync<{ subject: string; html: string; text: string }>(
+    () => api.previewVersion({ id: versionId, variables: {} }),
+    [versionId],
+  );
+
+  if (state.loading) return <Skeleton className="h-96 w-full" />;
+  if (state.error) {
+    return (
+      <p className="border-destructive/40 bg-destructive/5 rounded-md border p-3 text-sm">
+        {messageOf(state.error)}
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-muted-foreground text-sm">
+        Subject: <span className="text-foreground">{state.data?.subject}</span>
+      </p>
+      <iframe
+        title="Message preview"
+        sandbox=""
+        srcDoc={state.data?.html ?? ''}
+        className="h-96 w-full rounded-lg border bg-white"
+      />
+      <p className="text-muted-foreground text-xs">
+        Variables are shown as their {'{{name}}'} placeholders; each recipient gets their own values.
+      </p>
+    </div>
   );
 }
 

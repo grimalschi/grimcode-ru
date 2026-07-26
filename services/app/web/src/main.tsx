@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Toaster } from '@/components/ui/sonner';
 import {
+  ConfirmEmailChangeScreen,
   LoginScreen,
   RegisterScreen,
   RequestResetScreen,
@@ -138,6 +139,13 @@ const routes = [
     getParentRoute: () => rootRoute,
     path: '/verify-email',
     component: VerifyEmailScreen,
+    validateSearch: tokenSearch,
+  }),
+  // Auth sends this address in the confirmation email; without the route the link lands nowhere.
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/confirm-email-change',
+    component: ConfirmEmailChangeScreen,
     validateSearch: tokenSearch,
   }),
 

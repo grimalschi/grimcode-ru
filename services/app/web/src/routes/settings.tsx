@@ -262,16 +262,26 @@ function SessionsSection() {
     <Card>
       <CardHeader>
         <CardTitle>Where you are signed in</CardTitle>
-        <CardDescription>Each browser that currently holds a valid session.</CardDescription>
+        <CardDescription>
+          Each browser that currently holds a valid session, newest first.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {state.loading ? (
           <Skeleton className="h-24 w-full" />
         ) : (
-          <ul className="space-y-2 text-sm">
+          /*
+            Scrolls rather than growing: someone who signs in from a phone, a laptop and a work
+            machine builds this list up over months, and it would otherwise push the button that
+            ends them all off the screen.
+          */
+          <ul className="max-h-72 space-y-2 overflow-y-auto pr-1 text-sm">
             {(state.data?.sessions ?? []).map((session) => (
-              <li key={session.id} className="flex items-center justify-between gap-4">
-                <span className="min-w-0">
+              <li
+                key={session.id}
+                className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"
+              >
+                <span className="min-w-0 flex-1">
                   <span className="block">
                     Started {new Date(session.createdAt).toLocaleString()}
                     {session.current ? ' — this browser' : ''}
@@ -280,7 +290,7 @@ function SessionsSection() {
                     {session.userAgent ?? 'Unknown browser'}
                   </span>
                 </span>
-                <span className="text-muted-foreground whitespace-nowrap">
+                <span className="text-muted-foreground shrink-0 text-xs whitespace-nowrap">
                   Seen {new Date(session.lastSeenAt).toLocaleString()}
                 </span>
               </li>

@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAsync, type Page } from '@/hooks/use-async';
 
 type Profile = z.infer<typeof adminUserProfileSchema>;
@@ -114,7 +115,9 @@ export function ProfilesPage() {
         onOffsetChange={setOffset}
       />
 
-      <ProfileDialog profile={selected} onClose={() => setSelected(null)} />
+      {selected ? (
+        <ProfileDialog id={selected.id} onClose={() => setSelected(null)} />
+      ) : null}
     </AdminPage>
   );
 }
@@ -124,20 +127,28 @@ export function ProfilesPage() {
  *
  * A profile belongs to the person it describes; an administrator looking at a support question
  * needs to see it, not to edit it behind their back.
+ *
+ * It is read again when the dialog opens rather than shown from the row behind it: the list may
+ * have been on screen for a while, and a support question is the worst moment to be looking at a
+ * stale answer.
  */
-function ProfileDialog({ profile, onClose }: { profile: Profile | null; onClose: () => void }) {
-  if (!profile) return null;
+function ProfileDialog({ id, onClose }: { id: string; onClose: () => void }) {
+  const state = useAsync<{ profile: Profile }>(() => api.getProfile({ id }), [id]);
+  const profile = state.data?.profile;
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{profile.email ?? profile.displayName ?? 'Profile'}</DialogTitle>
+          <DialogTitle>{profile?.email ?? profile?.displayName ?? 'Profile'}</DialogTitle>
           <DialogDescription>
             The profile is the person&apos;s to edit. This is a read-only view of it.
           </DialogDescription>
         </DialogHeader>
 
+        {state.loading || !profile ? (
+          <Skeleton className="h-40 w-full" />
+        ) : (
         <dl className="grid grid-cols-[9rem_1fr] gap-y-2 text-sm">
           <dt className="text-muted-foreground">Email</dt>
           <dd>{profile.email ?? 'No account in Auth'}</dd>
@@ -156,6 +167,7 @@ function ProfileDialog({ profile, onClose }: { profile: Profile | null; onClose:
           <dt className="text-muted-foreground">Joined</dt>
           <dd>{new Date(profile.createdAt).toLocaleString()}</dd>
         </dl>
+        )}
 
         <DialogFooter>
           <Button variant="ghost" size="sm" onClick={onClose}>

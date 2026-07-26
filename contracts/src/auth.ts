@@ -117,10 +117,6 @@ export const authInternalContract = {
     .input(z.object({}))
     .output(z.object({ identity: identitySchema.nullable() })),
 
-  getIdentityById: oc
-    .input(z.object({ id: idSchema }))
-    .output(z.object({ identity: identitySchema.nullable() })),
-
   /**
    * Several identities at once.
    *

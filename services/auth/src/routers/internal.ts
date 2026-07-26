@@ -27,10 +27,6 @@ export const internalRouter = os.router({
     return { identity: row ? toIdentity(row) : null };
   }),
 
-  getIdentityById: os.getIdentityById.handler(async ({ input, context }) => {
-    const row = await context.repo.findIdentityById(input.id);
-    return { identity: row ? toIdentity(row) : null };
-  }),
 
   getIdentitiesByIds: os.getIdentitiesByIds.handler(async ({ input, context }) => {
     const rows = await context.repo.findIdentitiesByIds(input.ids);

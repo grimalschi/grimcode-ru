@@ -87,9 +87,6 @@ export const publicRouter = publicOs.router({
 const internalOs = implement(usersInternalContract).$context<InternalContext>();
 
 export const internalRouter = internalOs.router({
-  ensureProfile: internalOs.ensureProfile.handler(async ({ input, context }) => ({
-    profile: toProfile(await context.repo.ensure(input.identityId)),
-  })),
 
   getProfileByIdentityId: internalOs.getProfileByIdentityId.handler(async ({ input, context }) => {
     const row = await context.repo.findByIdentityId(input.identityId);

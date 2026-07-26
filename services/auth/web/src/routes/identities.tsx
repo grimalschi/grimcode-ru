@@ -125,11 +125,13 @@ export function IdentitiesPage() {
         onOffsetChange={setOffset}
       />
 
-      <IdentityDialog
-        identity={selected}
-        onClose={() => setSelected(null)}
-        onChanged={list.reload}
-      />
+      {selected ? (
+        <IdentityDialog
+          id={selected.id}
+          onClose={() => setSelected(null)}
+          onChanged={list.reload}
+        />
+      ) : null}
     </AdminPage>
   );
 }
@@ -140,25 +142,30 @@ export function IdentitiesPage() {
  * Every action here is the ordinary flow a user would go through: a recovery link is the same
  * time-limited one-time link, and the token is never shown. There is no way to read or set a
  * password from this screen, because that would be a way to take over an account silently.
+ *
+ * The identity is read again on open and after every action, because the actions change it: a
+ * session count still showing three after they were all revoked would be worse than showing
+ * nothing.
  */
 function IdentityDialog({
-  identity,
+  id,
   onClose,
   onChanged,
 }: {
-  identity: Identity | null;
+  id: string;
   onClose: () => void;
   onChanged: () => void;
 }) {
+  const state = useAsync<{ identity: Identity }>(() => api.getIdentity({ id }), [id]);
+  const identity = state.data?.identity;
   const [busy, setBusy] = React.useState(false);
-
-  if (!identity) return null;
 
   const run = async (action: () => Promise<unknown>, done: string) => {
     setBusy(true);
     try {
       await action();
       toast.success(done);
+      state.reload();
       onChanged();
     } catch (error) {
       toast.error(messageOf(error));
@@ -166,6 +173,19 @@ function IdentityDialog({
       setBusy(false);
     }
   };
+
+  if (!identity) {
+    return (
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Identity</DialogTitle>
+            <DialogDescription>Loading.</DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>

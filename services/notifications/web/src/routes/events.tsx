@@ -32,10 +32,11 @@ const ANY = 'any';
 
 const STATUSES = ['accepted', 'routed', 'failed'] as const;
 
-const STATUS_VARIANT: Record<Event['status'], 'default' | 'outline' | 'destructive'> = {
-  accepted: 'outline',
-  routed: 'default',
-  failed: 'destructive',
+/** A dot rather than a filled badge: inside a clickable row a badge reads as a button. */
+const STATUS_DOT: Record<Event['status'], string> = {
+  accepted: 'bg-muted-foreground',
+  routed: 'bg-emerald-500',
+  failed: 'bg-destructive',
 };
 
 /**
@@ -129,7 +130,15 @@ export function EventsPage() {
           {
             key: 'status',
             header: 'Status',
-            cell: (row) => <Badge variant={STATUS_VARIANT[row.status]}>{row.status}</Badge>,
+            cell: (row) => (
+              <span className="flex items-center gap-2">
+                <span
+                  aria-hidden
+                  className={`size-2 shrink-0 rounded-full ${STATUS_DOT[row.status]}`}
+                />
+                {row.status}
+              </span>
+            ),
           },
         ]}
       />
@@ -141,13 +150,33 @@ export function EventsPage() {
         onOffsetChange={setOffset}
       />
 
-      <EventDialog event={selected} onClose={() => setSelected(null)} />
+      {selected ? <EventDialog id={selected.id} onClose={() => setSelected(null)} /> : null}
     </AdminPage>
   );
 }
 
-function EventDialog({ event, onClose }: { event: Event | null; onClose: () => void }) {
-  if (!event) return null;
+/**
+ * One event, read again on open.
+ *
+ * A row in the list may have been fetched while the event was still `accepted`; by the time someone
+ * opens it, it has usually been routed.
+ */
+function EventDialog({ id, onClose }: { id: string; onClose: () => void }) {
+  const state = useAsync<{ event: Event }>(() => api.getEvent({ id }), [id]);
+  const event = state.data?.event;
+
+  if (!event) {
+    return (
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Event</DialogTitle>
+            <DialogDescription>Loading.</DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>

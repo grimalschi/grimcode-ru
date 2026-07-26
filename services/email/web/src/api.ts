@@ -11,6 +11,7 @@ import type { emailContract } from '@template/contracts';
  */
 const BASE = '/admin/service/email';
 
+// `previewVersion` renders without storing anything, so it needs no token.
 const MUTATIONS = new Set([
   'createTemplate',
   'updateTemplate',
