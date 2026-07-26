@@ -62,8 +62,39 @@ delete operation on purpose — removing the record of who had access would defe
 Email templates are looked up by a stable key and created only when missing, so a hundred runs leave
 one fixture template rather than a hundred.
 
-## What is not here
+## In a real browser
 
-Anything that needs a real browser: theme synchronisation between the shell and an embedded admin,
-nested iframe navigation, computed colours in Adminer's own light and dark themes, and JavaScript
-runtime errors in the production bundles. Those belong in a browser suite.
+```bash
+pnpm test:browser
+```
+
+Twenty-four checks in Chromium, for the questions an HTTP request cannot answer. Each one also fails
+on any console error or uncaught exception, so a bundle that renders but throws does not pass.
+
+**The shell** — [`admin-shell.spec.ts`](browser/admin-shell.spec.ts). The panel loads and renders;
+the owner sees every service; the owner-only screens open. The theme applies, survives a reload
+without flashing white, and **reaches an embedded service admin**, which then shows no switch of its
+own. Navigation started inside an iframe is followed by the shell's URL and is **not** cancelled by
+the shell sending its old path back — the failure this protocol exists to avoid. A deep link opens
+straight into the embedded admin, and the same protected URL works on its own.
+
+**The database** — [`adminer.spec.ts`](browser/adminer.spec.ts). It is the real Adminer, and it
+follows the panel's theme on the overview, on a table listing and on a table's rows — checked by
+reading computed background colours, because those three are styled by different rules and a wrapper
+that handles one of them looks finished while it is not.
+
+**The email admin** — [`email-admin.spec.ts`](browser/email-admin.spec.ts). Templates list, the
+editor opens on its own route and runs, a delivery shows its stored message as a preview and as
+source, and the preview frame is fully sandboxed — Chromium refusing to run anything inside it is
+expected and is not counted as an error.
+
+**The application** — [`app.spec.ts`](browser/app.spec.ts). An anonymous visitor is sent to sign in
+and never sees the protected interface, not even for a moment; the page they wanted is remembered;
+an external URL, a protocol-relative one, the admin panel and the login page itself are all refused
+as return paths. Signing in returns them where they were going, and signing out puts them back out.
+
+Chromium is installed once with:
+
+```bash
+pnpm --filter @template/acceptance exec playwright install chromium
+```

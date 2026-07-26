@@ -6,9 +6,11 @@
   "scripts": {
     "acceptance": "vitest run",
     "typecheck": "tsc -p tsconfig.json",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "browser": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.0",
     "@template/contracts": "workspace:*",
     "@types/node": "22.20.1",
     "typescript": "5.9.3",

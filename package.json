@@ -22,7 +22,8 @@
     "down": "node scripts/compose.mjs down",
     "logs": "node scripts/compose.mjs logs -f",
     "network:allocate": "node scripts/allocate-network.mjs",
-    "test:acceptance": "pnpm --filter @template/acceptance acceptance"
+    "test:acceptance": "pnpm --filter @template/acceptance acceptance",
+    "test:browser": "pnpm --filter @template/acceptance browser"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
