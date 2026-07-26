@@ -1,9 +1,12 @@
 # Local development topology.
 #
 # PostgreSQL is a separate container but is declared here, so the whole project has one lifecycle
-# and one internal network. Only Gateway and PostgreSQL publish a host port, and both bind to
-# LOCAL_BIND_HOST, which defaults to loopback — opening them to the local network takes a
-# deliberate override.
+# and one internal network. Only Gateway and PostgreSQL publish a host port, and both default to
+# loopback — opening either to the local network takes a deliberate override.
+#
+# The two have separate bind variables on purpose. Reaching the application from another machine
+# (a virtual machine's port forwarding, a phone on the same network) needs GATEWAY_BIND_HOST, and
+# that must not drag the database out with it.
 #
 # Every service receives only the variables it actually needs.
 
@@ -30,7 +33,7 @@ services:
       POSTGRES_DB: postgres
     ports:
       # Only for local tools on the host machine. Bound to loopback by default.
-      - '${LOCAL_BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432'
+      - '${POSTGRES_BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -77,8 +80,8 @@ services:
       PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://127.0.0.1:8080}
     ports:
       # The only container published outside.
-      - '${LOCAL_BIND_HOST:-127.0.0.1}:${GATEWAY_PORT:-8080}:8080'
-    depends_on: [admin, auth, users, notifications, email, adminer]
+      - '${GATEWAY_BIND_HOST:-127.0.0.1}:${GATEWAY_PORT:-8080}:8080'
+    depends_on: [admin, app, auth, site, users, notifications, email, adminer]
 
   admin:
     <<: *service
@@ -159,6 +162,32 @@ services:
     depends_on:
       db-init:
         condition: service_completed_successfully
+
+  site:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: site
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG:-template}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://127.0.0.1:8080}
+    # Server-rendered and stateless: it has no database and holds no session.
+    expose: ['3000']
+
+  app:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: app
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG:-template}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://127.0.0.1:8080}
+    # No database: identity comes from Auth and the product profile from Users.
+    expose: ['3001']
 
   adminer:
     build:

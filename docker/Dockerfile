@@ -52,4 +52,6 @@ COPY --from=build --chown=node:node /out/app ./
 USER node
 
 # Ports are fixed in the image; nothing outside Gateway is published anyway.
-CMD ["node", "dist/index.js"]
+# Site is server-rendered and starts from its framework's own entry; every other service starts
+# from its compiled dist/index.js.
+CMD ["sh", "-c", "if [ -f server/index.mjs ]; then exec node server/index.mjs; else exec node dist/index.js; fi"]

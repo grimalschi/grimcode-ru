@@ -3,7 +3,11 @@
  * Compose configuration check.
  *
  * Verifies that the topology really matches the trust boundary: only Gateway is published to the
- * outside, local host ports listen on loopback, and Adminer never gets a host port at all.
+ * outside, the database never leaves loopback, and Adminer never gets a host port at all.
+ *
+ * Gateway may be opened to the local network — reaching the application from a virtual machine's
+ * port forwarding or from a phone needs it — and that is reported rather than refused. The
+ * database has no such exception: a wider bind there is always a mistake.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -16,7 +20,7 @@ const envPath = join(repoRoot, '.env');
 
 /** Services allowed to publish a host port locally. Nothing else may. */
 const PUBLISHABLE = new Set(['gateway', 'postgres']);
-/** Locally published ports must stay on the loopback interface unless overridden on purpose. */
+/** The database must never leave the loopback interface. */
 const LOOPBACK = new Set(['127.0.0.1', '::1']);
 
 let raw;
@@ -42,6 +46,7 @@ try {
 
 const config = JSON.parse(raw);
 const problems = [];
+const notes = [];
 
 for (const [name, service] of Object.entries(config.services ?? {})) {
   const ports = service.ports ?? [];
@@ -52,10 +57,15 @@ for (const [name, service] of Object.entries(config.services ?? {})) {
 
   for (const port of ports) {
     const host = typeof port === 'string' ? port.split(':')[0] : port.host_ip;
-    if (!host || !LOOPBACK.has(host)) {
+    if (host && LOOPBACK.has(host)) continue;
+
+    const where = host || 'all interfaces';
+    if (name === 'gateway') {
+      notes.push(`Gateway is published on "${where}", not only on loopback`);
+    } else {
       problems.push(
-        `"${name}" publishes ${port.published ?? port} on "${host || 'all interfaces'}"; ` +
-          'local ports must bind to loopback',
+        `"${name}" publishes ${port.published ?? port} on "${where}"; ` +
+          'only Gateway may be opened beyond loopback',
       );
     }
   }
@@ -79,4 +89,5 @@ const published = Object.entries(config.services)
   .filter(([, service]) => (service.ports ?? []).length > 0)
   .map(([name]) => name);
 
+for (const note of notes) console.log(`Note: ${note}.`);
 console.log(`Compose check passed (published: ${published.join(', ') || 'nothing'}).`);

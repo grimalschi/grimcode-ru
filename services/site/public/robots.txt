@@ -1,0 +1,8 @@
+# The application and the admin panel are behind sign-in and have nothing to index.
+User-agent: *
+Disallow: /app/
+Disallow: /admin/
+Disallow: /service/
+Allow: /
+
+Sitemap: /sitemap.xml

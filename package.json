@@ -20,7 +20,8 @@
     "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build && pnpm run check:boundaries && pnpm run check:service-ids && pnpm run check:compose",
     "up": "node scripts/compose.mjs up -d --build",
     "down": "node scripts/compose.mjs down",
-    "logs": "node scripts/compose.mjs logs -f"
+    "logs": "node scripts/compose.mjs logs -f",
+    "network:allocate": "node scripts/allocate-network.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

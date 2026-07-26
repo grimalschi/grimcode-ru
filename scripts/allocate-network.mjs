@@ -10,7 +10,7 @@
  * taken and picks one that is not.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -78,6 +78,22 @@ export function writeOverride(subnet) {
       `# Git-ignored: it describes this machine, not the project.\n` +
       `networks:\n  internal:\n    ipam:\n      config:\n        - subnet: ${subnet}\n`,
   );
+}
+
+/**
+ * Whether this copy already has a pinned subnet.
+ *
+ * An existing override is never re-evaluated automatically: the running stack is on that subnet,
+ * and quietly moving it to another one recreates the network under the containers, which then
+ * cannot resolve each other. Re-evaluating is what running this script directly is for.
+ */
+export function hasOverride() {
+  return existsSync(OVERRIDE_PATH);
+}
+
+export function readOverride() {
+  if (!existsSync(OVERRIDE_PATH)) return null;
+  return /subnet:\s*(\S+)/.exec(readFileSync(OVERRIDE_PATH, 'utf8'))?.[1] ?? null;
 }
 
 export function clearOverride() {
