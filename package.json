@@ -21,7 +21,8 @@
     "up": "node scripts/compose.mjs up -d --build",
     "down": "node scripts/compose.mjs down",
     "logs": "node scripts/compose.mjs logs -f",
-    "network:allocate": "node scripts/allocate-network.mjs"
+    "network:allocate": "node scripts/allocate-network.mjs",
+    "test:acceptance": "pnpm --filter @template/acceptance acceptance"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

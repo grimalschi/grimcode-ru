@@ -2,3 +2,4 @@ packages:
   - contracts
   - shared
   - services/*
+  - tests
