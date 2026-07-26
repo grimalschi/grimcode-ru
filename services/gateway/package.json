@@ -20,8 +20,7 @@
     "@hono/node-server": "2.0.11",
     "@orpc/client": "1.14.10",
     "@template/contracts": "workspace:*",
-    "@template/shared": "workspace:*",
-    "hono": "4.12.32"
+    "@template/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "22.20.1",
