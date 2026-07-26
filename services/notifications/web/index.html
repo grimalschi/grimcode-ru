@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>notifications admin</title>
+    <script>
+      // Applied before the first paint. Embedded in the shell, the theme arrives by message a
+      // moment later; standing alone, this is the only source.
+      (() => {
+        try {
+          const stored = localStorage.getItem('template.notifications.theme') ?? 'system';
+          const dark =
+            stored === 'dark' ||
+            (stored === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+          document.documentElement.classList.toggle('dark', dark);
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        } catch {
+          /* A browser without storage still gets the light theme. */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
