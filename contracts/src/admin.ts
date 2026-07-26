@@ -104,6 +104,27 @@ export const adminContract = {
     /** Owner-only registry of administrators. Product users from Users are never listed here. */
     listAdministrators: oc.input(paginationInputSchema).output(pageOf(administratorSchema)),
 
+    /**
+     * People who could be made administrators, matched by address. Owner-only.
+     *
+     * Being an administrator starts from an account that already exists, so this is how an owner
+     * finds that account instead of having to know the address by heart.
+     */
+    searchUsers: oc
+      .input(z.object({ query: z.string().min(1).max(200) }))
+      .output(
+        z.object({
+          users: z.array(
+            z.object({
+              userId: idSchema,
+              email: emailSchema,
+              /** Already in the registry, so adding them again would be refused. */
+              isAdministrator: z.boolean(),
+            }),
+          ),
+        }),
+      ),
+
     /** Adds an already registered user by email. Owner-only. */
     addAdministrator: oc
       .input(

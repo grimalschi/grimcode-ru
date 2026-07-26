@@ -1,6 +1,6 @@
 # users
 
-The product profile of a user: display name, time zone, preferences and onboarding state.
+The product profile of a user: display name, time zone and preferences.
 
 Users stores no passwords, no OAuth identities, no sessions and no administrator rights. It links a
 profile to an Auth identity and nothing more.
@@ -32,14 +32,14 @@ what protects the data.
 
 ### Public procedures
 
-`getOwnProfile`, `updateOwnProfile`, `updateOwnPreferences`, `completeOnboarding`.
+`getOwnProfile`, `updateOwnProfile`, `updateOwnPreferences`.
 
-These back the App's single settings section — the part owned by Users — and the onboarding flow.
+These back the App's single settings section — the part owned by Users.
 Account, security and session management belong to Auth and are not duplicated here.
 
 ### Service admin
 
-`listProfiles`, `getProfile`, `resetOnboarding`. This is the product user list; the administrator
+`listProfiles`, `getProfile`. Read-only: a profile belongs to the person it describes. This is the product user list; the administrator
 registry is a separate thing owned by Admin and is never shown here. Mutations require the
 Gateway-verified administrator context and a valid CSRF token.
 

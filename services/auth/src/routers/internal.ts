@@ -32,6 +32,16 @@ export const internalRouter = os.router({
     return { identity: row ? toIdentity(row) : null };
   }),
 
+  getIdentitiesByIds: os.getIdentitiesByIds.handler(async ({ input, context }) => {
+    const rows = await context.repo.findIdentitiesByIds(input.ids);
+    return { identities: rows.map(toIdentity) };
+  }),
+
+  searchIdentities: os.searchIdentities.handler(async ({ input, context }) => {
+    const rows = await context.repo.searchIdentities(input.query, input.limit);
+    return { identities: rows.map(toIdentity) };
+  }),
+
   getIdentityByEmail: os.getIdentityByEmail.handler(async ({ input, context }) => {
     const row = await context.repo.findIdentityByEmail(input.email);
     return { identity: row ? toIdentity(row) : null };

@@ -48,6 +48,15 @@ function requireAdmin(context: AdminRpcContext): AdminContext {
 }
 
 /** Owner-only mutations are protected by both the verified context and a CSRF token. */
+/** Reading the registry is owner-only too, but it changes nothing and needs no token. */
+function requireOwner(context: AdminRpcContext): AdminContext {
+  const admin = requireAdmin(context);
+  if (admin.role !== 'owner') {
+    throw new ORPCError('FORBIDDEN', { message: 'Only the owner can manage administrators' });
+  }
+  return admin;
+}
+
 function requireOwnerMutation(context: AdminRpcContext): AdminContext {
   const admin = requireAdmin(context);
   if (admin.role !== 'owner') {
@@ -102,6 +111,24 @@ export const adminRouter = adminOs.router({
   }),
 
   /** Adds an already registered user by email. Product users from Users are never listed here. */
+  searchUsers: adminOs.searchUsers.handler(async ({ input, context }) => {
+    requireOwner(context);
+
+    const { identities } = await context.auth.searchIdentities({ query: input.query, limit: 10 });
+
+    // Whether each one is already an administrator, so the interface can say so before the owner
+    // tries and is refused.
+    const users = await Promise.all(
+      identities.map(async (identity) => ({
+        userId: identity.id,
+        email: identity.email,
+        isAdministrator: (await context.repo.findByUserId(identity.id)) !== null,
+      })),
+    );
+
+    return { users };
+  }),
+
   addAdministrator: adminOs.addAdministrator.handler(async ({ input, context }) => {
     const admin = requireOwnerMutation(context);
 

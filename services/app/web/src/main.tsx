@@ -25,7 +25,6 @@ import {
   VerifyEmailScreen,
 } from '@/routes/auth-screens';
 import { DashboardScreen } from '@/routes/dashboard';
-import { OnboardingScreen } from '@/routes/onboarding';
 import { SettingsScreen } from '@/routes/settings';
 import { safeReturnPath } from '@/return-path';
 import { SessionProvider, useSession } from '@/session';
@@ -148,15 +147,6 @@ const routes = [
     component: () => (
       <Protected>
         <DashboardScreen />
-      </Protected>
-    ),
-  }),
-  createRoute({
-    getParentRoute: () => rootRoute,
-    path: '/onboarding',
-    component: () => (
-      <Protected>
-        <OnboardingScreen />
       </Protected>
     ),
   }),

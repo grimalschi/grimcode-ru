@@ -246,7 +246,7 @@ describe('service boundaries', () => {
       'listIdentities',
       { limit: 5, offset: 0 },
     );
-    expect(identities.items[0]).not.toHaveProperty('onboardingCompletedAt');
+    expect(identities.items[0]).not.toHaveProperty('preferences');
 
     // Users knows profiles and nothing about passwords or sessions.
     const profiles = await owner.call<{ items: Record<string, unknown>[] }>(

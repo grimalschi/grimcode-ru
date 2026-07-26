@@ -6,7 +6,6 @@ import {
   idSchema,
   isoDateTimeSchema,
   localeSchema,
-  okSchema,
   pageOf,
   paginationInputSchema,
 } from './common.js';
@@ -26,13 +25,19 @@ export const userProfileSchema = z.object({
   displayName: z.string().min(1).max(120).nullable(),
   timeZone: z.string().max(64).nullable(),
   preferences: userPreferencesSchema,
-  onboardingCompletedAt: isoDateTimeSchema.nullable(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
 
 export type UserProfile = z.infer<typeof userProfileSchema>;
 
+/**
+ * A profile as an administrator sees it, with the sign-in address Auth holds.
+ *
+ * Users does not store the address — Auth owns it — so this is filled in per request from Auth.
+ * It is `null` when Auth no longer has that identity, which is how a profile left behind by a
+ * deleted account shows up rather than looking like an ordinary one.
+ */
 export const adminUserProfileSchema = userProfileSchema.extend({
   email: emailSchema.nullable(),
 });
@@ -54,9 +59,6 @@ export const usersPublicContract = {
     .input(userPreferencesSchema.partial())
     .output(z.object({ ok: z.literal(true), profile: userProfileSchema })),
 
-  completeOnboarding: oc
-    .input(z.object({ displayName: z.string().min(1).max(120), timeZone: z.string().max(64) }))
-    .output(z.object({ ok: z.literal(true), profile: userProfileSchema })),
 };
 
 export const usersInternalContract = {
@@ -77,7 +79,6 @@ export const usersAdminContract = {
     .input(z.object({ id: idSchema }))
     .output(z.object({ profile: adminUserProfileSchema })),
 
-  resetOnboarding: oc.input(z.object({ id: idSchema })).output(okSchema),
 };
 
 export const usersContract = {

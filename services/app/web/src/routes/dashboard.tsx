@@ -5,7 +5,6 @@ import * as React from 'react';
 import { messageOf, users } from '@/api';
 import { Page } from '@/components/layout/page';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAsync } from '@/hooks/use-async';
@@ -23,8 +22,6 @@ export function DashboardScreen() {
   const { identity } = useSession();
   const profile = useAsync<{ profile: UserProfile }>(() => users.getOwnProfile({}), []);
 
-  const needsOnboarding =
-    profile.data !== null && profile.data.profile.onboardingCompletedAt === null;
 
   return (
     <Page title={`Hello, ${profile.data?.profile.displayName ?? identity?.email ?? ''}`}>
@@ -32,28 +29,21 @@ export function DashboardScreen() {
         <Alert>
           <AlertTitle>Your email is not confirmed yet</AlertTitle>
           <AlertDescription>
-            Open the link we sent you, or ask for a new one from{' '}
-            <Link to="/settings" className="underline underline-offset-4">
-              settings
-            </Link>
-            .
+            {/*
+              One paragraph, not three loose children: the description is a grid, so a bare text
+              node, a link and a full stop would each become a row of their own.
+            */}
+            <p>
+              Open the link we sent you, or ask for a new one from{' '}
+              <Link to="/settings" className="underline underline-offset-4">
+                settings
+              </Link>
+              .
+            </p>
           </AlertDescription>
         </Alert>
       ) : null}
 
-      {needsOnboarding ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Finish setting up</CardTitle>
-            <CardDescription>A few details and you are done.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild>
-              <Link to="/onboarding">Continue</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
 
       <Card>
         <CardHeader>

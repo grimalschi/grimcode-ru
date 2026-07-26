@@ -41,7 +41,7 @@ export interface DeliveryRow {
   html: string;
   text: string;
   transport: 'log' | 'unisender';
-  status: 'queued' | 'sent' | 'failed' | 'suppressed';
+  status: 'queued' | 'sent' | 'failed';
   provider_message_id: string | null;
   provider_status: string | null;
   error: string | null;

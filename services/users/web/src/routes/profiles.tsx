@@ -1,9 +1,8 @@
-import type { z } from 'zod';
 import type { adminUserProfileSchema } from '@template/contracts';
 import * as React from 'react';
-import { toast } from 'sonner';
+import type { z } from 'zod';
 
-import { api, messageOf } from '@/api';
+import { api } from '@/api';
 import { AdminPage, ErrorState } from '@/components/layout/admin-page';
 import { DataTable, Pagination } from '@/components/layout/data-table';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +28,8 @@ const LIMIT = 25;
  * This is who a person is inside the product — their name, language, time zone and preferences —
  * and nothing about how they sign in. Passwords, sessions and admin rights live in Auth and Admin,
  * and are neither shown nor editable here.
+ *
+ * The sign-in address is not stored here either: Users asks Auth for it, in one call for the page.
  */
 export function ProfilesPage() {
   const [query, setQuery] = React.useState('');
@@ -60,12 +61,12 @@ export function ProfilesPage() {
   return (
     <AdminPage
       title="Profiles"
-      description="Product profiles. Sign-in details belong to Auth and are not shown here."
+      description="Who people are inside the product. Sign-in details belong to Auth."
       actions={
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search by name or email"
+          placeholder="Search by name"
           className="w-64"
         />
       }
@@ -78,39 +79,36 @@ export function ProfilesPage() {
         onRowClick={setSelected}
         columns={[
           {
-            key: 'name',
+            key: 'person',
             header: 'Person',
             cell: (row) => (
               <div className="flex flex-col">
-                <span className="font-medium">{row.displayName ?? 'No name yet'}</span>
+                <span className="font-medium">{row.email ?? row.displayName ?? '—'}</span>
                 <span className="text-muted-foreground text-xs">
-                  {/* Auth owns the address; it is shown for recognition, not edited here. */}
-                  {row.email ?? 'Identity removed'}
+                  {row.email && row.displayName ? row.displayName : null}
+                  {/* Auth no longer has this identity, so the profile outlived the account. */}
+                  {row.email === null ? 'No account in Auth for this profile' : null}
                 </span>
               </div>
             ),
           },
           {
-            key: 'onboarding',
-            header: 'Onboarding',
-            cell: (row) =>
-              row.onboardingCompletedAt ? (
-                <Badge variant="outline">
-                  Finished {new Date(row.onboardingCompletedAt).toLocaleDateString()}
-                </Badge>
-              ) : (
-                <Badge variant="secondary">Not finished</Badge>
-              ),
+            key: 'identity',
+            header: 'Identity',
+            cell: (row) => (
+              <code className="text-muted-foreground text-xs">{row.identityId}</code>
+            ),
           },
           {
             key: 'locale',
             header: 'Language',
-            cell: (row) => row.preferences.locale,
+            cell: (row) => <Badge variant="outline">{row.preferences.locale}</Badge>,
           },
           {
-            key: 'timeZone',
-            header: 'Time zone',
-            cell: (row) => row.timeZone ?? '—',
+            key: 'created',
+            header: 'Joined',
+            className: 'whitespace-nowrap',
+            cell: (row) => new Date(row.createdAt).toLocaleDateString(),
           },
         ]}
       />
@@ -122,72 +120,56 @@ export function ProfilesPage() {
         onOffsetChange={setOffset}
       />
 
-      <ProfileDialog profile={selected} onClose={() => setSelected(null)} onChanged={list.reload} />
+      <ProfileDialog profile={selected} onClose={() => setSelected(null)} />
     </AdminPage>
   );
 }
 
-function ProfileDialog({
-  profile,
-  onClose,
-  onChanged,
-}: {
-  profile: Profile | null;
-  onClose: () => void;
-  onChanged: () => void;
-}) {
-  const [busy, setBusy] = React.useState(false);
-
+/**
+ * One profile, read-only.
+ *
+ * A profile belongs to the person it describes; an administrator looking at a support question
+ * needs to see it, not to edit it behind their back.
+ */
+function ProfileDialog({ profile, onClose }: { profile: Profile | null; onClose: () => void }) {
   if (!profile) return null;
-
-  const reset = async () => {
-    setBusy(true);
-    try {
-      await api.resetOnboarding({ id: profile.id });
-      toast.success('Onboarding will run again for this person');
-      onChanged();
-      onClose();
-    } catch (error) {
-      toast.error(messageOf(error));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{profile.displayName ?? profile.email ?? 'Profile'}</DialogTitle>
+          <DialogTitle>{profile.email ?? profile.displayName ?? 'Profile'}</DialogTitle>
           <DialogDescription>
-            An administrator can restart onboarding; the profile itself is the person's to edit.
+            The profile is the person&apos;s to edit. This is a read-only view of it.
           </DialogDescription>
         </DialogHeader>
 
         <dl className="grid grid-cols-[9rem_1fr] gap-y-2 text-sm">
           <dt className="text-muted-foreground">Email</dt>
-          <dd>{profile.email ?? '—'}</dd>
+          <dd>{profile.email ?? 'No account in Auth'}</dd>
+          <dt className="text-muted-foreground">Display name</dt>
+          <dd>{profile.displayName ?? '—'}</dd>
+          <dt className="text-muted-foreground">Identity</dt>
+          <dd>
+            <code className="text-xs break-all">{profile.identityId}</code>
+          </dd>
+          <dt className="text-muted-foreground">Profile</dt>
+          <dd>
+            <code className="text-xs break-all">{profile.id}</code>
+          </dd>
           <dt className="text-muted-foreground">Language</dt>
           <dd>{profile.preferences.locale}</dd>
           <dt className="text-muted-foreground">Theme</dt>
           <dd>{profile.preferences.theme}</dd>
-          <dt className="text-muted-foreground">Product emails</dt>
-          <dd>{profile.preferences.productEmails ? 'Yes' : 'No'}</dd>
+          <dt className="text-muted-foreground">Product email</dt>
+          <dd>{profile.preferences.productEmails ? 'Wanted' : 'Switched off'}</dd>
           <dt className="text-muted-foreground">Time zone</dt>
           <dd>{profile.timeZone ?? '—'}</dd>
           <dt className="text-muted-foreground">Joined</dt>
           <dd>{new Date(profile.createdAt).toLocaleString()}</dd>
         </dl>
 
-        <DialogFooter className="sm:justify-between">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={busy || profile.onboardingCompletedAt === null}
-            onClick={() => void reset()}
-          >
-            Restart onboarding
-          </Button>
+        <DialogFooter>
           <Button variant="ghost" size="sm" onClick={onClose}>
             Close
           </Button>

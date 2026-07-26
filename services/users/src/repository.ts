@@ -9,14 +9,13 @@ export interface ProfileRow {
   locale: string;
   theme: 'light' | 'dark' | 'system';
   product_emails: boolean;
-  onboarding_completed_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
 
 const COLUMNS = `
   id, identity_id, display_name, time_zone, locale, theme, product_emails,
-  onboarding_completed_at, created_at, updated_at
+  created_at, updated_at
 `;
 
 export function toProfile(row: ProfileRow): UserProfile {
@@ -30,7 +29,6 @@ export function toProfile(row: ProfileRow): UserProfile {
       theme: row.theme,
       productEmails: row.product_emails,
     },
-    onboardingCompletedAt: row.onboarding_completed_at?.toISOString() ?? null,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -107,32 +105,6 @@ export class UsersRepository {
     const row = rows[0];
     if (!row) throw new Error('Profile not found');
     return row;
-  }
-
-  async completeOnboarding(
-    identityId: string,
-    displayName: string,
-    timeZone: string,
-  ): Promise<ProfileRow> {
-    const { rows } = await this.pool.query<ProfileRow>(
-      `UPDATE profiles
-          SET display_name = $2, time_zone = $3,
-              onboarding_completed_at = COALESCE(onboarding_completed_at, now()),
-              updated_at = now()
-        WHERE identity_id = $1
-      RETURNING ${COLUMNS}`,
-      [identityId, displayName, timeZone],
-    );
-    const row = rows[0];
-    if (!row) throw new Error('Profile not found');
-    return row;
-  }
-
-  async resetOnboarding(id: string): Promise<void> {
-    await this.pool.query(
-      'UPDATE profiles SET onboarding_completed_at = NULL, updated_at = now() WHERE id = $1',
-      [id],
-    );
   }
 
   async list(

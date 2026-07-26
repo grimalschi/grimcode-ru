@@ -18,7 +18,7 @@ Reachable without a session:
 | `/app/reset-password/confirm` | Choose a new password from that link |
 | `/app/verify-email` | Confirm an address from its link |
 
-Everything else — the dashboard, onboarding and settings — needs one.
+Everything else — the dashboard and settings — needs one.
 
 ## The guard
 
@@ -48,9 +48,6 @@ the data:
 - **Profile** — display name, language, email preferences. Owned by Users.
 - **Account** — the sign-in address, its confirmation, changing it. Owned by Auth.
 - **Security** — password, and every browser holding a session. Owned by Auth.
-
-Onboarding stays a separate flow, because it has its own completion state that the rest of the
-product reads.
 
 ## Signing out
 

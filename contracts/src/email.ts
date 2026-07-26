@@ -60,7 +60,7 @@ export const templateVersionSchema = z.object({
   updatedAt: isoDateTimeSchema,
 });
 
-export const deliveryStatusSchema = z.enum(['queued', 'sent', 'failed', 'suppressed']);
+export const deliveryStatusSchema = z.enum(['queued', 'sent', 'failed']);
 
 /** Row of the delivery log. `html` and `text` are the immutable snapshot of what was sent. */
 export const deliverySchema = z.object({

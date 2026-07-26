@@ -59,6 +59,27 @@ export class AuthRepository {
     return rows[0] ?? null;
   }
 
+  /** One query for a page of ids. Unknown ones are simply not in the result. */
+  async findIdentitiesByIds(ids: readonly string[]): Promise<IdentityRow[]> {
+    if (ids.length === 0) return [];
+
+    const { rows } = await this.pool.query<IdentityRow>(
+      `SELECT ${IDENTITY_COLUMNS} FROM identities WHERE id = ANY($1::uuid[])`,
+      [ids],
+    );
+    return rows;
+  }
+
+  /** Blocked identities are included: an owner may well be looking for one to unblock. */
+  async searchIdentities(query: string, limit: number): Promise<IdentityRow[]> {
+    const { rows } = await this.pool.query<IdentityRow>(
+      `SELECT ${IDENTITY_COLUMNS} FROM identities
+        WHERE lower(email) LIKE $1 ORDER BY email ASC LIMIT $2`,
+      [`%${query.toLowerCase()}%`, limit],
+    );
+    return rows;
+  }
+
   async findIdentityByEmail(email: string): Promise<IdentityRow | null> {
     const { rows } = await this.pool.query<IdentityRow>(
       `SELECT ${IDENTITY_COLUMNS} FROM identities WHERE email = $1`,

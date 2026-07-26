@@ -10,7 +10,6 @@ const row: ProfileRow = {
   locale: 'en',
   theme: 'system',
   product_emails: true,
-  onboarding_completed_at: null,
   created_at: new Date('2026-01-01T00:00:00.000Z'),
   updated_at: new Date('2026-01-02T00:00:00.000Z'),
 };
@@ -20,11 +19,6 @@ describe('profile mapping', () => {
     expect(toProfile(row).preferences).toEqual({ locale: 'en', theme: 'system', productEmails: true });
   });
 
-  it('reports an unfinished onboarding as null rather than a date', () => {
-    expect(toProfile(row).onboardingCompletedAt).toBeNull();
-    expect(toProfile({ ...row, onboarding_completed_at: new Date('2026-03-04T05:06:07.000Z') })
-      .onboardingCompletedAt).toBe('2026-03-04T05:06:07.000Z');
-  });
 
   it('exposes the identity link without pretending to own the identity', () => {
     const profile = toProfile(row);

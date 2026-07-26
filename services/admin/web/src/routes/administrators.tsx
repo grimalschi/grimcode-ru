@@ -175,12 +175,37 @@ function EnabledSwitch({
   );
 }
 
+interface Candidate {
+  userId: string;
+  email: string;
+  isAdministrator: boolean;
+}
+
+/**
+ * Adding an administrator starts from an account that already exists.
+ *
+ * Being an administrator is permission granted to a person who has already signed up; this dialog
+ * never creates an account. So instead of asking an owner to type an address exactly right and
+ * refusing them afterwards, it searches Auth as they type and lets them pick.
+ */
 function AddAdministrator({ onAdded }: { onAdded: () => void }) {
   const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState('');
+  const [search, setSearch] = React.useState('');
   const [email, setEmail] = React.useState('');
   const [role, setRole] = React.useState<'owner' | 'admin'>('admin');
   const [grants, setGrants] = React.useState<AssignableServiceId[]>([]);
   const [busy, setBusy] = React.useState(false);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => setSearch(query.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const candidates = useAsync<{ users: Candidate[] }>(
+    () => (search === '' ? Promise.resolve({ users: [] }) : api.searchUsers({ query: search })),
+    [search],
+  );
 
   const submit = () => {
     setBusy(true);
@@ -190,6 +215,7 @@ function AddAdministrator({ onAdded }: { onAdded: () => void }) {
         toast.success(`${email} can now open the admin panel`);
         setOpen(false);
         setEmail('');
+        setQuery('');
         setGrants([]);
         onAdded();
       })
@@ -213,14 +239,58 @@ function AddAdministrator({ onAdded }: { onAdded: () => void }) {
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="administrator-email">Email</Label>
+            <Label htmlFor="administrator-search">Who</Label>
             <Input
-              id="administrator-email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="person@example.com"
+              id="administrator-search"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setEmail('');
+              }}
+              placeholder="Start typing an email"
+              autoComplete="off"
             />
+
+            {email !== '' ? (
+              <p className="text-sm">
+                Adding <span className="font-medium">{email}</span>.{' '}
+                <button
+                  type="button"
+                  className="underline underline-offset-4"
+                  onClick={() => setEmail('')}
+                >
+                  Choose someone else
+                </button>
+              </p>
+            ) : search === '' ? (
+              <p className="text-muted-foreground text-xs">
+                Only people who already have an account can be added — this does not create one.
+              </p>
+            ) : candidates.loading ? (
+              <p className="text-muted-foreground text-xs">Looking…</p>
+            ) : (candidates.data?.users.length ?? 0) === 0 ? (
+              <p className="text-muted-foreground text-xs">
+                Nobody with that address has signed up yet.
+              </p>
+            ) : (
+              <ul className="divide-y rounded-md border">
+                {candidates.data?.users.map((candidate) => (
+                  <li key={candidate.userId}>
+                    <button
+                      type="button"
+                      disabled={candidate.isAdministrator}
+                      onClick={() => setEmail(candidate.email)}
+                      className="hover:bg-accent flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm disabled:opacity-60"
+                    >
+                      <span className="truncate">{candidate.email}</span>
+                      {candidate.isAdministrator ? (
+                        <Badge variant="secondary">Already an administrator</Badge>
+                      ) : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <div className="space-y-2">

@@ -48,8 +48,9 @@ export function ServiceFrame({ serviceId }: { serviceId: string }) {
     );
   }
 
-  // Built once: changing `src` on every navigation would reload the iframe and throw away its
-  // state. Later navigation goes through the frame protocol instead.
+  // Built once per service: changing `src` on every navigation would reload the iframe and throw
+  // away its state, so navigation inside a service goes through the frame protocol instead. The
+  // component is keyed by the service, so choosing a different one mounts a fresh frame.
   const initialSrc = React.useRef(`${service.href.replace(/\/$/, '')}${path}`).current;
 
   return (

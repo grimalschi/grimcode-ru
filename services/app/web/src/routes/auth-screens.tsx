@@ -127,7 +127,7 @@ export function RegisterScreen() {
     try {
       await auth.register({ email, password });
       await refresh();
-      window.location.assign('/app/onboarding');
+      window.location.assign('/app/');
     } catch (error) {
       toast.error(messageOf(error));
       setBusy(false);

@@ -11,7 +11,9 @@ import type { usersContract } from '@template/contracts';
  */
 const BASE = '/admin/service/users';
 
-const MUTATIONS = new Set(['resetOnboarding']);
+// Users has no admin operation that changes anything: a profile belongs to the person it
+// describes, and this screen only reads it.
+const MUTATIONS = new Set<string>();
 
 const link = new RPCLink({
   url: `${window.location.origin}${BASE}/rpc`,

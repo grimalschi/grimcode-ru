@@ -15,7 +15,7 @@ import { AppSidebar } from '@/components/app-sidebar';
 import { AdminPage, EmptyState, ErrorState } from '@/components/layout/admin-page';
 import { AdminThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
-import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AdministratorsPage } from '@/routes/administrators';
 import { AuditPage } from '@/routes/audit';
@@ -73,9 +73,6 @@ function Shell() {
       <SidebarProvider>
         <AppSidebar session={session} onLogout={logout} />
         <SidebarInset className="flex h-svh flex-col overflow-hidden">
-          <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
-            <SidebarTrigger />
-          </header>
           <div className="min-h-0 flex-1 overflow-auto">
             <Outlet />
           </div>
@@ -101,7 +98,10 @@ const indexRoute = createRoute({
 
 function Home() {
   const { service } = indexRoute.useSearch();
-  if (service) return <ServiceFrame serviceId={service} />;
+  // Keyed by the service, so switching to another one builds a new frame. Without it React reuses
+  // the component, and the iframe keeps the src it was first given — the sidebar changes and the
+  // page does not.
+  if (service) return <ServiceFrame key={service} serviceId={service} />;
 
   return (
     <AdminPage title="Admin" description="Pick a service in the sidebar.">

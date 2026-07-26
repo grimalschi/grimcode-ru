@@ -24,6 +24,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { ADMIN_SERVICES } from '@/services';
 import type { AdminSession } from '@/session';
@@ -55,9 +56,14 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1.5">
-          <ShieldIcon className="size-4 shrink-0" />
+        {/*
+          The collapse control lives here rather than in a bar above the page. Every screen brings
+          its own heading, so that bar was empty on all of them.
+        */}
+        <div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:px-0">
+          <ShieldIcon className="size-4 shrink-0 group-data-[collapsible=icon]:hidden" />
           <span className="truncate font-semibold group-data-[collapsible=icon]:hidden">Admin</span>
+          <SidebarTrigger className="ml-auto group-data-[collapsible=icon]:ml-0" />
         </div>
       </SidebarHeader>
 

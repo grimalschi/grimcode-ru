@@ -20,7 +20,7 @@ const PARTS = [
   },
   {
     title: 'Application',
-    body: 'Everything behind sign-in: onboarding, one settings screen, and the account itself.',
+    body: 'Everything behind sign-in: the account, one settings screen, and whatever the product adds.',
   },
   {
     title: 'Admin',

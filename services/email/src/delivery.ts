@@ -22,7 +22,7 @@ export interface SendInput {
 export interface SendResult {
   deliveryId: string;
   deduplicated: boolean;
-  status: 'queued' | 'sent' | 'failed' | 'suppressed';
+  status: 'queued' | 'sent' | 'failed';
 }
 
 /**

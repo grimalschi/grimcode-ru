@@ -21,7 +21,7 @@ first account you register becomes the owner.
 | --- | --- |
 | **gateway** | The only door: routing, allowlists, the admin decision |
 | **site** | Public pages, server-rendered |
-| **app** | Sign-in, onboarding, one settings screen |
+| **app** | Sign-in, the account, one settings screen |
 | **admin** | Roles, grants, audit, and the shell the service admins are composed into |
 | **auth** | Identity, sessions, passwords, recovery, security log |
 | **users** | The product profile and preferences |

@@ -121,6 +121,26 @@ export const authInternalContract = {
     .input(z.object({ id: idSchema }))
     .output(z.object({ identity: identitySchema.nullable() })),
 
+  /**
+   * Several identities at once.
+   *
+   * Users needs the address for a page of profiles; asking one at a time would be a request per
+   * row. Unknown ids are simply absent from the answer.
+   */
+  getIdentitiesByIds: oc
+    .input(z.object({ ids: z.array(idSchema).max(200) }))
+    .output(z.object({ identities: z.array(identitySchema) })),
+
+  /**
+   * Identities matching a fragment of an address.
+   *
+   * Admin needs it to let an owner pick a person instead of typing an address exactly right. It is
+   * internal: the search itself is not something a client may reach.
+   */
+  searchIdentities: oc
+    .input(z.object({ query: z.string().min(1).max(200), limit: z.number().int().min(1).max(20).default(10) }))
+    .output(z.object({ identities: z.array(identitySchema) })),
+
   getIdentityByEmail: oc
     .input(z.object({ email: emailSchema }))
     .output(z.object({ identity: identitySchema.nullable() })),

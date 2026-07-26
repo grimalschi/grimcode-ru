@@ -5,11 +5,45 @@ import {
   usersInternalContract,
   usersPublicContract,
   type AdminContext,
+  type authInternalContract,
+  type ContractRouterClient,
   type Identity,
 } from '@template/contracts';
-import { isCsrfValid } from '@template/shared';
+import { createRpcClient, internalServiceUrl } from '@template/shared';
 
-import { toProfile, type UsersRepository } from './repository.js';
+import { toProfile, type ProfileRow, type UsersRepository } from './repository.js';
+
+type AuthClient = ContractRouterClient<typeof authInternalContract>;
+
+/**
+ * Fills in the sign-in address for a page of profiles.
+ *
+ * Users does not store it — Auth owns the identity — so it is fetched per request, in one call for
+ * the whole page rather than one per row. An id Auth does not know stays `null`, which is how a
+ * profile left behind by a deleted account is visible as exactly that.
+ */
+async function withEmails(rows: ProfileRow[]) {
+  const profiles = rows.map((row) => ({ ...toProfile(row), email: null as string | null }));
+  if (profiles.length === 0) return profiles;
+
+  try {
+    const auth = createRpcClient<AuthClient>({
+      url: `${internalServiceUrl('auth')}/internal/rpc`,
+    });
+
+    const { identities } = await auth.getIdentitiesByIds({
+      ids: [...new Set(rows.map((row) => row.identity_id))],
+    });
+
+    const byId = new Map(identities.map((identity) => [identity.id, identity.email]));
+    for (const profile of profiles) profile.email = byId.get(profile.identityId) ?? null;
+  } catch {
+    // Auth being briefly unreachable is not a reason to refuse the whole page: the profiles are
+    // still worth showing, and a missing address reads as missing.
+  }
+
+  return profiles;
+}
 
 export interface PublicContext {
   repo: UsersRepository;
@@ -56,12 +90,6 @@ export const publicRouter = publicOs.router({
     };
   }),
 
-  completeOnboarding: publicOs.completeOnboarding.handler(async ({ input, context }) => {
-    const identity = requireIdentity(context);
-    await context.repo.ensure(identity.id);
-    const row = await context.repo.completeOnboarding(identity.id, input.displayName, input.timeZone);
-    return { ok: true as const, profile: toProfile(row) };
-  }),
 });
 
 const internalOs = implement(usersInternalContract).$context<InternalContext>();
@@ -89,7 +117,7 @@ export const adminRouter = adminOs.router({
     requireAdmin(context);
     const { rows, total } = await context.repo.list(input.query, input.limit, input.offset);
     return {
-      items: rows.map((row) => ({ ...toProfile(row), email: null })),
+      items: await withEmails(rows),
       total,
       limit: input.limit,
       offset: input.offset,
@@ -100,18 +128,9 @@ export const adminRouter = adminOs.router({
     requireAdmin(context);
     const row = await context.repo.findById(input.id);
     if (!row) throw new ORPCError('NOT_FOUND', { message: 'Profile not found' });
-    return { profile: { ...toProfile(row), email: null } };
+
+    const [profile] = await withEmails([row]);
+    return { profile: profile! };
   }),
 
-  resetOnboarding: adminOs.resetOnboarding.handler(async ({ input, context }) => {
-    requireAdmin(context);
-    if (!isCsrfValid(context.request.headers)) {
-      throw new ORPCError('FORBIDDEN', { message: 'CSRF token missing or invalid' });
-    }
-    const row = await context.repo.findById(input.id);
-    if (!row) throw new ORPCError('NOT_FOUND', { message: 'Profile not found' });
-
-    await context.repo.resetOnboarding(input.id);
-    return { ok: true as const };
-  }),
 });

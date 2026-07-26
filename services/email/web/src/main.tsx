@@ -58,9 +58,10 @@ function Shell() {
   return (
     <AdminThemeProvider storageKey="template.email.theme" controlledTheme={theme}>
       <div className="min-h-svh">
+        {TABS.length > 1 || !embedded ? (
         <header className="flex h-12 items-center justify-between gap-4 border-b px-4">
           <nav className="flex items-center gap-4 text-sm">
-            {TABS.map((tab) => (
+            {TABS.length > 1 && TABS.map((tab) => (
               <Link
                 key={tab.to}
                 to={tab.to}
@@ -74,6 +75,7 @@ function Shell() {
           {/* The shell owns the theme when embedded, so the switch would only disagree with it. */}
           {embedded ? null : <ThemeToggle />}
         </header>
+        ) : null}
         <Outlet />
       </div>
       <Toaster position="bottom-right" />

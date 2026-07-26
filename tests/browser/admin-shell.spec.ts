@@ -128,6 +128,34 @@ test.describe('the frame protocol', () => {
     expectNoPageErrors(problems);
   });
 
+  /**
+   * The regression this exists for: the frame's `src` is built once so that navigation inside a
+   * service does not reload it, which meant choosing a different service left the old one on
+   * screen.
+   */
+  test('actually changes service when another one is chosen', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/admin/?service=auth#/');
+
+    await expect(page.frameLocator('iframe[title="Auth admin"]').getByRole('link', { name: 'Identities' })).toBeVisible();
+
+    await page.getByRole('link', { name: 'Email' }).click();
+    await expect(
+      page.frameLocator('iframe[title="Email admin"]').getByRole('heading', { name: 'Templates' }),
+    ).toBeVisible();
+
+    await page.getByRole('link', { name: 'Users' }).click();
+    await expect(
+      page.frameLocator('iframe[title="Users admin"]').getByRole('heading', { name: 'Profiles' }),
+    ).toBeVisible();
+
+    // And back again, which is where a cached frame would show the wrong service.
+    await page.getByRole('link', { name: 'Auth' }).click();
+    await expect(
+      page.frameLocator('iframe[title="Auth admin"]').getByRole('heading', { name: 'Identities' }),
+    ).toBeVisible();
+  });
+
   test('opens a deep link straight into the embedded admin', async ({ page }) => {
     await signIn(page);
     await page.goto('/admin/?service=auth#/audit');

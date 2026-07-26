@@ -140,12 +140,13 @@ function ProfileSection() {
         <CardHeader>
           <CardTitle>Email preferences</CardTitle>
           <CardDescription>
-            Messages about your account and its security are always sent.
+            Confirming your address, recovering your password and notices about your account are
+            always sent — switching those off would remove the warning that someone else took it.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <label className="flex items-center justify-between gap-4 text-sm">
-            <span>Product updates</span>
+            <span>News and product updates</span>
             <Switch
               checked={preferences?.productEmails ?? true}
               onCheckedChange={(value) => void setProductEmails(value)}

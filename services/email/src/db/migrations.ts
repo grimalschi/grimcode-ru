@@ -87,4 +87,16 @@ export const migrations: readonly Migration[] = [
       CREATE INDEX template_versions_template_idx ON template_versions (template_id, locale, version DESC);
     `,
   },
+  {
+    version: 3,
+    name: 'drop-suppressed-delivery-status',
+    sql: `
+      -- Whether to send at all is a routing decision, and Notifications makes it: it records a
+      -- suppressed event and never calls Email. Nothing here could ever set this status, and a
+      -- status no code can produce is a claim the schema cannot keep.
+      ALTER TABLE deliveries DROP CONSTRAINT deliveries_status_check;
+      ALTER TABLE deliveries ADD CONSTRAINT deliveries_status_check
+        CHECK (status IN ('queued', 'sent', 'failed'));
+    `,
+  },
 ];

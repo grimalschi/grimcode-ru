@@ -19,6 +19,7 @@ const link = new RPCLink({
   },
 });
 
+// `searchUsers` reads; it is owner-only on the server but changes nothing and carries no token.
 const MUTATIONS = new Set(['addAdministrator', 'updateAdministrator', 'logout']);
 
 let cached: Promise<string> | null = null;

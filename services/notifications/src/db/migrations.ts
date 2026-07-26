@@ -32,4 +32,15 @@ export const migrations: readonly Migration[] = [
       CREATE INDEX events_type_status_idx ON events (type, status);
     `,
   },
+  {
+    version: 3,
+    name: 'suppressed-events',
+    sql: `
+      -- An event the recipient's preferences told us not to send. It is recorded rather than
+      -- dropped, so "why did they not get it" has an answer that is not a shrug.
+      ALTER TABLE events DROP CONSTRAINT events_status_check;
+      ALTER TABLE events ADD CONSTRAINT events_status_check
+        CHECK (status IN ('accepted', 'routed', 'failed', 'suppressed'));
+    `,
+  },
 ];

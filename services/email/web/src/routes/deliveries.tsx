@@ -29,7 +29,7 @@ interface DeliveryRow {
   recipientEmail: string;
   subject: string;
   transport: 'log' | 'unisender';
-  status: 'queued' | 'sent' | 'failed' | 'suppressed';
+  status: 'queued' | 'sent' | 'failed';
   providerMessageId: string | null;
   error: string | null;
   createdAt: string;
@@ -43,15 +43,13 @@ interface Delivery extends DeliveryRow {
 
 const LIMIT = 50;
 const ANY = 'any';
-const STATUSES = ['queued', 'sent', 'failed', 'suppressed'] as const;
+const STATUSES = ['queued', 'sent', 'failed'] as const;
 
-const STATUS_VARIANT: Record<DeliveryRow['status'], 'default' | 'outline' | 'destructive' | 'secondary'> =
-  {
-    sent: 'default',
-    queued: 'outline',
-    failed: 'destructive',
-    suppressed: 'secondary',
-  };
+const STATUS_VARIANT: Record<DeliveryRow['status'], 'default' | 'outline' | 'destructive'> = {
+  sent: 'default',
+  queued: 'outline',
+  failed: 'destructive',
+};
 
 /**
  * What was actually sent.
@@ -191,7 +189,7 @@ function DeliveryDialog({ id, onClose }: { id: string; onClose: () => void }) {
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="w-[min(48rem,calc(100vw-2rem))] max-w-none">
         <DialogHeader>
           <DialogTitle>{delivery?.subject ?? 'Message'}</DialogTitle>
           <DialogDescription>
@@ -204,7 +202,7 @@ function DeliveryDialog({ id, onClose }: { id: string; onClose: () => void }) {
         {state.error ? <p className="text-sm">{messageOf(state.error)}</p> : null}
 
         {delivery ? (
-          <Tabs defaultValue="preview">
+          <Tabs defaultValue="preview" className="min-w-0">
             <TabsList>
               <TabsTrigger value="preview">Preview</TabsTrigger>
               <TabsTrigger value="html">HTML</TabsTrigger>
@@ -225,13 +223,13 @@ function DeliveryDialog({ id, onClose }: { id: string; onClose: () => void }) {
             </TabsContent>
 
             <TabsContent value="html">
-              <pre className="bg-muted max-h-96 overflow-auto rounded-lg p-3 text-xs">
+              <pre className="bg-muted max-h-96 w-full overflow-auto rounded-lg p-3 text-xs">
                 {delivery.html}
               </pre>
             </TabsContent>
 
             <TabsContent value="text">
-              <pre className="bg-muted max-h-96 overflow-auto rounded-lg p-3 text-xs whitespace-pre-wrap">
+              <pre className="bg-muted max-h-96 w-full overflow-auto rounded-lg p-3 text-xs break-words whitespace-pre-wrap">
                 {delivery.text}
               </pre>
             </TabsContent>

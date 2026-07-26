@@ -34,4 +34,14 @@ export const migrations: readonly Migration[] = [
       CREATE INDEX profiles_display_name_lower_idx ON profiles (lower(display_name));
     `,
   },
+  {
+    version: 3,
+    name: 'drop-onboarding',
+    sql: `
+      -- Onboarding is not part of the template. A product that wants a first-run flow owns its own
+      -- completion state, which is rarely a single timestamp, so keeping this column would have
+      -- been guessing at a shape.
+      ALTER TABLE profiles DROP COLUMN onboarding_completed_at;
+    `,
+  },
 ];
