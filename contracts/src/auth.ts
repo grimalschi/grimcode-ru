@@ -35,6 +35,9 @@ export const adminIdentitySchema = identitySchema.extend({
   lastLoginAt: isoDateTimeSchema.nullable(),
 });
 
+/** Identity as an administrator sees it, with the counters the admin list shows. */
+export type AdminIdentity = z.infer<typeof adminIdentitySchema>;
+
 export const authAuditEntrySchema = z.object({
   id: idSchema,
   identityId: idSchema.nullable(),
