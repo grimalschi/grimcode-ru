@@ -23,7 +23,8 @@
     "logs": "node scripts/compose.mjs logs -f",
     "network:allocate": "node scripts/allocate-network.mjs",
     "test:acceptance": "pnpm --filter @template/acceptance acceptance",
-    "test:browser": "pnpm --filter @template/acceptance browser"
+    "test:browser": "pnpm --filter @template/acceptance browser",
+    "bootstrap:worktree": "node scripts/bootstrap-worktree.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

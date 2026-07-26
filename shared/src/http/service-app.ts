@@ -50,10 +50,3 @@ export function serveService(app: ServiceApp, service: InternalServiceName, logg
   });
 }
 
-/** Fail-closed 503 used when a dependency needed for an authorization decision is unreachable. */
-export function serviceUnavailableResponse(message: string): Response {
-  return new Response(JSON.stringify({ error: 'service-unavailable', message }), {
-    status: 503,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
-  });
-}

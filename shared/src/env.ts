@@ -31,18 +31,8 @@ export function intEnv(name: string, fallback: number): number {
   return parsed;
 }
 
-export function boolEnv(name: string, fallback: boolean): boolean {
-  const raw = process.env[name];
-  if (raw === undefined || raw === '') return fallback;
-  return raw === '1' || raw.toLowerCase() === 'true';
-}
-
 export function projectSlug(): string {
   return optionalEnv('PROJECT_SLUG', 'template');
-}
-
-export function isProduction(): boolean {
-  return optionalEnv('NODE_ENV', 'development') === 'production';
 }
 
 export function publicSiteUrl(): string {

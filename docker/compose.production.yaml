@@ -1,0 +1,185 @@
+# Production topology.
+#
+# Only Gateway is reachable from outside; everything else lives on the internal network with no
+# host port at all. PostgreSQL is not here: in production the database is a managed resource of the
+# deployment platform, reached through DATABASE_URL, so the application never runs its own.
+#
+# There is no host port for Gateway either. The platform routes the domain to the container's
+# fixed internal port, which is why nobody has to choose a number.
+#
+# Everything a deployment must supply is listed in `docker/.env.production.example`.
+
+name: ${PROJECT_SLUG:?PROJECT_SLUG is required}
+
+x-service: &service
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile
+  restart: always
+  networks: [internal]
+  logging:
+    driver: json-file
+    options: { max-size: '10m', max-file: '3' }
+
+x-database-env: &database-env
+  PROJECT_SLUG: ${PROJECT_SLUG}
+  DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+
+services:
+  # Creates the per-service databases if they do not exist yet. Harmless on every later deploy: it
+  # only ever adds what is missing, and each service still applies its own migrations on start.
+  db-init:
+    image: postgres:17-alpine
+    restart: 'no'
+    environment:
+      <<: *database-env
+    entrypoint: ['sh', '-ec']
+    command:
+      - |
+        for service in admin auth users notifications email; do
+          db="$${PROJECT_SLUG}_$${service}"
+          if psql "$${DATABASE_URL}" -tAc "SELECT 1 FROM pg_database WHERE datname = '$${db}'" | grep -q 1; then
+            echo "[db-init] $${db} exists"
+          else
+            echo "[db-init] creating $${db}"
+            psql "$${DATABASE_URL}" -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$${db}\""
+          fi
+        done
+    networks: [internal]
+
+  gateway:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: gateway
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:?PUBLIC_SITE_URL is required}
+    # The only container the platform routes traffic to. No `ports`: publishing one would put the
+    # application on the host's network instead of behind whatever terminates TLS.
+    expose: ['8080']
+    depends_on: [admin, app, auth, site, users, notifications, email, adminer]
+
+  site:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: site
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL}
+    expose: ['3000']
+
+  app:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: app
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL}
+    expose: ['3001']
+
+  admin:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: admin
+    environment:
+      <<: *database-env
+    expose: ['3002']
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  auth:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: auth
+    environment:
+      <<: *database-env
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL}
+      AUTH_SESSION_TTL_SECONDS: ${AUTH_SESSION_TTL_SECONDS:-2592000}
+    expose: ['3003']
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  users:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: users
+    environment:
+      <<: *database-env
+    expose: ['3004']
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  notifications:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: notifications
+    environment:
+      <<: *database-env
+    expose: ['3005']
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  email:
+    <<: *service
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: email
+    environment:
+      <<: *database-env
+      # A production deployment that leaves this on `log` sends nothing: messages are recorded and
+      # stay put. That is a deliberate default — a misconfigured transport should not mail people.
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-log}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:?EMAIL_FROM_ADDRESS is required}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-}
+      UNISENDER_GO_API_KEY: ${UNISENDER_GO_API_KEY:-}
+      UNISENDER_GO_API_URL: ${UNISENDER_GO_API_URL:-}
+    expose: ['3006']
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  adminer:
+    build:
+      context: adminer
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    # Internal only, exactly as locally: reachable through Gateway's owner-only route and nowhere
+    # else. It never gets a host port, in any environment.
+    expose: ['8080']
+    networks: [internal]
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
+networks:
+  internal:
+    driver: bridge

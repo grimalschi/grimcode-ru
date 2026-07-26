@@ -48,6 +48,66 @@ const config = JSON.parse(raw);
 const problems = [];
 const notes = [];
 
+/**
+ * The production topology, checked with values that only exist for the check.
+ *
+ * What matters there is stricter than locally: nothing is published at all, because the platform
+ * routes a domain to Gateway's fixed internal port, and PostgreSQL is a managed resource rather
+ * than a container of this application.
+ */
+function checkProduction() {
+  const productionFile = join(repoRoot, 'docker/compose.production.yaml');
+  if (!existsSync(productionFile)) {
+    problems.push('docker/compose.production.yaml is missing');
+    return;
+  }
+
+  let productionRaw;
+  try {
+    productionRaw = execFileSync(
+      'docker',
+      ['compose', '-f', productionFile, 'config', '--format', 'json'],
+      {
+        cwd: repoRoot,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          PROJECT_SLUG: 'check',
+          PUBLIC_SITE_URL: 'https://check.invalid',
+          DATABASE_URL: 'postgres://check:check@db.invalid:5432/postgres',
+          EMAIL_FROM_ADDRESS: 'no-reply@check.invalid',
+        },
+      },
+    ).toString();
+  } catch (error) {
+    problems.push(
+      `docker/compose.production.yaml did not parse: ${error.stderr?.toString().trim() ?? error.message}`,
+    );
+    return;
+  }
+
+  const production = JSON.parse(productionRaw);
+
+  for (const [name, service] of Object.entries(production.services ?? {})) {
+    if ((service.ports ?? []).length > 0) {
+      problems.push(`"${name}" publishes a host port in production; nothing may`);
+    }
+  }
+
+  if (production.services?.postgres) {
+    problems.push('Production Compose contains a PostgreSQL container; the database is managed');
+  }
+
+  const missing = ['gateway', 'site', 'app', 'admin', 'auth', 'users', 'notifications', 'email', 'adminer'].filter(
+    (name) => !production.services?.[name],
+  );
+  if (missing.length > 0) {
+    problems.push(`Production Compose is missing: ${missing.join(', ')}`);
+  }
+}
+
+checkProduction();
+
 for (const [name, service] of Object.entries(config.services ?? {})) {
   const ports = service.ports ?? [];
 
@@ -90,4 +150,6 @@ const published = Object.entries(config.services)
   .map(([name]) => name);
 
 for (const note of notes) console.log(`Note: ${note}.`);
-console.log(`Compose check passed (published: ${published.join(', ') || 'nothing'}).`);
+console.log(
+  `Compose check passed (local publishes ${published.join(', ') || 'nothing'}; production nothing).`,
+);
