@@ -47,8 +47,7 @@ from a phone on the same network:
 GATEWAY_BIND_HOST=0.0.0.0
 ```
 
-in `.env`. `POSTGRES_BIND_HOST` is separate on purpose — opening the application must not drag the
-database out with it.
+in `.env`. The database has no such variable: it stays on loopback whatever the application does.
 
 ## Worktrees
 
@@ -100,7 +99,7 @@ Adminer, themed to match the panel around it; it has no host port in any environ
 `psql` works too — PostgreSQL is published on loopback for exactly that:
 
 ```bash
-node scripts/compose.mjs exec postgres psql -U "$POSTGRES_USER" -d "${PROJECT_SLUG}_auth"
+node scripts/compose.mjs exec postgres psql -U template -d "${PROJECT_SLUG}_auth"
 ```
 
 ## The checks, and what each is for

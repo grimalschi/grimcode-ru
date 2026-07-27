@@ -22,7 +22,6 @@
  * work here cannot be wiped by re-running bootstrap out of habit.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:net';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -262,15 +261,6 @@ resolved.set(
 // Carried over from the main checkout, it would point the test suites at the main checkout's port.
 resolved.delete('ACCEPTANCE_BASE_URL');
 
-// A worktree gets its own database credentials as well, so a leaked password from one branch is
-// not a password for another.
-if (!existing.has('POSTGRES_PASSWORD')) {
-  resolved.set('POSTGRES_PASSWORD', randomBytes(12).toString('base64url'));
-}
-
-const user = resolved.get('POSTGRES_USER') || 'template';
-resolved.set('POSTGRES_USER', user);
-resolved.set('DATABASE_URL', `postgres://${user}:${resolved.get('POSTGRES_PASSWORD')}@postgres:5432/postgres`);
 
 // Everything local lives in the ignored `.env` and nowhere else.
 const template = readFileSync(join(repoRoot, '.env.example'), 'utf8');
@@ -315,7 +305,9 @@ if (orphanedVolumes.length > 0) {
 // --- Copy the local databases across -------------------------------------------
 
 const mainSlug = mainEnv.get('PROJECT_SLUG');
-const mainUser = mainEnv.get('POSTGRES_USER') ?? 'template';
+// Fixed for every local copy, main and worktree alike: this database never leaves the machine.
+const user = 'template';
+const mainUser = user;
 
 if (!mainSlug) {
   console.log('\nThe main checkout has no PROJECT_SLUG, so there is nothing to copy.');

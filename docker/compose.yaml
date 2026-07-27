@@ -4,9 +4,9 @@
 # and one internal network. Only Gateway and PostgreSQL publish a host port, and both default to
 # loopback — opening either to the local network takes a deliberate override.
 #
-# The two have separate bind variables on purpose. Reaching the application from another machine
-# (a virtual machine's port forwarding, a phone on the same network) needs GATEWAY_BIND_HOST, and
-# that must not drag the database out with it.
+# Reaching the application from another machine — a virtual machine's port forwarding, a phone on
+# the same network — needs GATEWAY_BIND_HOST. The database has no such variable: it is pinned to
+# loopback, because publishing it wider is never the right answer locally.
 #
 # Every service receives only the variables it actually needs.
 
@@ -19,9 +19,8 @@ x-service: &service
   restart: unless-stopped
   networks: [internal]
 
-# The shared connection, which every stateful service needs to reach its own database. The
-# per-service override is declared on that service alone: a service that could read
-# DATABASE_URL_AUTH would be holding credentials to a database it may never open.
+# The connection every stateful service needs to reach its own database. Which database is its own
+# it works out from PROJECT_SLUG, so one line here gives each of them exactly one database.
 x-database-env: &database-env
   PROJECT_SLUG: ${PROJECT_SLUG:-template}
   DATABASE_URL: ${DATABASE_URL:-postgres://template:template@postgres:5432/postgres}
@@ -31,16 +30,18 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-template}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-template}
+      # Fixed: this database exists only on a developer's machine and never leaves loopback.
+      # DATABASE_URL carries the same pair, and production has neither this container nor these.
+      POSTGRES_USER: template
+      POSTGRES_PASSWORD: template
       POSTGRES_DB: postgres
     ports:
       # Only for local tools on the host machine. Bound to loopback by default.
-      - '${POSTGRES_BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432'
+      - '127.0.0.1:${POSTGRES_PORT:-63001}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-template} -d postgres']
+      test: ['CMD-SHELL', 'pg_isready -U template -d postgres']
       interval: 3s
       timeout: 3s
       retries: 20
@@ -83,7 +84,7 @@ services:
       PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://127.0.0.1:8080}
     ports:
       # The only container published outside.
-      - '${GATEWAY_BIND_HOST:-127.0.0.1}:${GATEWAY_PORT:-8080}:8080'
+      - '${GATEWAY_BIND_HOST:-127.0.0.1}:${GATEWAY_PORT:-63000}:8080'
     depends_on: [admin, app, auth, site, users, notifications, email, adminer]
 
   admin:
@@ -95,8 +96,6 @@ services:
         SERVICE: admin
     environment:
       <<: *database-env
-      # Set to put this service's database on another server or under other credentials.
-      DATABASE_URL_ADMIN: ${DATABASE_URL_ADMIN:-}
     expose: ['3002']
     depends_on:
       db-init:
@@ -113,8 +112,6 @@ services:
         SERVICE: auth
     environment:
       <<: *database-env
-      # Set to put this service's database on another server or under other credentials.
-      DATABASE_URL_AUTH: ${DATABASE_URL_AUTH:-}
       PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://127.0.0.1:8080}
       AUTH_SESSION_TTL_SECONDS: ${AUTH_SESSION_TTL_SECONDS:-2592000}
       AUTH_LOGIN_ATTEMPT_LIMIT: ${AUTH_LOGIN_ATTEMPT_LIMIT:-10}
@@ -133,8 +130,6 @@ services:
         SERVICE: users
     environment:
       <<: *database-env
-      # Set to put this service's database on another server or under other credentials.
-      DATABASE_URL_USERS: ${DATABASE_URL_USERS:-}
     expose: ['3004']
     depends_on:
       db-init:
@@ -149,8 +144,6 @@ services:
         SERVICE: notifications
     environment:
       <<: *database-env
-      # Set to put this service's database on another server or under other credentials.
-      DATABASE_URL_NOTIFICATIONS: ${DATABASE_URL_NOTIFICATIONS:-}
     expose: ['3005']
     depends_on:
       db-init:
@@ -165,8 +158,6 @@ services:
         SERVICE: email
     environment:
       <<: *database-env
-      # Set to put this service's database on another server or under other credentials.
-      DATABASE_URL_EMAIL: ${DATABASE_URL_EMAIL:-}
       # `log` keeps messages inside the delivery log; `unisender` is the ready production transport.
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-log}
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-no-reply@example.com}
