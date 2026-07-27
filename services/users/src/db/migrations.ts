@@ -57,4 +57,14 @@ export const migrations: readonly Migration[] = [
       ALTER TABLE profiles DROP COLUMN time_zone;
     `,
   },
+  {
+    version: 5,
+    name: 'default-locale-ru',
+    sql: `
+      -- The seed email templates are Russian, so a profile created without a language has to agree
+      -- with them; otherwise delivery would look for a language nothing was seeded in.
+      ALTER TABLE profiles ALTER COLUMN locale SET DEFAULT 'ru';
+      UPDATE profiles SET locale = 'ru' WHERE locale = 'en';
+    `,
+  },
 ];

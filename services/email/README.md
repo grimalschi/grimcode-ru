@@ -25,6 +25,11 @@ edits survive a restart.
 | `auth-confirm-email-change` | a user asks to change their address |
 | `auth-email-changed` | notice to the previous address |
 
+They are seeded in the template's default language, `DEFAULT_LOCALE` in `contracts/`. The profile
+default and the delivery fallback read the same constant, so a message can never fall back to a
+language nothing was seeded in. A project that speaks another language edits these five documents,
+or adds a version in its own language beside them — that is what the locale on a version is for.
+
 ## Publishing is where the server takes over
 
 On publish the server:

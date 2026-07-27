@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE } from '@template/contracts';
+
 import type { EditorDocument } from './types.js';
 
 /**
@@ -7,7 +9,9 @@ import type { EditorDocument } from './types.js';
  * project opens is a real editable document rather than imported markup. There is no migration
  * from an older editor format in the template.
  *
- * The wording is deliberately neutral and belongs to the project that copies this repository.
+ * The wording is deliberately plain and belongs to the project that copies this repository. It is
+ * in the template's default language; a project that speaks another one edits these five documents
+ * or adds a version in its own language, which is what the locale on a version is for.
  */
 
 interface SeedTemplate {
@@ -60,10 +64,7 @@ function button(label: string, urlVariable: string) {
 }
 
 function fallbackLink(urlVariable: string) {
-  return paragraph(
-    text('If the button does not work, open this address: '),
-    variable(urlVariable),
-  );
+  return paragraph(text('Если кнопка не работает, откройте адрес: '), variable(urlVariable));
 }
 
 function document(...content: unknown[]): EditorDocument {
@@ -73,81 +74,81 @@ function document(...content: unknown[]): EditorDocument {
 export const SEED_TEMPLATES: readonly SeedTemplate[] = [
   {
     key: 'auth-welcome',
-    name: 'Welcome',
-    description: 'Sent right after registration; carries the first email verification link.',
+    name: 'Приветствие',
+    description: 'Отправляется сразу после регистрации и несёт первую ссылку подтверждения.',
     variables: ['email', 'verificationUrl'],
-    locale: 'en',
-    subject: 'Confirm your email address',
+    locale: DEFAULT_LOCALE,
+    subject: 'Подтвердите адрес почты',
     document: document(
-      heading('Welcome'),
-      paragraph(text('Your account has been created for '), variable('email'), text('.')),
-      paragraph(text('Please confirm the address so we can reach you when it matters.')),
-      button('Confirm email', 'verificationUrl'),
+      heading('Добро пожаловать'),
+      paragraph(text('Для адреса '), variable('email'), text(' создан аккаунт.')),
+      paragraph(text('Подтвердите адрес, чтобы мы могли связаться с вами, когда это будет важно.')),
+      button('Подтвердить адрес', 'verificationUrl'),
       fallbackLink('verificationUrl'),
     ),
   },
   {
     key: 'auth-verify-email',
-    name: 'Verify email',
-    description: 'Repeat verification link, requested by the user or resent by an administrator.',
+    name: 'Подтверждение адреса',
+    description: 'Повторная ссылка подтверждения: по просьбе человека или от администратора.',
     variables: ['email', 'verificationUrl'],
-    locale: 'en',
-    subject: 'Confirm your email address',
+    locale: DEFAULT_LOCALE,
+    subject: 'Подтвердите адрес почты',
     document: document(
-      heading('Confirm your email'),
-      paragraph(text('Use the link below to confirm '), variable('email'), text('.')),
-      button('Confirm email', 'verificationUrl'),
+      heading('Подтвердите адрес'),
+      paragraph(text('Подтвердите адрес '), variable('email'), text(' по ссылке ниже.')),
+      button('Подтвердить адрес', 'verificationUrl'),
       fallbackLink('verificationUrl'),
-      paragraph(text('If you did not ask for this, you can ignore this message.')),
+      paragraph(text('Если вы этого не запрашивали, письмо можно не читать.')),
     ),
   },
   {
     key: 'auth-password-reset',
-    name: 'Password reset',
-    description: 'One-time recovery link. The link works once and expires.',
+    name: 'Восстановление пароля',
+    description: 'Одноразовая ссылка восстановления. Работает один раз и быстро истекает.',
     variables: ['email', 'resetUrl'],
-    locale: 'en',
-    subject: 'Reset your password',
+    locale: DEFAULT_LOCALE,
+    subject: 'Восстановление пароля',
     document: document(
-      heading('Reset your password'),
-      paragraph(text('A password reset was requested for '), variable('email'), text('.')),
-      button('Choose a new password', 'resetUrl'),
+      heading('Восстановление пароля'),
+      paragraph(text('Для адреса '), variable('email'), text(' запросили смену пароля.')),
+      button('Задать новый пароль', 'resetUrl'),
       fallbackLink('resetUrl'),
       paragraph(
-        text('The link works once and expires shortly. If you did not request it, nothing has '),
-        text('changed and you can ignore this message.'),
+        text('Ссылка работает один раз и скоро истекает. Если запрос не ваш, ничего не '),
+        text('изменилось и письмо можно не читать.'),
       ),
     ),
   },
   {
     key: 'auth-confirm-email-change',
-    name: 'Confirm email change',
-    description: 'Sent to the new address when a user asks to change their email.',
+    name: 'Подтверждение нового адреса',
+    description: 'Отправляется на новый адрес, когда человек меняет почту.',
     variables: ['email', 'confirmUrl'],
-    locale: 'en',
-    subject: 'Confirm your new email address',
+    locale: DEFAULT_LOCALE,
+    subject: 'Подтвердите новый адрес почты',
     document: document(
-      heading('Confirm your new address'),
-      paragraph(text('You asked to use '), variable('email'), text(' for your account.')),
-      button('Confirm new address', 'confirmUrl'),
+      heading('Подтвердите новый адрес'),
+      paragraph(text('Вы попросили использовать для аккаунта адрес '), variable('email'), text('.')),
+      button('Подтвердить новый адрес', 'confirmUrl'),
       fallbackLink('confirmUrl'),
     ),
   },
   {
     key: 'auth-email-changed',
-    name: 'Email changed',
-    description: 'Notice sent to the previous address, so a hijacked account is noticed.',
+    name: 'Адрес изменён',
+    description: 'Уведомление на прежний адрес, чтобы угон аккаунта был заметен.',
     variables: ['email', 'previousEmail'],
-    locale: 'en',
-    subject: 'The email address of your account has changed',
+    locale: DEFAULT_LOCALE,
+    subject: 'Адрес почты вашего аккаунта изменён',
     document: document(
-      heading('Your email address changed'),
+      heading('Адрес почты изменён'),
       paragraph(
-        text('The address '),
+        text('Адрес '),
         variable('previousEmail'),
-        text(' is no longer used for this account.'),
+        text(' больше не используется для этого аккаунта.'),
       ),
-      paragraph(text('If this was not you, contact support immediately.')),
+      paragraph(text('Если это были не вы, немедленно обратитесь в поддержку.')),
     ),
   },
 ];

@@ -28,11 +28,12 @@ test.describe('the email admin', () => {
     await signIn(page);
     await page.goto('/admin/service/email/');
 
-    await page.getByRole('link', { name: /Password reset/ }).click();
-    await expect(page.getByRole('heading', { name: /Password reset/ })).toBeVisible();
+    await page.getByRole('link', { name: /Восстановление пароля/ }).click();
+    await expect(page.getByRole('heading', { name: /Восстановление пароля/ })).toBeVisible();
 
     // A published version opens read-only; that is the record of what was approved.
-    await page.getByRole('link', { name: /en · v1/ }).first().click();
+    // Whatever language the seed is in — the point is that a version opens, not which locale.
+    await page.getByRole('link', { name: /· v1/ }).first().click();
 
     await expect(page.getByLabel('Тема')).toBeVisible();
     // The editor's own surface, meaning the lazily loaded chunk arrived and ran.

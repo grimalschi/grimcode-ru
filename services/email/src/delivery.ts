@@ -1,3 +1,4 @@
+import { DEFAULT_LOCALE } from '@template/contracts';
 import type { Logger } from '@template/shared';
 
 import type { EmailRepository } from './repository.js';
@@ -43,8 +44,9 @@ export async function sendTemplate(
 
   const published =
     (await deps.repo.findPublished(input.templateKey, input.locale)) ??
-    // A locale without its own published version falls back to English rather than sending nothing.
-    (await deps.repo.findPublished(input.templateKey, 'en'));
+    // A locale without its own published version falls back to the default one rather than
+    // sending nothing.
+    (await deps.repo.findPublished(input.templateKey, DEFAULT_LOCALE));
 
   if (!published || published.compiled_html === null || published.compiled_text === null) {
     throw new UnknownTemplateError(input.templateKey, input.locale);

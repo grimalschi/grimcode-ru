@@ -1,3 +1,4 @@
+import { DEFAULT_LOCALE } from '@template/contracts';
 import type {
   ContractRouterClient,
   NotificationEvent,
@@ -34,15 +35,15 @@ export class Notifier {
     });
   }
 
-  /** Falls back to `en` when Users has no profile yet or is temporarily unreachable. */
+  /** Falls back to the default language when Users has no profile yet or is unreachable. */
   async localeOf(identityId: string): Promise<string> {
     try {
       const users = this.client<UsersClient>('users', '/internal/rpc');
       const { profile } = await users.getProfileByIdentityId({ identityId });
-      return profile?.locale ?? 'en';
+      return profile?.locale ?? DEFAULT_LOCALE;
     } catch (error) {
       this.logger.warn('could not read recipient locale, falling back to en', { error });
-      return 'en';
+      return DEFAULT_LOCALE;
     }
   }
 
