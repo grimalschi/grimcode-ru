@@ -5,6 +5,9 @@ import type { Migration } from '@template/shared';
  *
  * `user_id` references an Auth identity and deliberately carries no foreign key: identities live
  * in the Auth database, which Admin may never read or reference.
+ *
+ * The template starts at one migration: this is the schema a new project inherits, not a record of
+ * how it was arrived at. Every change after the first clone is a new version.
  */
 export const migrations: readonly Migration[] = [
   {
@@ -45,12 +48,7 @@ export const migrations: readonly Migration[] = [
       );
 
       CREATE INDEX admin_audit_created_idx ON admin_audit (created_at DESC);
-    `,
-  },
-  {
-    version: 2,
-    name: 'administrator-listing-index',
-    sql: `
+
       CREATE INDEX administrators_role_enabled_idx ON administrators (role, enabled);
       CREATE INDEX administrators_email_lower_idx ON administrators (lower(email));
     `,

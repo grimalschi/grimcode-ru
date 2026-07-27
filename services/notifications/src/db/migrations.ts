@@ -1,5 +1,11 @@
 import type { Migration } from '@template/shared';
 
+/**
+ * Versioned migrations of the Notifications database.
+ *
+ * The template starts at one migration: this is the schema a new project inherits, not a record of
+ * how it was arrived at. Every change after the first clone is a new version.
+ */
 export const migrations: readonly Migration[] = [
   {
     version: 1,
@@ -23,38 +29,7 @@ export const migrations: readonly Migration[] = [
 
       CREATE UNIQUE INDEX events_dedupe_key_idx ON events (dedupe_key);
       CREATE INDEX events_created_idx ON events (created_at DESC);
-    `,
-  },
-  {
-    version: 2,
-    name: 'event-status-index',
-    sql: `
       CREATE INDEX events_type_status_idx ON events (type, status);
-    `,
-  },
-  {
-    version: 3,
-    name: 'suppressed-events',
-    sql: `
-      -- An event the recipient's preferences told us not to send. It is recorded rather than
-      -- dropped, so "why did they not get it" has an answer that is not a shrug.
-      ALTER TABLE events DROP CONSTRAINT events_status_check;
-      ALTER TABLE events ADD CONSTRAINT events_status_check
-        CHECK (status IN ('accepted', 'routed', 'failed', 'suppressed'));
-    `,
-  },
-  {
-    version: 4,
-    name: 'drop-suppressed-events',
-    sql: `
-      -- The email preference it existed for is gone, so nothing can produce this status any more.
-      -- Applied forward rather than by editing migration 3, which has already run elsewhere.
-      UPDATE events SET status = 'failed', error = 'Suppressed before the preference was removed.'
-       WHERE status = 'suppressed';
-
-      ALTER TABLE events DROP CONSTRAINT events_status_check;
-      ALTER TABLE events ADD CONSTRAINT events_status_check
-        CHECK (status IN ('accepted', 'routed', 'failed'));
     `,
   },
 ];

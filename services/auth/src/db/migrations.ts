@@ -6,6 +6,9 @@ import type { Migration } from '@template/shared';
  * Versions are immutable once released: a fresh database is built from version 1 upwards and an
  * existing one only receives what it is missing. Changing a released statement is an error — add a
  * new version instead.
+ *
+ * The template starts at one, which is the schema a new project inherits rather than a record of
+ * how it was arrived at.
  */
 export const migrations: readonly Migration[] = [
   {
@@ -20,11 +23,13 @@ export const migrations: readonly Migration[] = [
         password_hash      text NOT NULL,
         email_verified_at  timestamptz,
         blocked_at         timestamptz,
+        last_login_at      timestamptz,
         created_at         timestamptz NOT NULL DEFAULT now(),
         updated_at         timestamptz NOT NULL DEFAULT now()
       );
 
       CREATE UNIQUE INDEX identities_sequence_idx ON identities (sequence);
+      CREATE INDEX identities_email_lower_idx ON identities (lower(email));
 
       CREATE TABLE sessions (
         id           uuid PRIMARY KEY,
@@ -66,15 +71,6 @@ export const migrations: readonly Migration[] = [
       );
 
       CREATE INDEX auth_audit_created_idx ON auth_audit (created_at DESC);
-    `,
-  },
-  {
-    version: 2,
-    name: 'identity-last-login',
-    sql: `
-      ALTER TABLE identities ADD COLUMN last_login_at timestamptz;
-
-      CREATE INDEX identities_email_lower_idx ON identities (lower(email));
     `,
   },
 ];

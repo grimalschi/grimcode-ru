@@ -3,78 +3,29 @@ import type { Migration } from '@template/shared';
 /**
  * Versioned migrations of the Users database.
  *
- * `identity_id` has no foreign key on purpose: the identity lives in the Auth database, which
- * Users may never read or reference. The link is a contract, not a join.
+ * `identity_id` has no foreign key on purpose: the identity lives in the Auth database, which Users
+ * may never read or reference. The link is a contract, not a join.
+ *
+ * The template starts at one migration: this is the schema a new project inherits, not a record of
+ * how it was arrived at. Every change after the first clone is a new version.
  */
 export const migrations: readonly Migration[] = [
   {
     version: 1,
     name: 'profiles',
     sql: `
+      -- The profile is a display name. A theme, a time zone or an email preference would be three
+      -- things every project deletes before adding its own shape.
       CREATE TABLE profiles (
-        id                      uuid PRIMARY KEY,
-        identity_id             uuid NOT NULL UNIQUE,
-        display_name            text,
-        time_zone               text,
-        locale                  text NOT NULL DEFAULT 'en',
-        theme                   text NOT NULL DEFAULT 'system'
-                                CHECK (theme IN ('light', 'dark', 'system')),
-        product_emails          boolean NOT NULL DEFAULT true,
-        onboarding_completed_at timestamptz,
-        created_at              timestamptz NOT NULL DEFAULT now(),
-        updated_at              timestamptz NOT NULL DEFAULT now()
+        id           uuid PRIMARY KEY,
+        identity_id  uuid NOT NULL UNIQUE,
+        display_name text,
+        created_at   timestamptz NOT NULL DEFAULT now(),
+        updated_at   timestamptz NOT NULL DEFAULT now()
       );
-    `,
-  },
-  {
-    version: 2,
-    name: 'profile-listing-indexes',
-    sql: `
+
       CREATE INDEX profiles_created_idx ON profiles (created_at DESC);
       CREATE INDEX profiles_display_name_lower_idx ON profiles (lower(display_name));
-    `,
-  },
-  {
-    version: 3,
-    name: 'drop-onboarding',
-    sql: `
-      -- Onboarding is not part of the template. A product that wants a first-run flow owns its own
-      -- completion state, which is rarely a single timestamp, so keeping this column would have
-      -- been guessing at a shape.
-      ALTER TABLE profiles DROP COLUMN onboarding_completed_at;
-    `,
-  },
-  {
-    version: 4,
-    name: 'reduce-profile-to-name-and-locale',
-    sql: `
-      -- The template's profile is a display name, and a locale Email needs to pick a template
-      -- version. A theme the application never read, a time zone nothing set and an email
-      -- preference nothing could switch are not a starting point — they are three things every
-      -- project would delete before adding its own.
-      ALTER TABLE profiles DROP COLUMN theme;
-      ALTER TABLE profiles DROP COLUMN product_emails;
-      ALTER TABLE profiles DROP COLUMN time_zone;
-    `,
-  },
-  {
-    version: 5,
-    name: 'default-locale-ru',
-    sql: `
-      -- The seed email templates are Russian, so a profile created without a language has to agree
-      -- with them; otherwise delivery would look for a language nothing was seeded in.
-      ALTER TABLE profiles ALTER COLUMN locale SET DEFAULT 'ru';
-      UPDATE profiles SET locale = 'ru' WHERE locale = 'en';
-    `,
-  },
-  {
-    version: 6,
-    name: 'drop-locale',
-    sql: `
-      -- Email sends in one language, so nothing reads this any more. A product with several
-      -- languages stores the choice where it can act on it, which is not something a template can
-      -- decide in advance.
-      ALTER TABLE profiles DROP COLUMN locale;
     `,
   },
 ];
