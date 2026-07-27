@@ -30,6 +30,14 @@ default and the delivery fallback read the same constant, so a message can never
 language nothing was seeded in. A project that speaks another language edits these five documents,
 or adds a version in its own language beside them — that is what the locale on a version is for.
 
+Templates are not created from the admin panel. A template only means something once code sends it,
+and its key and the variables it may use are that code's side of the agreement — inventing them in a
+form would produce a template nothing ever delivers. They are added to the seed and appear on the
+next start. The panel is for the wording.
+
+The `createTemplate` procedure remains, because that is how the seed and anything automating it do
+the creating.
+
 ## Publishing is where the server takes over
 
 On publish the server:

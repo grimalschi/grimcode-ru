@@ -72,7 +72,14 @@ export function AppSidebar({
           <SidebarGroupLabel>Сервисы</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {ADMIN_SERVICES.filter((service) => allowed.has(service.id)).map((service) => {
+              {/*
+                The database is left out here and shown under Owner instead. It is not a service
+                admin: it is a window into every service's data at once, and only the owner ever
+                sees it. Sitting next to Auth and Users it read as a peer of theirs.
+              */}
+              {ADMIN_SERVICES.filter(
+                (service) => service.id !== 'adminer' && allowed.has(service.id),
+              ).map((service) => {
                 const Icon = ICONS[service.id];
                 return (
                   <SidebarMenuItem key={service.id}>
@@ -116,6 +123,20 @@ export function AppSidebar({
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+                {allowed.has('adminer') ? (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={search.service === 'adminer'}
+                      tooltip="Database"
+                    >
+                      <Link to="/" search={{ service: 'adminer' }} hash="/">
+                        <DatabaseIcon />
+                        <span>Database</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ) : null}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

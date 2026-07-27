@@ -28,6 +28,17 @@ Adminer is not on the list of grantable services at all. `ASSIGNABLE_SERVICE_IDS
 deliberately shorter than the sidebar, so "grant everything" cannot accidentally include direct
 database access — the contract rejects it before any handler sees it.
 
+## Why the database sits where it does
+
+It is reached at `/admin/service/adminer/`, like a service admin, but it is not one: the others are
+each a window into one service's own data, and this is a window into all of them at once. That is
+why it is owner-only, why it cannot be granted, and why the sidebar shows it under Owner rather than
+among the services.
+
+Two lists carry that rule rather than a special case in the routing: `OWNER_ONLY_SERVICES` in Admin
+and `ASSIGNABLE_SERVICE_IDS` in the contracts. Neither is about Adminer specifically — a project
+that adds another console only the owner should reach adds it to the same lists.
+
 ## The first owner
 
 On a fresh installation nobody is an administrator and nobody can add one. The rule that resolves
