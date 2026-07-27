@@ -1,14 +1,17 @@
 import type { AdminServiceId } from '@template/contracts';
-import { Link, useSearch } from '@tanstack/react-router';
+import { Link } from '@tanstack/react-router';
 import {
+  BellIcon,
   DatabaseIcon,
+  ExternalLinkIcon,
+  GlobeIcon,
   KeyRoundIcon,
+  LayoutDashboardIcon,
   LogOutIcon,
   MailIcon,
   ScrollTextIcon,
   ShieldIcon,
   UsersIcon,
-  BellIcon,
 } from 'lucide-react';
 
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -36,20 +39,19 @@ const ICONS: Record<AdminServiceId, typeof ShieldIcon> = {
   email: MailIcon,
 };
 
+/** The two public surfaces, opened in a new tab: they are the product, not part of the panel. */
+const PRODUCT = [
+  { href: '/', label: 'Открыть сайт', icon: GlobeIcon },
+  { href: '/app/', label: 'Открыть приложение', icon: LayoutDashboardIcon },
+];
+
 /**
- * Sidebar of admin services, the current administrator and logout.
+ * Sidebar of the panel: the product, the service admins, and the panel's own sections.
  *
  * Only the services the server returned are listed. That is presentation, not protection: the
  * protected URL of a hidden service passes the very same Gateway check.
  */
-export function AppSidebar({
-  session,
-  onLogout,
-}: {
-  session: AdminSession;
-  onLogout: () => void;
-}) {
-  const search = useSearch({ strict: false }) as { service?: string; database?: boolean };
+export function AppSidebar({ session, onLogout }: { session: AdminSession; onLogout: () => void }) {
   const allowed = new Set(session.services);
 
   return (
@@ -59,14 +61,34 @@ export function AppSidebar({
           The collapse control lives here rather than in a bar above the page. Every screen brings
           its own heading, so that bar was empty on all of them.
         */}
-        <div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:px-0">
-          <ShieldIcon className="size-4 shrink-0 group-data-[collapsible=icon]:hidden" />
-          <span className="truncate font-semibold group-data-[collapsible=icon]:hidden">Admin</span>
-          <SidebarTrigger className="ml-auto group-data-[collapsible=icon]:ml-0" />
+        <div className="flex items-center justify-end px-2 py-1.5 group-data-[collapsible=icon]:px-0">
+          <SidebarTrigger />
         </div>
       </SidebarHeader>
 
       <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {PRODUCT.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton asChild tooltip={item.label}>
+                    {/*
+                      An ordinary link, not a frame: the site and the application are the product,
+                      and an administrator opening them wants the real thing in its own tab.
+                    */}
+                    <a href={item.href} target="_blank" rel="noreferrer">
+                      <item.icon />
+                      <span className="flex-1">{item.label}</span>
+                      <ExternalLinkIcon className="text-muted-foreground size-3" />
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         <SidebarGroup>
           <SidebarGroupLabel>Сервисы</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -75,14 +97,10 @@ export function AppSidebar({
                 const Icon = ICONS[service.id];
                 return (
                   <SidebarMenuItem key={service.id}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={search.service === service.id}
-                      tooltip={service.label}
-                    >
+                    <SidebarMenuButton asChild tooltip={service.label}>
                       {/* The hash carries the service-relative path, so a deep link survives a
                           reload and the browser's back button. */}
-                      <Link to="/" search={{ service: service.id, database: undefined }} hash="/">
+                      <Link to="/services/$service" params={{ service: service.id }} hash="/">
                         <Icon />
                         <span>{service.label}</span>
                       </Link>
@@ -96,7 +114,7 @@ export function AppSidebar({
 
         {session.role === 'owner' ? (
           <SidebarGroup>
-            <SidebarGroupLabel>Владелец</SidebarGroupLabel>
+            <SidebarGroupLabel>Админка</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
@@ -121,12 +139,8 @@ export function AppSidebar({
                 */}
                 {session.database ? (
                   <SidebarMenuItem>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={search.database === true}
-                      tooltip={DATABASE_AREA.label}
-                    >
-                      <Link to="/" search={{ service: undefined, database: true }}>
+                    <SidebarMenuButton asChild tooltip={DATABASE_AREA.label}>
+                      <Link to="/database">
                         <DatabaseIcon />
                         <span>{DATABASE_AREA.label}</span>
                       </Link>

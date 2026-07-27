@@ -19,7 +19,7 @@ import { ProfilesPage } from '@/routes/profiles';
 
 import '@/styles.css';
 
-const BASE = '/admin/service/users';
+const BASE = '/admin/embed/services/users';
 
 const TABS = [{ to: '/', label: 'Профили' }];
 

@@ -19,7 +19,7 @@ import { EventsPage } from '@/routes/events';
 
 import '@/styles.css';
 
-const BASE = '/admin/service/notifications';
+const BASE = '/admin/embed/services/notifications';
 
 const TABS = [{ to: '/', label: 'События' }];
 

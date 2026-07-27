@@ -119,19 +119,21 @@ async function routePublicService(
 /**
  * Which part of the admin panel a path is asking for, or `null` when it names nothing real.
  *
- * `/admin/service/:name/**` is one service's admin; `/admin/database/**` is the panel's own
- * database browser; everything else under `/admin` is the panel itself. A bare `/admin/service`
- * names no service and is not the panel either.
+ * Everything the panel embeds lives under `/admin/embed/`: `/admin/embed/services/:name/**` is one
+ * service's admin, `/admin/embed/database/**` is the database browser. Everything else under
+ * `/admin` is the panel itself, so its own pages are ordinary paths that can never collide with an
+ * embedded application.
  */
 function adminTargetOf(pathname: string): AdminTarget | null {
   const segments = pathname.split('/').filter(Boolean);
+  if (segments[1] !== 'embed') return { area: 'panel' };
 
-  if (segments[1] === 'database') return { area: 'database' };
+  if (segments[2] === 'database') return { area: 'database' };
 
-  if (segments[1] === 'service') {
-    const name = segments[2] ?? '';
+  if (segments[2] === 'services') {
+    const name = segments[3] ?? '';
     return isAdminService(name) ? { area: 'service', service: name } : null;
   }
 
-  return { area: 'panel' };
+  return null;
 }

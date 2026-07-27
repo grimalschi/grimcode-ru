@@ -140,8 +140,9 @@ export const AUTH = '/service/auth';
 export const USERS = '/service/users';
 export const ADMIN = '/admin';
 
+/** Where an embedded service admin actually lives; the panel's own page for it is a path. */
 export function serviceAdmin(service: string): string {
-  return `/admin/service/${service}`;
+  return `/admin/embed/services/${service}`;
 }
 
 /** oRPC reports a refusal in the body; the code is what these tests assert on. */

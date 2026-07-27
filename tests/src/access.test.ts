@@ -67,7 +67,7 @@ describe('the admin panel itself', () => {
   it('protects the admin assets, not only its pages', async () => {
     const anonymous = new Session();
     expect(await anonymous.status('/admin/assets/index.js')).toBe(403);
-    expect(await anonymous.status('/admin/service/email/assets/index.js')).toBe(403);
+    expect(await anonymous.status('/admin/embed/services/email/assets/index.js')).toBe(403);
   });
 });
 
@@ -150,7 +150,7 @@ describe('grants', () => {
 describe('the database area', () => {
   it('is open to the owner', async () => {
     // Adminer answers a first request with its own redirect and cookie.
-    const status = await owner.status('/admin/database/');
+    const status = await owner.status('/admin/embed/database/');
     expect([200, 302]).toContain(status);
   });
 
@@ -162,7 +162,7 @@ describe('the database area', () => {
       { csrf: true },
     );
 
-    expect(await grantedAdmin.session.status('/admin/database/')).toBe(403);
+    expect(await grantedAdmin.session.status('/admin/embed/database/')).toBe(403);
   });
 
   it('is not a service, so nothing can grant it', async () => {
@@ -178,7 +178,7 @@ describe('the database area', () => {
   });
 
   it('is not reachable as a service admin either', async () => {
-    expect(await owner.status(`${serviceAdmin('adminer')}/`)).toBe(404);
+    expect(await owner.status('/admin/embed/services/adminer/')).toBe(404);
   });
 
   it('has no public route', async () => {

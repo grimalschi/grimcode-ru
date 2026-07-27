@@ -128,10 +128,10 @@ describe('admin authorization', () => {
 
   it('forwards a verified administrator context after Admin allowed the request', async () => {
     stub.authorize = async () => OWNER;
-    await route('/admin/service/email/templates/123');
+    await route('/admin/embed/services/email/templates/123');
 
     const sent = forwarded[0];
-    expect(sent?.url).toBe('http://email:3006/admin/service/email/templates/123');
+    expect(sent?.url).toBe('http://email:3006/admin/embed/services/email/templates/123');
     expect(sent?.headers.get('x-template-admin-user-id')).toBe(OWNER.userId);
     expect(sent?.headers.get('x-template-admin-email')).toBe('owner@example.com');
     expect(sent?.headers.get('x-template-admin-role')).toBe('owner');
@@ -142,7 +142,7 @@ describe('admin authorization', () => {
     stub.authorize = async () => OWNER;
     const headers = new Headers();
     for (const name of ADMIN_CONTEXT_HEADERS) headers.set(name, 'forged-by-client');
-    await route('/admin/service/email/', { headers });
+    await route('/admin/embed/services/email/', { headers });
 
     const sent = forwarded[0];
     for (const name of ADMIN_CONTEXT_HEADERS) {
@@ -164,15 +164,15 @@ describe('admin authorization', () => {
 
   it('asks Admin about the requested service', async () => {
     stub.authorize = async () => OWNER;
-    await route('/admin/service/email/');
+    await route('/admin/embed/services/email/');
     expect(stub.calls).toEqual([{ area: 'service', service: 'email' }]);
   });
 
   it('asks Admin about the database area and proxies it to the browser', async () => {
     stub.authorize = async () => OWNER;
-    await route('/admin/database/');
+    await route('/admin/embed/database/');
     expect(stub.calls).toEqual([{ area: 'database' }]);
-    expect(forwarded[0]?.url).toBe('http://adminer:8080/admin/database/');
+    expect(forwarded[0]?.url).toBe('http://adminer:8080/admin/embed/database/');
   });
 
   it('asks Admin about the panel itself for everything else', async () => {
@@ -184,7 +184,7 @@ describe('admin authorization', () => {
 
   it('refuses an unknown admin service without asking Admin at all', async () => {
     stub.authorize = async () => OWNER;
-    const response = await route('/admin/service/billing/');
+    const response = await route('/admin/embed/services/billing/');
     expect(response.status).toBe(404);
     expect(stub.calls).toHaveLength(0);
     expect(forwarded).toHaveLength(0);
@@ -192,7 +192,7 @@ describe('admin authorization', () => {
 
   it('denies the owner-only database area to a regular administrator', async () => {
     stub.authorize = async () => ({ state: 'denied', reason: 'owner-only' });
-    const response = await route('/admin/database/');
+    const response = await route('/admin/embed/database/');
     expect(response.status).toBe(403);
     expect(forwarded).toHaveLength(0);
   });
@@ -242,13 +242,13 @@ describe('response headers', () => {
     upstreamResponse = () =>
       new Response(null, {
         status: 302,
-        headers: { location: '/admin/database/?pgsql=', 'set-cookie': 'adminer_sid=abc' },
+        headers: { location: '/admin/embed/database/?pgsql=', 'set-cookie': 'adminer_sid=abc' },
       });
     stub.authorize = async () => OWNER;
 
-    const response = await route('/admin/database/');
+    const response = await route('/admin/embed/database/');
     expect(response.status).toBe(302);
-    expect(response.headers.get('location')).toBe('/admin/database/?pgsql=');
+    expect(response.headers.get('location')).toBe('/admin/embed/database/?pgsql=');
     expect(response.headers.get('set-cookie')).toBe('adminer_sid=abc');
   });
 

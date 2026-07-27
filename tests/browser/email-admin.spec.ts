@@ -14,7 +14,7 @@ test.describe('the email admin', () => {
     const problems = collectPageErrors(page);
 
     await signIn(page);
-    await page.goto('/admin/service/email/');
+    await page.goto('/admin/embed/services/email/');
 
     await expect(page.getByRole('heading', { name: 'Шаблоны' })).toBeVisible();
     await expect(page.getByText('auth-password-reset')).toBeVisible();
@@ -26,7 +26,7 @@ test.describe('the email admin', () => {
     const problems = collectPageErrors(page);
 
     await signIn(page);
-    await page.goto('/admin/service/email/');
+    await page.goto('/admin/embed/services/email/');
 
     await page.getByRole('link', { name: /Восстановление пароля/ }).click();
     await expect(page.getByRole('heading', { name: /Восстановление пароля/ })).toBeVisible();
@@ -45,7 +45,7 @@ test.describe('the email admin', () => {
     const problems = collectPageErrors(page);
 
     await signIn(page);
-    await page.goto('/admin/service/email/deliveries');
+    await page.goto('/admin/embed/services/email/deliveries');
 
     await expect(page.getByRole('heading', { name: 'Отправки' })).toBeVisible();
 

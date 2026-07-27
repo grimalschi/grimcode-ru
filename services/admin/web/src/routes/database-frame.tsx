@@ -55,7 +55,7 @@ export function DatabaseFrame() {
       ) : null}
       <iframe
         ref={frame}
-        src={DATABASE_AREA.href}
+        src={DATABASE_AREA.embedHref}
         title={DATABASE_AREA.label}
         className="h-full w-full border-0"
         // Same-origin by design: the theme message and the session cookie both need it.

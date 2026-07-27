@@ -36,7 +36,7 @@ async function openAdminer(page: Page, theme: 'light' | 'dark'): Promise<FrameLo
   await page.getByRole('button', { name: /^Тема:/ }).click();
   await page.getByRole('menuitem', { name: theme === 'dark' ? 'Тёмная' : 'Светлая' }).click();
 
-  await page.goto('/admin/?database=true');
+  await page.goto('/admin/database');
 
   const frame = page.frameLocator('iframe[title="База данных"]');
   await expect(frame.locator('#content')).toBeVisible();

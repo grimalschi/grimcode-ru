@@ -5,7 +5,7 @@ export interface AdminServiceEntry {
   /** Label shown in the sidebar. */
   label: string;
   /** Protected URL the iframe is pointed at. Gateway performs the same check on it directly. */
-  href: string;
+  embedHref: string;
   /**
    * Whether the shell keeps its URL in sync with the frame through the `postMessage` bridge.
    * Adminer navigates with ordinary server-rendered links and only receives the theme.
@@ -26,15 +26,15 @@ export interface AdminServiceEntry {
  * the very same Gateway check.
  */
 export const ADMIN_SERVICES: readonly AdminServiceEntry[] = [
-  { id: 'auth', label: 'Auth', href: '/admin/service/auth/', syncPath: true },
-  { id: 'users', label: 'Users', href: '/admin/service/users/', syncPath: true },
+  { id: 'auth', label: 'Auth', embedHref: '/admin/embed/services/auth/', syncPath: true },
+  { id: 'users', label: 'Users', embedHref: '/admin/embed/services/users/', syncPath: true },
   {
     id: 'notifications',
     label: 'Notifications',
-    href: '/admin/service/notifications/',
+    embedHref: '/admin/embed/services/notifications/',
     syncPath: true,
   },
-  { id: 'email', label: 'Email', href: '/admin/service/email/', syncPath: true },
+  { id: 'email', label: 'Email', embedHref: '/admin/embed/services/email/', syncPath: true },
 ];
 
 /**
@@ -49,7 +49,7 @@ export const ADMIN_SERVICES: readonly AdminServiceEntry[] = [
  */
 export const DATABASE_AREA = {
   label: 'База данных',
-  href: '/admin/database/',
+  embedHref: '/admin/embed/database/',
 } as const;
 
 export function findAdminService(id: string): AdminServiceEntry | undefined {

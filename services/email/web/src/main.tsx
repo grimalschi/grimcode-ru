@@ -21,7 +21,7 @@ import { TemplatesPage } from '@/routes/templates';
 
 import '@/styles.css';
 
-const BASE = '/admin/service/email';
+const BASE = '/admin/embed/services/email';
 
 // The editor and everything it pulls in — TipTap and the Maily blocks — is by far the largest part
 // of this admin. Loading it lazily keeps it out of the bundle for anyone who only came to read the

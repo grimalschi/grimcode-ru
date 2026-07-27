@@ -1,4 +1,4 @@
-import { useNavigate, useRouterState } from '@tanstack/react-router';
+import { useNavigate, useParams, useRouterState } from '@tanstack/react-router';
 import { normalizeServicePath } from '@template/shared/browser';
 import * as React from 'react';
 
@@ -10,13 +10,14 @@ import { findAdminService } from '@/services';
 /**
  * A service admin, embedded same-origin.
  *
- * The shell's URL is the canonical one — `/admin?service=email#/templates/123` — and the iframe is
- * pointed at the protected URL `/admin/service/email/templates/123`, which Gateway checks exactly
- * as it would if the administrator opened it directly.
+ * The shell's URL is the canonical one — `/admin/services/email#/templates/123` — and the iframe is
+ * pointed at `/admin/embed/services/email/templates/123`, which Gateway checks exactly as it would
+ * if the administrator opened it directly.
  *
  * The shell never imports a service admin's code: composition happens over the frame protocol.
  */
-export function ServiceFrame({ serviceId }: { serviceId: string }) {
+export function ServiceFrame() {
+  const { service: serviceId } = useParams({ from: '/services/$service' });
   const service = findAdminService(serviceId);
   const navigate = useNavigate();
   const frame = React.useRef<HTMLIFrameElement>(null);
@@ -30,12 +31,7 @@ export function ServiceFrame({ serviceId }: { serviceId: string }) {
     (next: string) => {
       // `replace` keeps navigation that happened inside the iframe out of the browser history a
       // second time: the iframe already added its own entry.
-      void navigate({
-        to: '/',
-        search: { service: serviceId, database: undefined },
-        hash: next,
-        replace: true,
-      });
+      void navigate({ to: '/services/$service', params: { service: serviceId }, hash: next, replace: true });
     },
     [navigate, serviceId],
   );
@@ -56,7 +52,7 @@ export function ServiceFrame({ serviceId }: { serviceId: string }) {
   // Built once per service: changing `src` on every navigation would reload the iframe and throw
   // away its state, so navigation inside a service goes through the frame protocol instead. The
   // component is keyed by the service, so choosing a different one mounts a fresh frame.
-  const initialSrc = React.useRef(`${service.href.replace(/\/$/, '')}${path}`).current;
+  const initialSrc = React.useRef(`${service.embedHref.replace(/\/$/, '')}${path}`).current;
 
   return (
     <div className="relative h-full w-full">

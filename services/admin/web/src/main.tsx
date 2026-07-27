@@ -86,28 +86,9 @@ function Shell() {
 
 const rootRoute = createRootRoute({ component: Shell });
 
-const indexRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/',
-  // `?service=email` is the canonical way the shell names what is open; the hash carries the
-  // service-relative path inside it.
-  validateSearch: (search: Record<string, unknown>) => ({
-    service: typeof search.service === 'string' ? search.service : undefined,
-    database: search.database === true || search.database === 'true' ? true : undefined,
-  }),
-  component: Home,
-});
+const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: Home });
 
 function Home() {
-  const { service, database } = indexRoute.useSearch();
-
-  if (database) return <DatabaseFrame />;
-
-  // Keyed by the service, so switching to another one builds a new frame. Without it React reuses
-  // the component, and the iframe keeps the src it was first given — the sidebar changes and the
-  // page does not.
-  if (service) return <ServiceFrame key={service} serviceId={service} />;
-
   return (
     <AdminPage title="Админка" description="Выберите раздел в боковой панели.">
       <EmptyState
@@ -117,6 +98,31 @@ function Home() {
     </AdminPage>
   );
 }
+
+/**
+ * Every page of the panel is a path, and the hash carries the service-relative route inside an
+ * embedded admin: `/admin/services/email#/templates/123`.
+ *
+ * Nothing collides with the applications the panel embeds, because those live under
+ * `/admin/embed/` and Gateway proxies them there.
+ */
+const serviceRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/services/$service',
+  // Keyed by the service, so switching to another one builds a new frame. Without it React reuses
+  // the component, and the iframe keeps the src it was first given — the sidebar changes and the
+  // page does not.
+  component: function ServiceRoute() {
+    const { service } = serviceRoute.useParams();
+    return <ServiceFrame key={service} />;
+  },
+});
+
+const databaseRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/database',
+  component: OwnerOnly(DatabaseFrame),
+});
 
 const administratorsRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -142,7 +148,7 @@ function OwnerOnly(Component: React.ComponentType) {
     const session = useSession();
 
     React.useEffect(() => {
-      if (session.role !== 'owner') void navigate({ to: '/', search: { service: undefined, database: undefined }, replace: true });
+      if (session.role !== 'owner') void navigate({ to: '/', replace: true });
     }, [navigate, session.role]);
 
     if (session.role !== 'owner') return null;
@@ -151,7 +157,13 @@ function OwnerOnly(Component: React.ComponentType) {
 }
 
 const router = createRouter({
-  routeTree: rootRoute.addChildren([indexRoute, administratorsRoute, auditRoute]),
+  routeTree: rootRoute.addChildren([
+    indexRoute,
+    serviceRoute,
+    databaseRoute,
+    administratorsRoute,
+    auditRoute,
+  ]),
   basepath: '/admin',
   defaultPreload: 'intent',
 });

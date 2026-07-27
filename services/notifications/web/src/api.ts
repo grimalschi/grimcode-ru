@@ -9,7 +9,7 @@ import type { notificationsContract } from '@template/contracts';
  * The call goes through Gateway, which has already checked the session, the admin role and the
  * grant on Notifications. Operations that change something also carry a CSRF token this service issued.
  */
-const BASE = '/admin/service/notifications';
+const BASE = '/admin/embed/services/notifications';
 
 // Notifications has no admin operation that changes anything: the log is read-only, because an
 // event is a record of what happened and editing it would make the record worthless.

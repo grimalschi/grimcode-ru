@@ -9,7 +9,7 @@ import type { usersContract } from '@template/contracts';
  * The call goes through Gateway, which has already checked the session, the admin role and the
  * grant on Users. Operations that change something also carry a CSRF token this service issued.
  */
-const BASE = '/admin/service/users';
+const BASE = '/admin/embed/services/users';
 
 // Users has no admin operation that changes anything: a profile belongs to the person it
 // describes, and this screen only reads it.

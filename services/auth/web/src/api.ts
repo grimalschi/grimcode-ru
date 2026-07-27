@@ -9,7 +9,7 @@ import type { authContract } from '@template/contracts';
  * The call goes through Gateway, which has already checked the session, the admin role and the
  * grant on Auth. Operations that change something also carry a CSRF token this service issued.
  */
-const BASE = '/admin/service/auth';
+const BASE = '/admin/embed/services/auth';
 
 const MUTATIONS = new Set(['sendRecovery', 'resendVerification', 'revokeSessions', 'setBlocked']);
 

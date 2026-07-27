@@ -303,7 +303,7 @@ describe('the built admin surfaces', () => {
     const page = await owner.fetch(`${serviceAdmin('email')}/`);
     const html = await page.text();
 
-    const entry = /src="(\/admin\/service\/email\/assets\/[^"]+\.js)"/.exec(html)?.[1];
+    const entry = /src="(\/admin\/embed\/services\/email\/assets\/[^"]+\.js)"/.exec(html)?.[1];
     expect(entry).toBeDefined();
 
     const asset = await owner.fetch(entry!);
@@ -316,7 +316,7 @@ describe('the built admin surfaces', () => {
   it('serves the real Adminer, with its own redirect and cookie', async () => {
     // Adminer answers the first request with a redirect and a cookie of its own; following it by
     // hand is what proves the pair survives Gateway.
-    const page = await owner.fetch('/admin/database/', {}, { follow: true });
+    const page = await owner.fetch('/admin/embed/database/', {}, { follow: true });
     const html = await page.text();
 
     expect(page.status).toBe(200);
