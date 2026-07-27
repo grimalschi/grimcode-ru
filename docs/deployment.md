@@ -15,17 +15,27 @@ Two things: the **domain** and the **database**. Everything else is fixed in the
 | PostgreSQL | A managed resource, reached through `DATABASE_URL`. |
 | Per-service databases | Created on first deploy as `<PROJECT_SLUG>_<service>`. |
 
-Copy [`docker/.env.production.example`](../docker/.env.production.example) and fill it in:
+## What a deployment supplies
 
-| Variable | |
+There is no production `.env` example to copy: the list lives here, and `docker/compose.yaml` is
+what enforces it. None of these has a working default — a value that is wrong in production is
+worse than a run that refuses to start, so Compose fails on a missing one and names it.
+
+| Required | |
 | --- | --- |
 | `PROJECT_SLUG` | Names the Compose project and the databases. Changing it points every service at a different database. |
 | `PUBLIC_SITE_URL` | The public origin as a visitor sees it. Links in email are built from it, and it decides whether the session cookie is marked `Secure`. |
 | `DATABASE_URL` | The managed database. |
 | `EMAIL_FROM_ADDRESS` | Who messages come from. |
 
-None of these has a working default. A value that is wrong in production is worse than a run that
-refuses to start, so Compose fails on a missing one.
+| Optional | |
+| --- | --- |
+| `EMAIL_PROVIDER` | `log` records messages without sending them, which is the default. `unisender` sends through UniSender Go. |
+| `EMAIL_FROM_NAME`, `UNISENDER_GO_API_KEY`, `UNISENDER_GO_API_URL` | The transport's own settings. |
+| `AUTH_SESSION_TTL_SECONDS` | How long a session lasts. Thirty days by default. |
+| `AUTH_LOGIN_ATTEMPT_LIMIT`, `AUTH_LOGIN_ATTEMPT_WINDOW_SECONDS` | Failed sign-ins allowed per address, and the window they are counted in. Ten in fifteen minutes by default. |
+| `DATABASE_URL_ADMIN`, `_AUTH`, `_USERS`, `_NOTIFICATIONS`, `_EMAIL` | One service's database elsewhere — another server, or an account with other rights. Each is declared to its own service only, so no container holds credentials to a database it may not open. |
+| `ADMINER_SERVER`, `ADMINER_USERNAME`, `ADMINER_PASSWORD` | The database console's own connection, which is how it gets fewer rights than the services have. Empty means it reuses `DATABASE_URL`. |
 
 ```bash
 docker compose --env-file .env.production -f docker/compose.yaml up -d --build

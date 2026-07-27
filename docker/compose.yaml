@@ -9,7 +9,8 @@
 # There is no host port for Gateway either. The platform routes the domain to the container's
 # fixed internal port, which is why nobody has to choose a number.
 #
-# Everything a deployment must supply is listed in `docker/.env.production.example`.
+# Everything a deployment must supply is listed in `docs/deployment.md`; the `:?` markers below
+# are what enforces it.
 
 name: ${PROJECT_SLUG:?PROJECT_SLUG is required}
 

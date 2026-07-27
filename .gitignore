@@ -1,8 +1,7 @@
 .DS_Store
 .env
 .env.*
-# ...except the example a deployment is told to copy.
-!docker/.env.production.example
+# ...except the example that is copied to make a local .env.
 !.env.example
 
 node_modules/
