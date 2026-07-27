@@ -46,12 +46,6 @@ export const usersPublicContract = {
 
 };
 
-export const usersInternalContract = {
-  getProfileByIdentityId: oc
-    .input(z.object({ identityId: idSchema }))
-    .output(z.object({ profile: userProfileSchema.nullable() })),
-};
-
 export const usersAdminContract = {
   listProfiles: oc.input(paginationInputSchema).output(pageOf(adminUserProfileSchema)),
 
@@ -63,6 +57,5 @@ export const usersAdminContract = {
 
 export const usersContract = {
   public: usersPublicContract,
-  internal: usersInternalContract,
   admin: usersAdminContract,
 };

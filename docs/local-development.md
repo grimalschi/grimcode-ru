@@ -32,8 +32,8 @@ subnet of its own and never touches anyone else's.
 | `pnpm up` / `pnpm down` | Start and stop the stack |
 | `pnpm logs <service>` | Follow one service |
 | `pnpm check` | Lint, types, unit tests, production build, boundaries, service ids, Compose |
-| `pnpm test:acceptance` | 54 HTTP checks against the running stack |
-| `pnpm test:browser` | 27 Chromium checks |
+| `pnpm test:acceptance` | The HTTP checks, against the running stack |
+| `pnpm test:browser` | The Chromium checks, against the running stack |
 
 `pnpm check` is what has to be green. It runs from a clean checkout with the single lockfile and
 needs no running stack.

@@ -50,13 +50,6 @@ export class AdminRepository {
     return rows[0] ?? null;
   }
 
-  async findByEmail(email: string): Promise<AdministratorRow | null> {
-    const { rows } = await this.pool.query<AdministratorRow>(
-      `SELECT ${COLUMNS} FROM administrators a WHERE lower(a.email) = lower($1)`,
-      [email],
-    );
-    return rows[0] ?? null;
-  }
 
   /**
    * Idempotently promotes the first registered Auth identity to owner.

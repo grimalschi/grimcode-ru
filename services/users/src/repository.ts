@@ -27,13 +27,6 @@ export function toProfile(row: ProfileRow): UserProfile {
 export class UsersRepository {
   constructor(private readonly pool: Pool) {}
 
-  async findByIdentityId(identityId: string): Promise<ProfileRow | null> {
-    const { rows } = await this.pool.query<ProfileRow>(
-      `SELECT ${COLUMNS} FROM profiles WHERE identity_id = $1`,
-      [identityId],
-    );
-    return rows[0] ?? null;
-  }
 
   async findById(id: string): Promise<ProfileRow | null> {
     const { rows } = await this.pool.query<ProfileRow>(

@@ -22,7 +22,6 @@ unique index on `identity_id` makes concurrent first requests converge on the sa
 | --- | --- | --- |
 | `/service/users/rpc` | through Gateway, no admin check | the App, with a user session |
 | `/admin/embed/service/users/rpc` | through Gateway's admin route | administrators granted Users |
-| `/internal/rpc` | internal Docker network only | Auth, for the recipient locale |
 
 ### Session checks are server-side
 

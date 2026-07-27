@@ -22,6 +22,7 @@ services:
     restart: 'no'
     environment:
       PROJECT_SLUG: ${PROJECT_SLUG}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
     entrypoint: ['sh', '-ec']
     command:
@@ -45,6 +46,7 @@ services:
         SERVICE: gateway
     environment:
       PROJECT_SLUG: ${PROJECT_SLUG}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:?PUBLIC_SITE_URL is required}
     # The only container the platform routes traffic to. No `ports`: publishing one would put the
     # application on the host's network instead of behind whatever terminates TLS.
@@ -64,6 +66,7 @@ services:
         SERVICE: site
     environment:
       PROJECT_SLUG: ${PROJECT_SLUG}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       PUBLIC_SITE_URL: ${PUBLIC_SITE_URL}
     expose: ['3000']
     restart: unless-stopped
@@ -80,6 +83,7 @@ services:
         SERVICE: app
     environment:
       PROJECT_SLUG: ${PROJECT_SLUG}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       PUBLIC_SITE_URL: ${PUBLIC_SITE_URL}
     expose: ['3001']
     restart: unless-stopped
@@ -96,6 +100,7 @@ services:
         SERVICE: admin
     environment:
       PROJECT_SLUG: ${PROJECT_SLUG}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       # Set to put this service's database on another server or under other credentials.
       DATABASE_URL_ADMIN: ${DATABASE_URL_ADMIN:-}
@@ -121,6 +126,7 @@ services:
         SERVICE: auth
     environment:
       PROJECT_SLUG: ${PROJECT_SLUG}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       # Set to put this service's database on another server or under other credentials.
       DATABASE_URL_AUTH: ${DATABASE_URL_AUTH:-}
@@ -146,6 +152,7 @@ services:
         SERVICE: users
     environment:
       PROJECT_SLUG: ${PROJECT_SLUG}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       # Set to put this service's database on another server or under other credentials.
       DATABASE_URL_USERS: ${DATABASE_URL_USERS:-}
@@ -167,6 +174,7 @@ services:
         SERVICE: notifications
     environment:
       PROJECT_SLUG: ${PROJECT_SLUG}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       # Set to put this service's database on another server or under other credentials.
       DATABASE_URL_NOTIFICATIONS: ${DATABASE_URL_NOTIFICATIONS:-}
@@ -188,6 +196,7 @@ services:
         SERVICE: email
     environment:
       PROJECT_SLUG: ${PROJECT_SLUG}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       # Set to put this service's database on another server or under other credentials.
       DATABASE_URL_EMAIL: ${DATABASE_URL_EMAIL:-}
