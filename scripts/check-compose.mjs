@@ -15,7 +15,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const composeFile = join(repoRoot, 'docker/compose.local.yaml');
+const composeFiles = ['docker/compose.yaml', 'docker/compose.local.yaml'].map((file) =>
+  join(repoRoot, file),
+);
 const envPath = join(repoRoot, '.env');
 
 /** Services allowed to publish a host port locally. Nothing else may. */
@@ -30,8 +32,7 @@ try {
     [
       'compose',
       ...(existsSync(envPath) ? ['--env-file', envPath] : []),
-      '-f',
-      composeFile,
+      ...composeFiles.flatMap((file) => ['-f', file]),
       'config',
       '--format',
       'json',

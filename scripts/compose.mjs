@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * Thin wrapper around `docker compose` that always uses the local Compose file and the git-ignored
- * `.env`, so the Compose project name and the ports are the ones this copy was given.
+ * Thin wrapper around `docker compose` that always passes the project's two Compose files and the
+ * git-ignored `.env`, so the Compose project name and the ports are the ones this copy was given.
  *
- * `docker/compose.yaml` is the production topology and is never what runs here.
+ * `docker/compose.yaml` describes the system; `docker/compose.local.yaml` adds what only local
+ * development has — the PostgreSQL container and the published ports.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -22,7 +23,12 @@ if (!existsSync(envPath)) {
 // scripts/allocate-network.mjs.
 const networkOverride = join(repoRoot, 'docker/compose.network.local.yaml');
 
-const files = ['-f', join(repoRoot, 'docker/compose.local.yaml')];
+const files = [
+  '-f',
+  join(repoRoot, 'docker/compose.yaml'),
+  '-f',
+  join(repoRoot, 'docker/compose.local.yaml'),
+];
 if (existsSync(networkOverride)) files.push('-f', networkOverride);
 
 const result = spawnSync(
