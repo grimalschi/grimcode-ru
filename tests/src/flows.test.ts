@@ -170,7 +170,7 @@ describe('email templates', () => {
     const draft = await owner.call<{ version: { id: string } }>(
       serviceAdmin('email'),
       'createDraft',
-      { templateId, locale: 'en' },
+      { templateId },
       { csrf: true },
     );
 
@@ -210,7 +210,7 @@ describe('email templates', () => {
     const draft = await owner.call<{ version: { id: string } }>(
       serviceAdmin('email'),
       'createDraft',
-      { templateId, locale: 'en' },
+      { templateId },
       { csrf: true },
     );
 
