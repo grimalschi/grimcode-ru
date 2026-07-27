@@ -1,12 +1,12 @@
 import type { AdminServiceId } from '@template/contracts';
 import { Link, useMatchRoute } from '@tanstack/react-router';
 import {
+  AppWindowIcon,
   BellIcon,
   DatabaseIcon,
   ExternalLinkIcon,
   GlobeIcon,
   KeyRoundIcon,
-  LayoutDashboardIcon,
   LogOutIcon,
   MailIcon,
   ScrollTextIcon,
@@ -42,7 +42,7 @@ const ICONS: Record<AdminServiceId, typeof ShieldIcon> = {
 /** The two public surfaces, opened in a new tab: they are the product, not part of the panel. */
 const PRODUCT = [
   { href: '/', label: 'Открыть сайт', icon: GlobeIcon },
-  { href: '/app/', label: 'Открыть приложение', icon: LayoutDashboardIcon },
+  { href: '/app/', label: 'Открыть приложение', icon: AppWindowIcon },
 ];
 
 /**
@@ -89,7 +89,9 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
                     */}
                     <a href={item.href} target="_blank" rel="noreferrer">
                       <item.icon />
-                      <span className="flex-1">{item.label}</span>
+                      {/* Truncates rather than wraps: the width animates, and a second line
+                          appears for the length of the animation otherwise. */}
+                      <span className="flex-1 truncate">{item.label}</span>
                       <ExternalLinkIcon className="text-muted-foreground size-3" />
                     </a>
                   </SidebarMenuButton>
