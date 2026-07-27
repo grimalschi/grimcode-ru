@@ -56,10 +56,13 @@ export default tseslint.config(
     plugins: { 'react-hooks': reactHooks },
     languageOptions: { globals: globals.browser },
     rules: {
-      ...reactHooks.configs.recommended.rules,
-      // The components are vendored verbatim from the shadcn registry, so their exports are not
-      // rewritten to satisfy a lint rule the upstream project does not apply.
-      'react-refresh/only-export-components': 'off',
+      /*
+       * Named one by one on purpose. `configs.recommended` is a flat-config array, so spreading
+       * `.rules` off it spreads `undefined` and silently enables nothing — which is what happened
+       * here until a lint rule was expected to catch something and did not.
+       */
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
     },
   },
 );

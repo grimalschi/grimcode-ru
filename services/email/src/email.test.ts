@@ -7,6 +7,7 @@ import {
   fillHtml,
   fillText,
   htmlToText,
+  redactOneTimeTokens,
   renderMessage,
   renderSubject,
   sanitizeHtml,
@@ -130,6 +131,53 @@ describe('seed templates', () => {
     expect(html).toContain('user@example.com');
     expect(html).toContain('reset-password?token=abc');
     expect(html).not.toContain('{{');
+  });
+
+  /**
+   * The renderer escapes values itself. Escaping them here as well turned every `&` in a link into
+   * `&amp;amp;`, precisely where someone looks to check a message before sending it.
+   */
+  it('escapes a value exactly once', async () => {
+    const preview = await renderMessage(
+      {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'variable', attrs: { id: 'url' } }] }],
+      },
+      'Тема',
+      { url: 'https://example.test/r?a=1&b=2' },
+    );
+
+    expect(preview.html).toContain('a=1&amp;b=2');
+    expect(preview.html).not.toContain('&amp;amp;');
+    expect(preview.text).toContain('a=1&b=2');
+  });
+
+  it('still keeps markup in a value from becoming markup', async () => {
+    const preview = await renderMessage(
+      {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'variable', attrs: { id: 'name' } }] }],
+      },
+      'Тема',
+      { name: '<script>alert(1)</script>' },
+    );
+
+    expect(preview.html).not.toContain('<script>alert');
+  });
+
+  /**
+   * Auth keeps only the hash of a one-time token, so the delivery log must not keep the token
+   * itself: an administrator who may read messages could otherwise ask for a reset of someone
+   * else's password and take the link out of the log.
+   */
+  it('keeps one-time tokens out of the stored copy', () => {
+    const sent = '<a href="https://x.test/app/reset-password/confirm?token=SECRET123">Ссылка</a>';
+    const stored = redactOneTimeTokens(sent);
+
+    expect(stored).toContain('token=***');
+    expect(stored).not.toContain('SECRET123');
+    // Everything else about the message survives, so the record is still worth keeping.
+    expect(stored).toContain('/app/reset-password/confirm');
   });
 
   it('renders a preview with sample values filled in', async () => {

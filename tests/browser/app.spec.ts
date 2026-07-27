@@ -113,6 +113,26 @@ test.describe('a signed-in person', () => {
   });
 });
 
+/**
+ * The link in the recovery email used to point at the form that asks for a link, so the flow could
+ * not be completed at all — and the acceptance test of the day matched the broken address.
+ */
+test.describe('the recovery link', () => {
+  test('opens the screen that sets a new password', async ({ page }) => {
+    await page.goto('/app/reset-password/confirm?token=' + 'x'.repeat(40));
+
+    await expect(page.getByLabel('Новый пароль')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Изменить пароль' })).toBeVisible();
+  });
+
+  test('says so when the link carries no token, instead of pretending', async ({ page }) => {
+    await page.goto('/app/reset-password/confirm');
+
+    await expect(page.getByText('Ссылка неполная')).toBeVisible();
+    await expect(page.getByLabel('Новый пароль')).toHaveCount(0);
+  });
+});
+
 test.describe('the public site', () => {
   test('renders and links into the application', async ({ page }) => {
     const problems = collectPageErrors(page);

@@ -62,7 +62,7 @@ function requireOwnerMutation(context: AdminRpcContext): AdminContext {
   if (admin.role !== 'owner') {
     throw new ORPCError('FORBIDDEN', { message: 'Only the owner can manage administrators' });
   }
-  if (!isCsrfValid(context.request.headers)) {
+  if (!isCsrfValid(context.request.headers, 'panel')) {
     throw new ORPCError('FORBIDDEN', { message: 'CSRF token missing or invalid' });
   }
   return admin;

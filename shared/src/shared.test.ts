@@ -79,22 +79,36 @@ describe('csrf', () => {
 
   it('accepts a matching cookie and header pair', () => {
     const headers = new Headers({
-      cookie: 'template_csrf=token-value',
+      cookie: 'template_csrf_panel=token-value',
       [CSRF_HEADER]: 'token-value',
     });
-    expect(isCsrfValid(headers)).toBe(true);
+    expect(isCsrfValid(headers, 'panel')).toBe(true);
   });
 
   it('rejects a request that only carries the cookie', () => {
-    expect(isCsrfValid(new Headers({ cookie: 'template_csrf=token-value' }))).toBe(false);
+    expect(isCsrfValid(new Headers({ cookie: 'template_csrf_panel=t' }), 'panel')).toBe(false);
   });
 
   it('rejects a mismatching header', () => {
     const headers = new Headers({
-      cookie: 'template_csrf=token-value',
+      cookie: 'template_csrf_panel=token-value',
       [CSRF_HEADER]: 'other-value',
     });
-    expect(isCsrfValid(headers)).toBe(false);
+    expect(isCsrfValid(headers, 'panel')).toBe(false);
+  });
+
+  /**
+   * The panel and each embedded service admin share an origin. One cookie name for all of them
+   * meant whichever asked last overwrote the others, and the surface that asked first was refused
+   * on its next change with nothing to explain it.
+   */
+  it('does not accept another surface’s token', () => {
+    const headers = new Headers({
+      cookie: 'template_csrf_email=token-value',
+      [CSRF_HEADER]: 'token-value',
+    });
+    expect(isCsrfValid(headers, 'email')).toBe(true);
+    expect(isCsrfValid(headers, 'panel')).toBe(false);
   });
 });
 

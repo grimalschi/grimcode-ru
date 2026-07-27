@@ -39,7 +39,7 @@ mountRpc(app, '/admin/embed/services/notifications/rpc', adminRouter, ({ request
   admin: readAdminContext(request.headers),
 }));
 
-mountCsrfEndpoint(app, '/admin/embed/services/notifications/csrf');
+mountCsrfEndpoint(app, '/admin/embed/services/notifications/csrf', 'notifications');
 
 mountSpa(app, {
   basePath: '/admin/embed/services/notifications',

@@ -29,6 +29,16 @@ export interface PublicContext {
 }
 
 const VERIFICATION_TTL_SECONDS = 60 * 60 * 24;
+
+/**
+ * How often one account can actually be mailed a recovery link.
+ *
+ * Anyone may ask for a reset for any address without a session, so a per-request dedupe key would
+ * let a stranger send unlimited mail to someone else. Bucketing the key by time means repeated
+ * requests inside the window collapse onto the same notification, which Notifications already
+ * deduplicates — the person gets one letter, not a flood.
+ */
+const RESET_REQUEST_WINDOW_MS = 15 * 60 * 1000;
 const RESET_TTL_SECONDS = 60 * 60;
 const EMAIL_CHANGE_TTL_SECONDS = 60 * 60;
 
@@ -72,8 +82,16 @@ export const publicRouter = os.router({
   register: os.register.handler(async ({ input, context }): Promise<{ ok: true; identity: Identity }> => {
     const existing = await context.repo.findIdentityByEmail(input.email);
     if (existing) {
-      // Registration cannot silently confirm that an address is taken either.
-      throw new ORPCError('CONFLICT', { message: 'Registration could not be completed' });
+      /*
+       * This does tell the caller that the address is taken, and there is no way around it that a
+       * person would forgive: a registration form that silently pretends to succeed leaves someone
+       * who simply forgot they had an account with no idea what happened.
+       *
+       * Sign-in and recovery are the flows that must not disclose, and they do not. A project that
+       * needs registration not to either replaces this with an "someone tried to register with
+       * your address" message to the existing account — see docs/admin-access.md.
+       */
+      throw new ORPCError('CONFLICT', { message: 'Этот адрес уже занят' });
     }
 
     const identity = await context.repo.createIdentity(
@@ -194,9 +212,9 @@ export const publicRouter = os.router({
             identityId: identity.id,
             email: identity.email,
           },
-          payload: { resetUrl: appUrl('reset-password', token) },
+          payload: { resetUrl: appUrl('reset-password/confirm', token) },
         },
-        `auth.password.reset_requested:${identity.id}:${Date.now()}`,
+        `auth.password.reset_requested:${identity.id}:${Math.floor(Date.now() / RESET_REQUEST_WINDOW_MS)}`,
       );
     }
 

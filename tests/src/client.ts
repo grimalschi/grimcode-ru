@@ -15,7 +15,13 @@ export const BASE_URL = (process.env.ACCEPTANCE_BASE_URL ?? 'http://127.0.0.1:80
 /** One browser: it holds its cookies and nothing else. */
 export class Session {
   private cookies = new Map<string, string>();
-  private csrf: string | null = null;
+  /**
+   * One token per surface, because each issues its own cookie.
+   *
+   * A single cached token here would send the panel's token to a service admin and be refused —
+   * which is exactly the confusion the per-surface cookies exist to prevent.
+   */
+  private csrf = new Map<string, string>();
 
   get cookieHeader(): string {
     return [...this.cookies].map(([name, value]) => `${name}=${value}`).join('; ');
@@ -83,19 +89,20 @@ export class Session {
    * Each surface issues its own, so the token is fetched from the same prefix the call goes to.
    */
   private async csrfToken(prefix: string): Promise<string> {
-    if (this.csrf) return this.csrf;
+    const cached = this.csrf.get(prefix);
+    if (cached) return cached;
 
     const response = await this.fetch(`${prefix}/csrf`);
     if (!response.ok) throw new Error(`CSRF token unavailable at ${prefix}: ${response.status}`);
 
     const body = (await response.json()) as { token: string };
-    this.csrf = body.token;
-    return this.csrf;
+    this.csrf.set(prefix, body.token);
+    return body.token;
   }
 
-  /** Forgets the cached token, so a test can prove that a call without one is refused. */
+  /** Forgets the cached tokens, so a test can prove that a call without one is refused. */
   forgetCsrf(): void {
-    this.csrf = null;
+    this.csrf.clear();
   }
 
   async rpc<T = unknown>(

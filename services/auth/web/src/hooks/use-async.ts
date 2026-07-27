@@ -34,6 +34,12 @@ export function useAsync<T>(run: () => Promise<T>, deps: React.DependencyList): 
     return () => {
       current = false;
     };
+    /*
+     * `deps` is this hook's contract with its caller — the caller says what the request depends on,
+     * exactly as it would for `useEffect`. `run` is a fresh closure every render and including it
+     * would refetch forever.
+     */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, nonce]);
 
   const reload = React.useCallback(() => setNonce((value) => value + 1), []);

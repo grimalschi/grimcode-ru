@@ -12,6 +12,7 @@ import { sendTemplate, UnknownTemplateError } from './delivery.js';
 import type { EmailRepository, TemplateRow, VersionRow } from './repository.js';
 import {
   assertDeclaredVariables,
+  redactOneTimeTokens,
   renderMessage,
   TemplateRenderError,
   type VariableValue,
@@ -86,7 +87,7 @@ function requireAdmin(context: AdminRpcContext): AdminContext {
 
 function requireMutation(context: AdminRpcContext): AdminContext {
   const admin = requireAdmin(context);
-  if (!isCsrfValid(context.request.headers)) {
+  if (!isCsrfValid(context.request.headers, 'email')) {
     throw new ORPCError('FORBIDDEN', { message: 'CSRF token missing or invalid' });
   }
   return admin;
@@ -274,8 +275,8 @@ export const adminRouter = adminOs.router({
       templateVersionId: version.id,
       recipientEmail: input.to,
       subject: rendered.subject,
-      html: rendered.html,
-      text: rendered.text,
+      html: redactOneTimeTokens(rendered.html),
+      text: redactOneTimeTokens(rendered.text),
       transport: context.transport.name,
     });
 

@@ -1,7 +1,13 @@
 import type { Logger } from '@template/shared';
 
 import type { EmailRepository } from './repository.js';
-import { fillHtml, fillText, renderSubject, type VariableValue } from './render.js';
+import {
+  fillHtml,
+  fillText,
+  redactOneTimeTokens,
+  renderSubject,
+  type VariableValue,
+} from './render.js';
 import type { Transport } from './transport.js';
 
 export class UnknownTemplateError extends Error {
@@ -55,15 +61,16 @@ export async function sendTemplate(
   };
 
   // The snapshot is written before the transport runs, so nothing can leave the system without
-  // being in the log.
+  // being in the log — with one-time tokens taken out of it, because the log is a record and not a
+  // second copy of the key.
   const { row, created } = await deps.repo.openDelivery({
     dedupeKey: input.dedupeKey,
     templateKey: input.templateKey,
     templateVersionId: published.id,
     recipientEmail: input.to,
     subject: message.subject,
-    html: message.html,
-    text: message.text,
+    html: redactOneTimeTokens(message.html),
+    text: redactOneTimeTokens(message.text),
     transport: deps.transport.name,
   });
 

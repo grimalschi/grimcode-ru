@@ -51,7 +51,7 @@ mountRpc(app, '/admin/embed/services/email/rpc', adminRouter, ({ request, hono }
   admin: readAdminContext(request.headers),
 }));
 
-mountCsrfEndpoint(app, '/admin/embed/services/email/csrf');
+mountCsrfEndpoint(app, '/admin/embed/services/email/csrf', 'email');
 
 // The editor lives in this service's own build and loads only on the editor route; it is never
 // part of the central Admin bundle or of runtime delivery.

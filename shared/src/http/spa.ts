@@ -72,9 +72,9 @@ export function mountSpa(app: ServiceApp, options: SpaOptions): void {
  * The token is not a secret by itself — its point is that a cross-site page can make the browser
  * send the cookie but cannot read it to produce the matching header.
  */
-export function mountCsrfEndpoint(app: ServiceApp, path: string): void {
+export function mountCsrfEndpoint(app: ServiceApp, path: string, scope: string): void {
   app.get(path, (c) => {
-    const { token, cookie } = issueCsrfToken({ path: '/' });
+    const { token, cookie } = issueCsrfToken(scope, { path: '/' });
     c.header('set-cookie', cookie);
     c.header('cache-control', 'no-store');
     return c.json({ token });

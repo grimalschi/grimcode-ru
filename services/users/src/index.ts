@@ -41,7 +41,7 @@ mountRpc(app, '/admin/embed/services/users/rpc', adminRouter, ({ request }) => (
   admin: readAdminContext(request.headers),
 }));
 
-mountCsrfEndpoint(app, '/admin/embed/services/users/csrf');
+mountCsrfEndpoint(app, '/admin/embed/services/users/csrf', 'users');
 
 mountSpa(app, {
   basePath: '/admin/embed/services/users',

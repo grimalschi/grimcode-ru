@@ -46,7 +46,7 @@ mountRpc(app, '/admin/rpc', adminRouter, ({ request, resHeaders, hono }) => ({
   admin: readAdminContext(request.headers),
 }));
 
-mountCsrfEndpoint(app, '/admin/csrf');
+mountCsrfEndpoint(app, '/admin/csrf', 'panel');
 
 // The central Admin shell. Gateway has already verified the session and the admin role for every
 // request that reaches these assets.

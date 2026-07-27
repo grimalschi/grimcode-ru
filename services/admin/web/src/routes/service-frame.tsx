@@ -43,16 +43,19 @@ export function ServiceFrame() {
     onPathChange: service?.syncPath ? onPathChange : noop,
   });
 
-  if (!service) {
-    return (
-      <div className="text-muted-foreground p-6">Такого сервиса нет.</div>
-    );
-  }
-
   // Built once per service: changing `src` on every navigation would reload the iframe and throw
   // away its state, so navigation inside a service goes through the frame protocol instead. The
   // component is keyed by the service, so choosing a different one mounts a fresh frame.
-  const initialSrc = React.useRef(`${service.embedHref.replace(/\/$/, '')}${path}`).current;
+  //
+  // Above the early return, because a hook that runs only sometimes breaks the order React relies
+  // on the moment an unknown service is opened.
+  const initialSrc = React.useRef(
+    service ? `${service.embedHref.replace(/\/$/, '')}${path}` : '',
+  ).current;
+
+  if (!service) {
+    return <div className="text-muted-foreground p-6">Такого сервиса нет.</div>;
+  }
 
   return (
     <div className="relative h-full w-full">

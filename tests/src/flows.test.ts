@@ -90,12 +90,21 @@ describe('a security email, end to end', () => {
     expect(delivery.delivery.templateKey).toBe('auth-password-reset');
     expect(delivery.delivery.status).toBe('sent');
 
-    // The snapshot is the whole message, not a summary of it.
-    expect(delivery.delivery.html).toMatch(/reset-password\?token=/);
+    // The snapshot is the whole message, not a summary of it — and the link in it is the one that
+    // actually sets a password, not the form that asks for another link.
+    expect(delivery.delivery.html).toContain('/app/reset-password/confirm?token=');
     expect(delivery.delivery.text.length).toBeGreaterThan(50);
 
     // Nothing is left for a later step to fill in.
     expect(delivery.delivery.html).not.toMatch(/\{\{/);
+
+    /*
+     * The stored copy is a record, not a second key: Auth keeps only the hash of the token, and an
+     * administrator who may read the log must not be able to take someone's recovery link out of
+     * it.
+     */
+    expect(delivery.delivery.html).toContain('token=***');
+    expect(delivery.delivery.text).not.toMatch(/token=[A-Za-z0-9_-]{10,}/);
   });
 
   it('does not send the same event twice', async () => {

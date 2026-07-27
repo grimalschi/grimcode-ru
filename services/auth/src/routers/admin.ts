@@ -31,7 +31,7 @@ function requireAdmin(context: AdminRpcContext): AdminContext {
 
 function requireMutation(context: AdminRpcContext): AdminContext {
   const admin = requireAdmin(context);
-  if (!isCsrfValid(context.request.headers)) {
+  if (!isCsrfValid(context.request.headers, 'auth')) {
     throw new ORPCError('FORBIDDEN', { message: 'CSRF token missing or invalid' });
   }
   return admin;
@@ -110,7 +110,7 @@ export const adminRouter = os.router({
           email: row.email,
         },
         payload: {
-          resetUrl: `${publicSiteUrl()}/app/reset-password?token=${encodeURIComponent(token)}`,
+          resetUrl: `${publicSiteUrl()}/app/reset-password/confirm?token=${encodeURIComponent(token)}`,
         },
       },
       `auth.password.reset_requested:${row.id}:${Date.now()}`,

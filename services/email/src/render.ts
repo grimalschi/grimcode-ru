@@ -125,6 +125,18 @@ export function htmlToText(html: string): string {
     .trim();
 }
 
+/**
+ * Removes one-time credentials from a copy of a message kept for the record.
+ *
+ * Auth stores only the hash of a recovery or confirmation token, so that reading its database does
+ * not hand anyone an account. A delivery log that kept the token in the link would undo exactly
+ * that: an administrator allowed to read messages could request a reset for someone else and take
+ * the link out of the log. The recipient still gets the real one — only the stored copy is blunted.
+ */
+export function redactOneTimeTokens(content: string): string {
+  return content.replace(/([?&]token=)[^&"'\s<>]+/gi, '$1***');
+}
+
 export interface RenderedMessage {
   subject: string;
   html: string;
@@ -180,10 +192,16 @@ export async function renderMessage(
 ): Promise<RenderedMessage> {
   const maily = new Maily(document as never);
   if (variables) {
+    /*
+     * Values go in raw. The renderer escapes them on its way into the HTML — escaping here as well
+     * produced `&amp;amp;` in every preview and test send, so an address or a link with a query
+     * string came out wrong exactly where someone was checking it.
+     *
+     * The sanitiser still runs over the result, so this is not the only thing standing between a
+     * value and the output.
+     */
     maily.setVariableValues(
-      Object.fromEntries(
-        Object.entries(variables).map(([name, value]) => [name, escapeHtml(String(value))]),
-      ),
+      Object.fromEntries(Object.entries(variables).map(([name, value]) => [name, String(value)])),
     );
   }
 

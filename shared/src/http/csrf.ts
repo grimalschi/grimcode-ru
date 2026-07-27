@@ -10,11 +10,14 @@ export const CSRF_HEADER = 'x-csrf-token';
  * The value lives in a readable cookie and must be repeated in a request header. A cross-site page
  * can make the browser send the cookie but cannot read it, so it cannot produce the header.
  */
-export function issueCsrfToken(options: CookieOptions = {}): { token: string; cookie: string } {
+export function issueCsrfToken(
+  scope: string,
+  options: CookieOptions = {},
+): { token: string; cookie: string } {
   const token = newToken(24);
   return {
     token,
-    cookie: serializeCookie(csrfCookieName(), token, {
+    cookie: serializeCookie(csrfCookieName(scope), token, {
       ...options,
       httpOnly: false,
       sameSite: 'Lax',
@@ -22,13 +25,16 @@ export function issueCsrfToken(options: CookieOptions = {}): { token: string; co
   };
 }
 
-export function readCsrfCookie(cookieHeader: string | null | undefined): string | null {
-  return parseCookies(cookieHeader)[csrfCookieName()] ?? null;
+export function readCsrfCookie(
+  cookieHeader: string | null | undefined,
+  scope: string,
+): string | null {
+  return parseCookies(cookieHeader)[csrfCookieName(scope)] ?? null;
 }
 
-/** True when the request carries a header token matching its own CSRF cookie. */
-export function isCsrfValid(headers: Headers): boolean {
-  const cookieToken = readCsrfCookie(headers.get('cookie'));
+/** True when the request carries a header token matching this surface's own CSRF cookie. */
+export function isCsrfValid(headers: Headers, scope: string): boolean {
+  const cookieToken = readCsrfCookie(headers.get('cookie'), scope);
   const headerToken = headers.get(CSRF_HEADER);
   if (!cookieToken || !headerToken) return false;
   return safeEqual(cookieToken, headerToken);
