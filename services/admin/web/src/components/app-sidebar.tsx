@@ -65,7 +65,12 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
           The collapse control lives here rather than in a bar above the page. Every screen brings
           its own heading, so that bar was empty on all of them.
         */}
-        <div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:px-0">
+        {/*
+          The controls line up with the icons in the rows below, not the other way round. A row's
+          icon ends 16px inside the row; a 28px control centres a 16px icon, so its box has to end
+          2px earlier — hence `pr-0.5`.
+        */}
+        <div className="flex items-center gap-2 py-1.5 pr-0.5 pl-2 group-data-[collapsible=icon]:px-0">
           <span className="truncate font-semibold group-data-[collapsible=icon]:hidden">Admin</span>
           <SidebarTrigger className="ml-auto group-data-[collapsible=icon]:ml-0" />
         </div>
@@ -85,13 +90,7 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
                     <a href={item.href} target="_blank" rel="noreferrer">
                       <item.icon />
                       <span className="flex-1">{item.label}</span>
-                      {/*
-                        The same 28px box as the collapse control in the header and the buttons in
-                        the footer, so every icon on the right edge of the sidebar sits on one line.
-                      */}
-                      <span className="flex size-7 shrink-0 items-center justify-center group-data-[collapsible=icon]:hidden">
-                        <ExternalLinkIcon className="text-muted-foreground size-3.5" />
-                      </span>
+                      <ExternalLinkIcon className="text-muted-foreground size-3" />
                     </a>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -183,7 +182,7 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
       </SidebarContent>
 
       <SidebarFooter>
-        <div className="flex items-center justify-between gap-2 px-2 group-data-[collapsible=icon]:flex-col">
+        <div className="flex items-center justify-between gap-2 pr-0.5 pl-2 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:px-0">
           <div className="min-w-0 group-data-[collapsible=icon]:hidden">
             <p className="truncate text-sm font-medium">{session.email}</p>
             <p className="text-muted-foreground text-xs capitalize">{session.role}</p>
