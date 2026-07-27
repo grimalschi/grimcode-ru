@@ -2,7 +2,9 @@ import { ORPCError } from '@orpc/client';
 import { implement } from '@orpc/server';
 import { authPublicContract, type Identity } from '@template/contracts';
 import {
+  createRateLimiter,
   hashPassword,
+  intEnv,
   parseCookies,
   publicSiteUrl,
   sessionCookieName,
@@ -39,6 +41,18 @@ const VERIFICATION_TTL_SECONDS = 60 * 60 * 24;
  * deduplicates — the person gets one letter, not a flood.
  */
 const RESET_REQUEST_WINDOW_MS = 15 * 60 * 1000;
+
+/**
+ * Password guessing against one address is not free.
+ *
+ * Counted per address rather than per client: the address is the thing Auth actually knows, and it
+ * is what an attacker has to keep hitting. Rate limits per client address belong to the proxy in
+ * front of Gateway, which is the only part that sees the real one.
+ */
+const loginAttempts = createRateLimiter({
+  limit: intEnv('AUTH_LOGIN_ATTEMPT_LIMIT', 10),
+  windowMs: intEnv('AUTH_LOGIN_ATTEMPT_WINDOW_SECONDS', 15 * 60) * 1000,
+});
 const RESET_TTL_SECONDS = 60 * 60;
 const EMAIL_CHANGE_TTL_SECONDS = 60 * 60;
 
@@ -125,6 +139,14 @@ export const publicRouter = os.router({
   }),
 
   login: os.login.handler(async ({ input, context }) => {
+    const attemptKey = input.email.trim().toLowerCase();
+    if (!loginAttempts.attempt(attemptKey)) {
+      // Said the same way to everyone, so the answer still reveals nothing about the address.
+      throw new ORPCError('TOO_MANY_REQUESTS', {
+        message: 'Слишком много попыток входа. Попробуйте позже',
+      });
+    }
+
     const identity = await context.repo.findIdentityByEmail(input.email);
 
     const valid = identity
@@ -149,6 +171,8 @@ export const publicRouter = os.router({
     );
     await context.repo.touchLogin(identity.id);
     await context.repo.audit({ identityId: identity.id, action: 'login.succeeded' });
+    // Signing in successfully means the failures before it were this person mistyping.
+    loginAttempts.clear(attemptKey);
 
     context.resHeaders.append('set-cookie', sessionCookie(token, ttl));
     return { ok: true as const, identity: toIdentity(identity) };

@@ -3,6 +3,7 @@ export * from './logger.js';
 export * from './crypto.js';
 export * from './service-urls.js';
 export * from './theme.js';
+export * from './rate-limit.js';
 
 export * from './http/cookies.js';
 export * from './http/admin-context.js';

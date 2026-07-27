@@ -39,7 +39,9 @@ async function openAdminer(page: Page, theme: 'light' | 'dark'): Promise<FrameLo
   await page.goto('/admin/database');
 
   const frame = page.frameLocator('iframe[title="База данных"]');
-  await expect(frame.locator('#content')).toBeVisible();
+  // The database list, not merely a `#content` box: Adminer keeps that element on its error pages
+  // too, so it says nothing about whether the connection worked.
+  await expect(frame.getByRole('link', { name: /_auth$/ })).toBeVisible();
 
   // The theme arrives by message a moment after the frame loads, so measuring colours before it
   // lands would be reading the wrong page.
@@ -53,12 +55,10 @@ test.describe('the database interface', () => {
     await signIn(page);
     const frame = await openAdminer(page, 'light');
 
-    // Its own markup and its own stylesheet.
+    // Its own markup and its own stylesheet — and it found the service databases through the
+    // connection it was given, which `openAdminer` already had to see to get this far.
     await expect(frame.locator('#menu')).toBeVisible();
     await expect(frame.locator('#content')).toBeVisible();
-
-    // It found the service databases through the connection it was given.
-    await expect(frame.getByRole('link', { name: /_auth$/ })).toBeVisible();
   });
 
   test('follows the panel into the dark theme, on every screen', async ({ page }) => {
@@ -75,7 +75,7 @@ test.describe('the database interface', () => {
 
     // And the rows of a table, which Adminer styles separately.
     await frame.getByRole('link', { name: 'deliveries', exact: true }).first().click();
-    await expect(frame.locator('#content')).toBeVisible();
+    await expect(frame.locator('#content h2')).toContainText('deliveries');
     await expect.poll(() => backgroundBrightness(frame, 'body')).toBeLessThan(DARK_BACKGROUND_MAX);
   });
 

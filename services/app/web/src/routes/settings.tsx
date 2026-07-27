@@ -78,6 +78,24 @@ function ProfileSection() {
 
   if (state.loading) return <Skeleton className="h-48 w-full" />;
 
+  // Without this, a failed load left an empty field that looks like an empty name — and saving it
+  // would have written that emptiness back over the real one.
+  if (state.error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Профиль</CardTitle>
+          <CardDescription>{messageOf(state.error)}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" onClick={state.reload}>
+            Попробовать снова
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -269,6 +287,9 @@ function SessionsSection() {
       <CardContent className="space-y-4">
         {state.loading ? (
           <Skeleton className="h-24 w-full" />
+        ) : state.error ? (
+          // An empty list would read as "signed in nowhere", which is the opposite of the truth.
+          <p className="text-muted-foreground text-sm">{messageOf(state.error)}</p>
         ) : (
           /*
             Scrolls rather than growing: someone who signs in from a phone, a laptop and a work

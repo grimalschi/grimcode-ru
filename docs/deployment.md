@@ -68,6 +68,20 @@ images also run locally over plain http, where a `Secure` cookie would never com
 
 `AUTH_SESSION_TTL_SECONDS` is thirty days by default.
 
+## Rate limits
+
+Auth counts failed sign-ins per address — `AUTH_LOGIN_ATTEMPT_LIMIT` attempts inside
+`AUTH_LOGIN_ATTEMPT_WINDOW_SECONDS`, ten in fifteen minutes by default — and a successful sign-in
+clears the count. Recovery mail is deduplicated per identity for fifteen minutes, so asking for a
+reset over and over does not turn the form into a way to mail someone repeatedly.
+
+Both are counted in the service's own memory. That is exact for the topology here, one container per
+service, and it doubles the allowance for every extra copy of Auth. It is also all a service can
+honestly do on its own: limits per client address need the real client address, and only the proxy
+in front of Gateway has it. A deployment that expects hostile traffic puts volumetric limits there —
+requests per address for `/service/*/rpc` and `/admin/**` — and Auth's counter stays as the last
+line for one account under attack.
+
 ## Building images
 
 One Dockerfile, built once per service with `--build-arg SERVICE=<name>`. Each runtime image

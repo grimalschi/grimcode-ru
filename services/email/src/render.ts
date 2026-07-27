@@ -200,9 +200,17 @@ export async function renderMessage(
      * The sanitiser still runs over the result, so this is not the only thing standing between a
      * value and the output.
      */
-    maily.setVariableValues(
-      Object.fromEntries(Object.entries(variables).map(([name, value]) => [name, String(value)])),
-    );
+    /*
+     * Names without a value keep their `{{name}}` placeholder, exactly as publishing leaves them.
+     * Without this, the renderer falls back to the bare name, and a button whose link is a variable
+     * came out as `href="resetUrl"` — a broken relative link in every partially filled preview and
+     * in every test send.
+     */
+    const values: Record<string, string> = {};
+    for (const name of collectVariables(document)) values[name] = `{{${name}}}`;
+    for (const [name, value] of Object.entries(variables)) values[name] = String(value);
+
+    maily.setVariableValues(values);
   }
 
   let html: string;

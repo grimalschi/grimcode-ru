@@ -180,6 +180,22 @@ describe('seed templates', () => {
     expect(stored).toContain('/app/reset-password/confirm');
   });
 
+  /**
+   * A preview or a test send rarely carries every value. What is missing has to stay a visible
+   * placeholder: the renderer's own fallback is the bare variable name, which turned a button's
+   * link into `href="resetUrl"` — a relative link to nowhere.
+   */
+  it('keeps a placeholder for a value the preview does not carry', async () => {
+    const seed = SEED_TEMPLATES.find((entry) => entry.key === 'auth-password-reset');
+    const preview = await renderMessage(seed!.document, seed!.subject, {
+      email: 'user@example.com',
+    });
+
+    expect(preview.html).toContain('user@example.com');
+    expect(preview.html).toContain('href="{{resetUrl}}"');
+    expect(preview.html).not.toContain('href="resetUrl"');
+  });
+
   it('renders a preview with sample values filled in', async () => {
     const seed = SEED_TEMPLATES.find((entry) => entry.key === 'auth-welcome');
     const preview = await renderMessage(seed!.document, seed!.subject, {

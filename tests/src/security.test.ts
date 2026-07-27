@@ -97,6 +97,39 @@ describe('sessions', () => {
   });
 });
 
+describe('sign-in attempts', () => {
+  /**
+   * Guessing one account's password has to become useless before the guessing succeeds. The limit
+   * is counted per address, so it is the attacked account that closes, not the whole login form.
+   */
+  it('stop being answered after enough failures, and the account is not simply open again', async () => {
+    const user = await createUser('bruteforce');
+    const attacker = new Session();
+
+    let refusedByLimit = false;
+    for (let attempt = 0; attempt < 12 && !refusedByLimit; attempt += 1) {
+      const result = await attacker.rpc(AUTH, 'login', {
+        email: user.email,
+        password: `wrong-passphrase-${attempt}`,
+      });
+      refusedByLimit = result.status === 429;
+    }
+    expect(refusedByLimit).toBe(true);
+
+    // The correct password is refused too while the window lasts — otherwise the limit would only
+    // slow down a guess that had already failed.
+    const correct = await new Session().rpc(AUTH, 'login', {
+      email: user.email,
+      password: PASSWORD,
+    });
+    expect(correct.status).toBe(429);
+
+    // And another address is unaffected.
+    const other = await createUser('unaffected');
+    expect(other.session.hasSession).toBe(true);
+  });
+});
+
 describe('recovery', () => {
   /**
    * Whether an address is registered is not something the recovery form is willing to reveal, so
