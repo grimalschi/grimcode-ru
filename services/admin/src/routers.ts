@@ -37,6 +37,12 @@ export interface AdminRpcContext {
 const internalOs = implement(adminContract.internal).$context<InternalContext>();
 
 export const internalRouter = internalOs.router({
+  isActiveOwner: internalOs.isActiveOwner.handler(async ({ input, context }) => {
+    const row = await context.repo.findByUserId(input.userId);
+
+    return { activeOwner: row?.role === 'owner' && row.enabled };
+  }),
+
   authorize: internalOs.authorize.handler(({ input, context }) => authorize(input, context)),
 });
 

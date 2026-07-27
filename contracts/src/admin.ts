@@ -75,6 +75,19 @@ export const adminInternalContract = {
    * empty and answers with a decision. Gateway computes nothing, caches nothing and keeps no copy
    * of the rights, so a changed grant takes effect on the next request.
    */
+  /**
+   * Whether this account is one of the owners the project still has.
+   *
+   * Auth asks before blocking someone: blocking removes every session and every token, so blocking
+   * the last owner locks the project out of its own panel — the thing the registry's own last-owner
+   * rule exists to prevent. Ownership is Admin's fact, blocking is Auth's, and neither can see the
+   * whole rule alone.
+   */
+  /** Whether this identity currently holds owner rights, which Auth refuses to block. */
+  isActiveOwner: oc
+    .input(z.object({ userId: idSchema }))
+    .output(z.object({ activeOwner: z.boolean() })),
+
   authorize: oc
     .input(
       z.object({

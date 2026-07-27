@@ -110,12 +110,30 @@ export const migrations: readonly Migration[] = [
       DROP INDEX template_versions_template_idx;
       ALTER TABLE template_versions DROP CONSTRAINT template_versions_template_id_locale_version_key;
 
-      DELETE FROM template_versions a
-       USING template_versions b
-       WHERE a.template_id = b.template_id
-         AND a.version = b.version
-         AND a.locale <> 'ru'
-         AND b.locale = 'ru';
+      -- Keep one row per (template, version) whatever languages existed, preferring a published
+      -- one and then the most recently touched. Matching only against a Russian row left
+      -- duplicates behind on any installation that had other languages, and the constraints below
+      -- then failed — inside the migration transaction, so the service restarted into the same
+      -- failure forever.
+      DELETE FROM template_versions v
+       WHERE v.id NOT IN (
+         SELECT DISTINCT ON (template_id, version) id
+           FROM template_versions
+          ORDER BY template_id, version,
+                   (status = 'published') DESC,
+                   updated_at DESC,
+                   id
+       );
+
+      -- At most one published version per template, for the same reason.
+      UPDATE template_versions SET status = 'archived'
+       WHERE status = 'published'
+         AND id NOT IN (
+           SELECT DISTINCT ON (template_id) id
+             FROM template_versions
+            WHERE status = 'published'
+            ORDER BY template_id, version DESC, id
+         );
 
       ALTER TABLE template_versions DROP COLUMN locale;
       ALTER TABLE deliveries DROP COLUMN locale;

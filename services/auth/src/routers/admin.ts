@@ -1,7 +1,19 @@
 import { ORPCError } from '@orpc/client';
 import { implement } from '@orpc/server';
-import { authAdminContract, type AdminContext } from '@template/contracts';
-import { isCsrfValid, newToken, publicSiteUrl, type Logger } from '@template/shared';
+import {
+  authAdminContract,
+  type AdminContext,
+  type adminInternalContract,
+  type ContractRouterClient,
+} from '@template/contracts';
+import {
+  createRpcClient,
+  internalServiceUrl,
+  isCsrfValid,
+  newToken,
+  publicSiteUrl,
+  type Logger,
+} from '@template/shared';
 
 import type { Notifier } from '../notifier.js';
 import type { AuthRepository, IdentityRow } from '../repository.js';
@@ -54,6 +66,13 @@ async function adminIdentityOf(repo: AuthRepository, row: IdentityRow) {
     activeSessionCount: sessions.length,
     lastLoginAt: row.last_login_at?.toISOString() ?? null,
   };
+}
+
+/** Admin's internal endpoint, used for the facts Auth does not own. */
+function adminService(): ContractRouterClient<typeof adminInternalContract> {
+  return createRpcClient<ContractRouterClient<typeof adminInternalContract>>({
+    url: `${internalServiceUrl('admin')}/internal/rpc`,
+  });
 }
 
 export const adminRouter = os.router({
@@ -168,7 +187,7 @@ export const adminRouter = os.router({
     return { ok: true as const };
   }),
 
-  /** Owner-only, and an owner can never block their own identity. */
+  /** Owner-only, and no owner's identity can be blocked while they hold the rights. */
   setBlocked: os.setBlocked.handler(async ({ input, context }) => {
     const admin = requireMutation(context);
     if (admin.role !== 'owner') {
@@ -177,6 +196,23 @@ export const adminRouter = os.router({
     if (input.blocked && admin.userId === input.id) {
       // Otherwise the last working owner session could be removed by the owner themselves.
       throw new ORPCError('FORBIDDEN', { message: 'Нельзя заблокировать самого себя' });
+    }
+
+    /*
+     * Blocking takes away every session and every token, so a blocked owner is an owner the panel
+     * can no longer let in. The registry's own rule counts owners by its `enabled` flag and cannot
+     * see that, so two owners could be reduced to none: block one here, remove the other there.
+     *
+     * Ownership is Admin's fact and blocking is Auth's, so Auth asks before it acts, and refuses
+     * outright: rights come off in Administrators first, and only then does blocking apply.
+     */
+    if (input.blocked) {
+      const { activeOwner } = await adminService().isActiveOwner({ userId: input.id });
+      if (activeOwner) {
+        throw new ORPCError('CONFLICT', {
+          message: 'Сначала снимите права владельца в разделе «Администраторы»',
+        });
+      }
     }
 
     const row = await loadIdentity(context.repo, input.id);

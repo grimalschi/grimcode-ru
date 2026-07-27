@@ -70,6 +70,12 @@ its own admin panel would need database access to recover, which is the thing th
 
 An owner can promote a second owner and then step down — the rule only refuses to leave zero.
 
+Blocking is Auth's side of the same rule. A blocked identity loses every session and every token, so
+a blocked owner is an owner the panel can no longer let in — and the registry, which counts owners by
+its own flag, would not notice. Auth therefore refuses to block anyone who currently holds owner
+rights, whether it is the caller or another owner: the rights come off in **Администраторы** first,
+and only then does blocking apply.
+
 ## What is recorded
 
 Every change to administrator access is written to the audit log, including the automatic creation

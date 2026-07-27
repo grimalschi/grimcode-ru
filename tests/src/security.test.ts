@@ -195,6 +195,53 @@ describe('an administrator acting on an identity', () => {
     expect(allowed.hasSession).toBe(true);
   });
 
+  /**
+   * Blocking takes away every session and every token, so a blocked owner is an owner the panel can
+   * no longer let in — and the registry, which counts owners by its own flag, would never notice.
+   * Rights come off first; only then can the identity be blocked.
+   */
+  it('cannot block another owner while they still hold the rights', async () => {
+    const second = await createUser('secondowner');
+    await restore.remember(second.userId);
+    await owner.call(
+      ADMIN,
+      'addAdministrator',
+      { email: second.email, role: 'owner', grants: [] },
+      { csrf: true },
+    );
+
+    const refused = await owner.rpc(
+      serviceAdmin('auth'),
+      'setBlocked',
+      { id: second.userId, blocked: true },
+      { csrf: true },
+    );
+    // 409: refused for holding the rights, not for any of the other reasons blocking can fail.
+    expect(refused.status).toBe(409);
+
+    // Taking the rights away is what makes blocking possible.
+    await owner.call(
+      ADMIN,
+      'updateAdministrator',
+      { userId: second.userId, role: 'admin', grants: ['auth'] },
+      { csrf: true },
+    );
+    const allowed = await owner.rpc(
+      serviceAdmin('auth'),
+      'setBlocked',
+      { id: second.userId, blocked: true },
+      { csrf: true },
+    );
+    expect(allowed.status).toBe(200);
+
+    await owner.call(
+      serviceAdmin('auth'),
+      'setBlocked',
+      { id: second.userId, blocked: false },
+      { csrf: true },
+    );
+  });
+
   it('cannot block themselves, even as the owner', async () => {
     const state = await owner.call<{ userId: string }>(ADMIN, 'session');
 
