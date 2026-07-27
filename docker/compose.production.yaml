@@ -21,16 +21,12 @@ x-service: &service
     driver: json-file
     options: { max-size: '10m', max-file: '3' }
 
+# The shared connection, which every stateful service needs to reach its own database. The
+# per-service override is declared on that service alone: a service that could read
+# DATABASE_URL_AUTH would be holding credentials to a database it may never open.
 x-database-env: &database-env
   PROJECT_SLUG: ${PROJECT_SLUG}
   DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
-  # A deployment that needs one service on another server or with other credentials sets its own
-  # connection; `shared` prefers it over the shared one. Empty means "use the shared one".
-  DATABASE_URL_ADMIN: ${DATABASE_URL_ADMIN:-}
-  DATABASE_URL_AUTH: ${DATABASE_URL_AUTH:-}
-  DATABASE_URL_USERS: ${DATABASE_URL_USERS:-}
-  DATABASE_URL_NOTIFICATIONS: ${DATABASE_URL_NOTIFICATIONS:-}
-  DATABASE_URL_EMAIL: ${DATABASE_URL_EMAIL:-}
 
 services:
   # Creates the per-service databases if they do not exist yet. Harmless on every later deploy: it
@@ -102,6 +98,8 @@ services:
         SERVICE: admin
     environment:
       <<: *database-env
+      # Set to put this service's database on another server or under other credentials.
+      DATABASE_URL_ADMIN: ${DATABASE_URL_ADMIN:-}
     expose: ['3002']
     depends_on:
       db-init:
@@ -116,6 +114,8 @@ services:
         SERVICE: auth
     environment:
       <<: *database-env
+      # Set to put this service's database on another server or under other credentials.
+      DATABASE_URL_AUTH: ${DATABASE_URL_AUTH:-}
       PUBLIC_SITE_URL: ${PUBLIC_SITE_URL}
       AUTH_SESSION_TTL_SECONDS: ${AUTH_SESSION_TTL_SECONDS:-2592000}
       AUTH_LOGIN_ATTEMPT_LIMIT: ${AUTH_LOGIN_ATTEMPT_LIMIT:-10}
@@ -134,6 +134,8 @@ services:
         SERVICE: users
     environment:
       <<: *database-env
+      # Set to put this service's database on another server or under other credentials.
+      DATABASE_URL_USERS: ${DATABASE_URL_USERS:-}
     expose: ['3004']
     depends_on:
       db-init:
@@ -148,6 +150,8 @@ services:
         SERVICE: notifications
     environment:
       <<: *database-env
+      # Set to put this service's database on another server or under other credentials.
+      DATABASE_URL_NOTIFICATIONS: ${DATABASE_URL_NOTIFICATIONS:-}
     expose: ['3005']
     depends_on:
       db-init:
@@ -162,6 +166,8 @@ services:
         SERVICE: email
     environment:
       <<: *database-env
+      # Set to put this service's database on another server or under other credentials.
+      DATABASE_URL_EMAIL: ${DATABASE_URL_EMAIL:-}
       # A production deployment that leaves this on `log` sends nothing: messages are recorded and
       # stay put. That is a deliberate default — a misconfigured transport should not mail people.
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-log}
