@@ -1,60 +1,27 @@
-# Local development topology.
+# Production topology — the deployed system, and the reason this file has the plain name.
 #
-# PostgreSQL is a separate container but is declared here, so the whole project has one lifecycle
-# and one internal network. Only Gateway and PostgreSQL publish a host port, and both default to
-# loopback — opening either to the local network takes a deliberate override.
+# Local development runs `docker/compose.local.yaml` instead, through `pnpm up`.
 #
-# Reaching the application from another machine — a virtual machine's port forwarding, a phone on
-# the same network — needs GATEWAY_BIND_HOST. The database has no such variable: it is pinned to
-# loopback, because publishing it wider is never the right answer locally.
+# Only Gateway is reachable from outside; everything else lives on the internal network with no
+# host port at all. PostgreSQL is not here: in production the database is a managed resource of the
+# deployment platform, reached through DATABASE_URL, so the application never runs its own.
 #
-# Every service receives only the variables it actually needs.
+# There is no host port for Gateway either. The platform routes the domain to the container's
+# fixed internal port, which is why nobody has to choose a number.
+#
+# Everything a deployment must supply is listed in `docker/.env.production.example`.
 
-name: ${PROJECT_SLUG:-template}
-
-x-service: &service
-  build:
-    context: ..
-    dockerfile: docker/Dockerfile
-  restart: unless-stopped
-  networks: [internal]
-
-# The connection every stateful service needs to reach its own database. Which database is its own
-# it works out from PROJECT_SLUG, so one line here gives each of them exactly one database.
-x-database-env: &database-env
-  PROJECT_SLUG: ${PROJECT_SLUG:-template}
-  DATABASE_URL: ${DATABASE_URL:-postgres://template:template@postgres:5432/postgres}
+name: ${PROJECT_SLUG:?PROJECT_SLUG is required}
 
 services:
-  postgres:
-    image: postgres:17-alpine
-    restart: unless-stopped
-    environment:
-      # Fixed: this database exists only on a developer's machine and never leaves loopback.
-      # DATABASE_URL carries the same pair, and production has neither this container nor these.
-      POSTGRES_USER: template
-      POSTGRES_PASSWORD: template
-      POSTGRES_DB: postgres
-    ports:
-      # Only for local tools on the host machine. Bound to loopback by default.
-      - '127.0.0.1:${POSTGRES_PORT:-63001}:5432'
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U template -d postgres']
-      interval: 3s
-      timeout: 3s
-      retries: 20
-    networks: [internal]
-
-  # Creates one database per stateful service. Each service then applies its own versioned
-  # migrations on start; this step only makes the empty databases exist.
+  # Creates the per-service databases if they do not exist yet. Harmless on every later deploy: it
+  # only ever adds what is missing, and each service still applies its own migrations on start.
   db-init:
     image: postgres:17-alpine
     restart: 'no'
     environment:
-      PROJECT_SLUG: ${PROJECT_SLUG:-template}
-      DATABASE_URL: ${DATABASE_URL:-postgres://template:template@postgres:5432/postgres}
+      PROJECT_SLUG: ${PROJECT_SLUG}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
     entrypoint: ['sh', '-ec']
     command:
       - |
@@ -67,52 +34,92 @@ services:
             psql "$${DATABASE_URL}" -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$${db}\""
           fi
         done
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks: [internal]
 
   gateway:
-    <<: *service
     build:
       context: ..
       dockerfile: docker/Dockerfile
       args:
         SERVICE: gateway
     environment:
-      PROJECT_SLUG: ${PROJECT_SLUG:-template}
-      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://127.0.0.1:8080}
-    ports:
-      # The only container published outside.
-      - '${GATEWAY_BIND_HOST:-127.0.0.1}:${GATEWAY_PORT:-63000}:8080'
+      PROJECT_SLUG: ${PROJECT_SLUG}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:?PUBLIC_SITE_URL is required}
+    # The only container the platform routes traffic to. No `ports`: publishing one would put the
+    # application on the host's network instead of behind whatever terminates TLS.
+    expose: ['8080']
     depends_on: [admin, app, auth, site, users, notifications, email, adminer]
+    restart: always
+    networks: [internal]
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
+  site:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: site
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL}
+    expose: ['3000']
+    restart: always
+    networks: [internal]
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: app
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL}
+    expose: ['3001']
+    restart: always
+    networks: [internal]
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
 
   admin:
-    <<: *service
     build:
       context: ..
       dockerfile: docker/Dockerfile
       args:
         SERVICE: admin
     environment:
-      <<: *database-env
+      PROJECT_SLUG: ${PROJECT_SLUG}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      # Set to put this service's database on another server or under other credentials.
+      DATABASE_URL_ADMIN: ${DATABASE_URL_ADMIN:-}
     expose: ['3002']
     depends_on:
       db-init:
         condition: service_completed_successfully
-      auth:
-        condition: service_started
+    restart: always
+    networks: [internal]
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
 
   auth:
-    <<: *service
     build:
       context: ..
       dockerfile: docker/Dockerfile
       args:
         SERVICE: auth
     environment:
-      <<: *database-env
-      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://127.0.0.1:8080}
+      PROJECT_SLUG: ${PROJECT_SLUG}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      # Set to put this service's database on another server or under other credentials.
+      DATABASE_URL_AUTH: ${DATABASE_URL_AUTH:-}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL}
       AUTH_SESSION_TTL_SECONDS: ${AUTH_SESSION_TTL_SECONDS:-2592000}
       AUTH_LOGIN_ATTEMPT_LIMIT: ${AUTH_LOGIN_ATTEMPT_LIMIT:-10}
       AUTH_LOGIN_ATTEMPT_WINDOW_SECONDS: ${AUTH_LOGIN_ATTEMPT_WINDOW_SECONDS:-900}
@@ -120,104 +127,102 @@ services:
     depends_on:
       db-init:
         condition: service_completed_successfully
+    restart: always
+    networks: [internal]
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
 
   users:
-    <<: *service
     build:
       context: ..
       dockerfile: docker/Dockerfile
       args:
         SERVICE: users
     environment:
-      <<: *database-env
+      PROJECT_SLUG: ${PROJECT_SLUG}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      # Set to put this service's database on another server or under other credentials.
+      DATABASE_URL_USERS: ${DATABASE_URL_USERS:-}
     expose: ['3004']
     depends_on:
       db-init:
         condition: service_completed_successfully
+    restart: always
+    networks: [internal]
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
 
   notifications:
-    <<: *service
     build:
       context: ..
       dockerfile: docker/Dockerfile
       args:
         SERVICE: notifications
     environment:
-      <<: *database-env
+      PROJECT_SLUG: ${PROJECT_SLUG}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      # Set to put this service's database on another server or under other credentials.
+      DATABASE_URL_NOTIFICATIONS: ${DATABASE_URL_NOTIFICATIONS:-}
     expose: ['3005']
     depends_on:
       db-init:
         condition: service_completed_successfully
+    restart: always
+    networks: [internal]
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
 
   email:
-    <<: *service
     build:
       context: ..
       dockerfile: docker/Dockerfile
       args:
         SERVICE: email
     environment:
-      <<: *database-env
-      # `log` keeps messages inside the delivery log; `unisender` is the ready production transport.
+      PROJECT_SLUG: ${PROJECT_SLUG}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      # Set to put this service's database on another server or under other credentials.
+      DATABASE_URL_EMAIL: ${DATABASE_URL_EMAIL:-}
+      # A production deployment that leaves this on `log` sends nothing: messages are recorded and
+      # stay put. That is a deliberate default — a misconfigured transport should not mail people.
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-log}
-      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-no-reply@example.com}
-      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Template}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:?EMAIL_FROM_ADDRESS is required}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-}
       UNISENDER_GO_API_KEY: ${UNISENDER_GO_API_KEY:-}
       UNISENDER_GO_API_URL: ${UNISENDER_GO_API_URL:-}
     expose: ['3006']
     depends_on:
       db-init:
         condition: service_completed_successfully
-
-  site:
-    <<: *service
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-      args:
-        SERVICE: site
-    environment:
-      PROJECT_SLUG: ${PROJECT_SLUG:-template}
-      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://127.0.0.1:8080}
-    # Server-rendered and stateless: it has no database and holds no session.
-    expose: ['3000']
-
-  app:
-    <<: *service
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-      args:
-        SERVICE: app
-    environment:
-      PROJECT_SLUG: ${PROJECT_SLUG:-template}
-      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://127.0.0.1:8080}
-    # No database: identity comes from Auth and the product profile from Users.
-    expose: ['3001']
+    restart: always
+    networks: [internal]
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
 
   adminer:
     build:
       context: adminer
       dockerfile: Dockerfile
-    restart: unless-stopped
+    restart: always
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgres://template:template@postgres:5432/postgres}
+      DATABASE_URL: ${DATABASE_URL}
       # The wrapper prefers these over the credentials in DATABASE_URL, which is how a deployment
       # gives the database console an account with fewer rights than the services have.
       ADMINER_SERVER: ${ADMINER_SERVER:-}
       ADMINER_USERNAME: ${ADMINER_USERNAME:-}
       ADMINER_PASSWORD: ${ADMINER_PASSWORD:-}
-    # Internal only. Adminer is reachable exclusively through Gateway's owner-only route and never
-    # gets a host port, in local development or in production.
+    # Internal only, exactly as locally: reachable through Gateway's owner-only route and nowhere
+    # else. It never gets a host port, in any environment.
     expose: ['8080']
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks: [internal]
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
 
 networks:
   internal:
     driver: bridge
-
-volumes:
-  postgres-data:

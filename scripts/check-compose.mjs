@@ -15,7 +15,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const composeFile = join(repoRoot, 'docker/compose.yaml');
+const composeFile = join(repoRoot, 'docker/compose.local.yaml');
 const envPath = join(repoRoot, '.env');
 
 /** Services allowed to publish a host port locally. Nothing else may. */
@@ -56,9 +56,9 @@ const notes = [];
  * than a container of this application.
  */
 function checkProduction() {
-  const productionFile = join(repoRoot, 'docker/compose.production.yaml');
+  const productionFile = join(repoRoot, 'docker/compose.yaml');
   if (!existsSync(productionFile)) {
-    problems.push('docker/compose.production.yaml is missing');
+    problems.push('docker/compose.yaml is missing');
     return;
   }
 
@@ -81,7 +81,7 @@ function checkProduction() {
     ).toString();
   } catch (error) {
     problems.push(
-      `docker/compose.production.yaml did not parse: ${error.stderr?.toString().trim() ?? error.message}`,
+      `docker/compose.yaml did not parse: ${error.stderr?.toString().trim() ?? error.message}`,
     );
     return;
   }

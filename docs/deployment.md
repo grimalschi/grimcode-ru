@@ -28,7 +28,7 @@ None of these has a working default. A value that is wrong in production is wors
 refuses to start, so Compose fails on a missing one.
 
 ```bash
-docker compose --env-file .env.production -f docker/compose.production.yaml up -d --build
+docker compose --env-file .env.production -f docker/compose.yaml up -d --build
 ```
 
 ## What is exposed

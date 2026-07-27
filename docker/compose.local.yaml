@@ -1,0 +1,223 @@
+# Local development topology. The deployed one is `docker/compose.yaml`.
+#
+# PostgreSQL is a separate container but is declared here, so the whole project has one lifecycle
+# and one internal network. Only Gateway and PostgreSQL publish a host port, and both default to
+# loopback — opening either to the local network takes a deliberate override.
+#
+# Reaching the application from another machine — a virtual machine's port forwarding, a phone on
+# the same network — needs GATEWAY_BIND_HOST. The database has no such variable: it is pinned to
+# loopback, because publishing it wider is never the right answer locally.
+#
+# Every service receives only the variables it actually needs.
+
+name: ${PROJECT_SLUG:-template}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      # Fixed: this database exists only on a developer's machine and never leaves loopback.
+      # DATABASE_URL carries the same pair, and production has neither this container nor these.
+      POSTGRES_USER: template
+      POSTGRES_PASSWORD: template
+      POSTGRES_DB: postgres
+    ports:
+      # Only for local tools on the host machine. Bound to loopback by default.
+      - '127.0.0.1:${POSTGRES_PORT:-63001}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U template -d postgres']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks: [internal]
+
+  # Creates one database per stateful service. Each service then applies its own versioned
+  # migrations on start; this step only makes the empty databases exist.
+  db-init:
+    image: postgres:17-alpine
+    restart: 'no'
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG:-template}
+      DATABASE_URL: ${DATABASE_URL:-postgres://template:template@postgres:5432/postgres}
+    entrypoint: ['sh', '-ec']
+    command:
+      - |
+        for service in admin auth users notifications email; do
+          db="$${PROJECT_SLUG}_$${service}"
+          if psql "$${DATABASE_URL}" -tAc "SELECT 1 FROM pg_database WHERE datname = '$${db}'" | grep -q 1; then
+            echo "[db-init] $${db} exists"
+          else
+            echo "[db-init] creating $${db}"
+            psql "$${DATABASE_URL}" -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$${db}\""
+          fi
+        done
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: gateway
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG:-template}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://127.0.0.1:63000}
+    ports:
+      # The only container published outside.
+      - '${GATEWAY_BIND_HOST:-127.0.0.1}:${GATEWAY_PORT:-63000}:8080'
+    depends_on: [admin, app, auth, site, users, notifications, email, adminer]
+    restart: unless-stopped
+    networks: [internal]
+
+  admin:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: admin
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG:-template}
+      DATABASE_URL: ${DATABASE_URL:-postgres://template:template@postgres:5432/postgres}
+    expose: ['3002']
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      auth:
+        condition: service_started
+    restart: unless-stopped
+    networks: [internal]
+
+  auth:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: auth
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG:-template}
+      DATABASE_URL: ${DATABASE_URL:-postgres://template:template@postgres:5432/postgres}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://127.0.0.1:63000}
+      AUTH_SESSION_TTL_SECONDS: ${AUTH_SESSION_TTL_SECONDS:-2592000}
+      AUTH_LOGIN_ATTEMPT_LIMIT: ${AUTH_LOGIN_ATTEMPT_LIMIT:-10}
+      AUTH_LOGIN_ATTEMPT_WINDOW_SECONDS: ${AUTH_LOGIN_ATTEMPT_WINDOW_SECONDS:-900}
+    expose: ['3003']
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks: [internal]
+
+  users:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: users
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG:-template}
+      DATABASE_URL: ${DATABASE_URL:-postgres://template:template@postgres:5432/postgres}
+    expose: ['3004']
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks: [internal]
+
+  notifications:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: notifications
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG:-template}
+      DATABASE_URL: ${DATABASE_URL:-postgres://template:template@postgres:5432/postgres}
+    expose: ['3005']
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks: [internal]
+
+  email:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: email
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG:-template}
+      DATABASE_URL: ${DATABASE_URL:-postgres://template:template@postgres:5432/postgres}
+      # `log` keeps messages inside the delivery log; `unisender` is the ready production transport.
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-log}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-no-reply@example.com}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Template}
+      UNISENDER_GO_API_KEY: ${UNISENDER_GO_API_KEY:-}
+      UNISENDER_GO_API_URL: ${UNISENDER_GO_API_URL:-}
+    expose: ['3006']
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks: [internal]
+
+  site:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: site
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG:-template}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://127.0.0.1:63000}
+    # Server-rendered and stateless: it has no database and holds no session.
+    expose: ['3000']
+    restart: unless-stopped
+    networks: [internal]
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: app
+    environment:
+      PROJECT_SLUG: ${PROJECT_SLUG:-template}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://127.0.0.1:63000}
+    # No database: identity comes from Auth and the product profile from Users.
+    expose: ['3001']
+    restart: unless-stopped
+    networks: [internal]
+
+  adminer:
+    build:
+      context: adminer
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://template:template@postgres:5432/postgres}
+      # The wrapper prefers these over the credentials in DATABASE_URL, which is how a deployment
+      # gives the database console an account with fewer rights than the services have.
+      ADMINER_SERVER: ${ADMINER_SERVER:-}
+      ADMINER_USERNAME: ${ADMINER_USERNAME:-}
+      ADMINER_PASSWORD: ${ADMINER_PASSWORD:-}
+    # Internal only. Adminer is reachable exclusively through Gateway's owner-only route and never
+    # gets a host port, in local development or in production.
+    expose: ['8080']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  postgres-data:

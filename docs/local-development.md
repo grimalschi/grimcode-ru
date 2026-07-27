@@ -119,7 +119,7 @@ They exist because each protects a rule that is easy to break by accident and ha
 3. Its id in `ADMIN_SERVICE_IDS` and — only if it should be reachable without a session — in
    Gateway's public allowlist.
 4. Its entry in the Admin shell's [`services.ts`](../services/admin/web/src/services.ts).
-5. Its service in `docker/compose.yaml` and `docker/compose.production.yaml`.
+5. Its service in `docker/compose.local.yaml` and `docker/compose.yaml`.
 
 `check-service-ids.mjs` will tell you if you missed one of the three places ids live.
 

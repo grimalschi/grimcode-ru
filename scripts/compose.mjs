@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * Thin wrapper around `docker compose` that always uses the repository's Compose file and the
- * git-ignored `.env`, so the Compose project name and the ports are the ones this copy was given.
+ * Thin wrapper around `docker compose` that always uses the local Compose file and the git-ignored
+ * `.env`, so the Compose project name and the ports are the ones this copy was given.
+ *
+ * `docker/compose.yaml` is the production topology and is never what runs here.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -20,7 +22,7 @@ if (!existsSync(envPath)) {
 // scripts/allocate-network.mjs.
 const networkOverride = join(repoRoot, 'docker/compose.network.local.yaml');
 
-const files = ['-f', join(repoRoot, 'docker/compose.yaml')];
+const files = ['-f', join(repoRoot, 'docker/compose.local.yaml')];
 if (existsSync(networkOverride)) files.push('-f', networkOverride);
 
 const result = spawnSync(
