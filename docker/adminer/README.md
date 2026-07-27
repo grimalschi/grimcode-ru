@@ -2,7 +2,7 @@
 
 Real Adminer `5.4.2-standalone` image with the complete copied reference stylesheet and a
 neutralized PHP wrapper. It reads `DATABASE_URL` or explicit connection-level
-`TEMPLATE_ADMINER_*` overrides, has no host port, and is reachable only through Gateway's
+`ADMINER_*` overrides, has no host port, and is reachable only through Gateway's
 owner-only route. The wrapper connects at PostgreSQL server level and lets Adminer discover
 available databases; it does not contain a service-to-database registry.
 

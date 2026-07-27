@@ -213,9 +213,9 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgres://template:template@postgres:5432/postgres}
       # The wrapper prefers these over the credentials in DATABASE_URL, which is how a deployment
       # gives the database console an account with fewer rights than the services have.
-      TEMPLATE_ADMINER_SERVER: ${TEMPLATE_ADMINER_SERVER:-}
-      TEMPLATE_ADMINER_USERNAME: ${TEMPLATE_ADMINER_USERNAME:-}
-      TEMPLATE_ADMINER_PASSWORD: ${TEMPLATE_ADMINER_PASSWORD:-}
+      ADMINER_SERVER: ${ADMINER_SERVER:-}
+      ADMINER_USERNAME: ${ADMINER_USERNAME:-}
+      ADMINER_PASSWORD: ${ADMINER_PASSWORD:-}
     # Internal only. Adminer is reachable exclusively through Gateway's owner-only route and never
     # gets a host port, in local development or in production.
     expose: ['8080']

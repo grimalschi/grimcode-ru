@@ -27,7 +27,7 @@ function template_adminer_url_part(?array $databaseUrl, string $key): string
 
 function template_adminer_server(?array $databaseUrl): string
 {
-    $server = template_adminer_env('TEMPLATE_ADMINER_SERVER');
+    $server = template_adminer_env('ADMINER_SERVER');
     if ($server !== '') return $server;
     $host = template_adminer_url_part($databaseUrl, 'host');
     if ($host === '') return 'postgres';
@@ -125,8 +125,8 @@ if (!isset($_GET['username']) && !isset($_POST['auth']) && !isset($_GET['file'])
     $_POST['auth'] = [
         'driver' => 'pgsql',
         'server' => template_adminer_server($databaseUrlConfig),
-        'username' => template_adminer_login_part('TEMPLATE_ADMINER_USERNAME', $databaseUrlConfig, 'user', 'template'),
-        'password' => template_adminer_login_part('TEMPLATE_ADMINER_PASSWORD', $databaseUrlConfig, 'pass', 'template'),
+        'username' => template_adminer_login_part('ADMINER_USERNAME', $databaseUrlConfig, 'user', 'template'),
+        'password' => template_adminer_login_part('ADMINER_PASSWORD', $databaseUrlConfig, 'pass', 'template'),
         'db' => '',
     ];
 }
