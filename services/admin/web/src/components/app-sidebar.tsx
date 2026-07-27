@@ -70,7 +70,7 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
           icon ends 16px inside the row; a 28px control centres a 16px icon, so its box has to end
           2px earlier — hence `pr-0.5`.
         */}
-        <div className="flex items-center gap-2 py-1.5 pr-0.5 pl-2 group-data-[collapsible=icon]:px-0">
+        <div className="flex items-center gap-2 py-1.5 pr-0.5 pl-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
           <span className="truncate font-semibold group-data-[collapsible=icon]:hidden">Admin</span>
           <SidebarTrigger className="ml-auto group-data-[collapsible=icon]:ml-0" />
         </div>
@@ -189,7 +189,8 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
             <p className="truncate text-sm font-medium">{session.email}</p>
             <p className="text-muted-foreground text-xs capitalize">{session.role}</p>
           </div>
-          <div className="flex items-center gap-1">
+          {/* Collapsed, the sidebar is narrower than two buttons side by side, so they stack. */}
+          <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col">
             <ThemeToggle />
             <Button
               variant="ghost"
