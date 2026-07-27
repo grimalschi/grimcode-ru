@@ -1,12 +1,8 @@
 /*
- * Design tokens shared by the central Admin and every React service admin.
+ * Design tokens for the application.
  *
- * Importing this file is all a surface needs: it pulls in Tailwind, registers the shadcn semantic
- * variables and tells Tailwind to scan the shared components, which live outside the importing
- * application's own directory.
- *
- * The same palette is expressed for non-React surfaces in `shared/ui/tokens.css`, so Adminer and
- * the admin kit match without importing anything from here.
+ * Its own copy, like every other surface in the project: the values match the admins and Adminer,
+ * but nothing is imported from a common file, so restyling the application cannot restyle them.
  */
 
 @import "tailwindcss";

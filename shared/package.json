@@ -13,13 +13,10 @@
     "./browser": {
       "types": "./dist/theme.d.ts",
       "import": "./dist/theme.js"
-    },
-    "./ui/tokens.css": "./ui/tokens.css",
-    "./ui/admin-kit.css": "./ui/admin-kit.css"
+    }
   },
   "files": [
-    "dist",
-    "ui"
+    "dist"
   ],
   "scripts": {
     "build": "tsc -b tsconfig.json",

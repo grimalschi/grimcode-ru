@@ -3,8 +3,8 @@
  *
  * Every admin surface keeps its own copy of the shadcn components and of these variables, so a
  * service owns its interface outright and no service can break another one's screens by editing a
- * common component. The values are deliberately the same across the admins, and the same palette
- * is expressed for non-React surfaces in `shared/ui/tokens.css`, so Adminer matches too.
+ * common component. The values are deliberately the same across the admins, and Adminer repeats
+ * them once more in its own stylesheet — three copies on purpose, no shared file.
  */
 
 @import "tailwindcss";

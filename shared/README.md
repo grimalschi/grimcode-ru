@@ -36,17 +36,14 @@ service treats a missing or malformed context as a denial.
 version 1 upwards, an existing database only receives missing versions, and running the same set
 again changes nothing. Editing an already released migration is an error — add a new version.
 
-## Admin UI
+## No shared UI
 
-| File | Purpose |
-| --- | --- |
-| `ui/tokens.css` | Semantic design tokens for light, dark and system |
-| `ui/admin-kit.css` | Non-React admin components for surfaces where shadcn/ui cannot be used |
+There is no shared stylesheet and no shared component. Each service admin vendors its own shadcn
+source and its own palette, and Adminer keeps a stylesheet of its own — the same values written out
+in three places on purpose, so one service restyling itself cannot restyle its neighbours.
 
-The token values match `docker/adminer/adminer.css`, so Adminer — which keeps its own isolated
-stylesheet — still reads as part of the same system. `light` and `dark` are explicit through
-`[data-theme]`; `system` is the *absence* of the attribute, which is exactly what the shell's theme
-bridge sends.
+What is shared is the *convention*: `light` and `dark` are explicit through `[data-theme]`, and
+`system` is the absence of the attribute, which is exactly what the shell's theme bridge sends.
 
 The kit exists for server-rendered or third-party admin surfaces only. React admins use the real
 checked-in shadcn source components from the central Admin and share nothing but the tokens.

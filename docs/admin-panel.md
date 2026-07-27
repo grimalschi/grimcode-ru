@@ -92,8 +92,9 @@ Each admin keeps **its own copy** of the shadcn components it uses, its own `com
 its own design tokens. Nothing is shared at runtime, so a service can restyle or replace its admin
 without touching another's, and no common component can break four screens at once.
 
-The values are deliberately the same across them, and the same palette is expressed for the
-non-React surfaces in `shared/ui/tokens.css`, so the database browser matches too.
+The values are deliberately the same across them, and the database browser repeats them once more
+in its own stylesheet. Three copies, no shared file: that is the price of the isolation above, and
+it is paid knowingly.
 
 ## Related
 
