@@ -6,8 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 export const Route = createFileRoute('/')({
   head: () => ({
     meta: [
-      { title: 'Template' },
-      { name: 'description', content: 'Site, application and admin, working together from day one.' },
+      { title: 'Шаблон' },
+      {
+        name: 'description',
+        content: 'Сайт, приложение и админка, которые работают вместе с первого дня.',
+      },
     ],
   }),
   component: Home,
@@ -15,16 +18,16 @@ export const Route = createFileRoute('/')({
 
 const PARTS = [
   {
-    title: 'Site',
-    body: 'These public pages, rendered on the server so they can be read and indexed without JavaScript.',
+    title: 'Сайт',
+    body: 'Эти публичные страницы. Они собираются на сервере, поэтому читаются и индексируются без JavaScript.',
   },
   {
-    title: 'Application',
-    body: 'Everything behind sign-in: the account, one settings screen, and whatever the product adds.',
+    title: 'Приложение',
+    body: 'Всё, что за входом: аккаунт, один экран настроек и то, что добавит сам продукт.',
   },
   {
-    title: 'Admin',
-    body: 'Roles, grants and each service’s own admin, composed into one panel.',
+    title: 'Админка',
+    body: 'Роли, доступы и собственная админка каждого сервиса, собранные в одну панель.',
   },
 ];
 
@@ -33,18 +36,18 @@ function Home() {
     <div className="mx-auto w-full max-w-4xl px-6">
       <section className="py-20">
         <h1 className="text-4xl font-semibold tracking-tight text-balance">
-          A product that already has its boring parts
+          Продукт, у которого скучная часть уже готова
         </h1>
         <p className="text-muted-foreground mt-4 max-w-2xl text-lg">
-          Accounts, email, permissions and an admin panel are the work every product repeats. Here
-          they are done, so the first day can go to the part that is actually yours.
+          Аккаунты, письма, права и админка — работа, которую повторяет каждый продукт. Здесь она
+          сделана, и первый день можно потратить на то, что действительно ваше.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Button asChild size="lg">
-            <a href="/app/register">Create an account</a>
+            <a href="/app/register">Создать аккаунт</a>
           </Button>
           <Button asChild variant="outline" size="lg">
-            <Link to="/about">What is inside</Link>
+            <Link to="/about">Что внутри</Link>
           </Button>
         </div>
       </section>

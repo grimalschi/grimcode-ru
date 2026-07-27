@@ -21,7 +21,7 @@ import '@/styles.css';
 
 const BASE = '/admin/service/notifications';
 
-const TABS = [{ to: '/', label: 'Events' }];
+const TABS = [{ to: '/', label: 'События' }];
 
 /**
  * The Notifications service admin.

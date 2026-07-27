@@ -63,7 +63,7 @@ export function TemplateDetailPage() {
     setBusy(true);
     try {
       const result = await api.createDraft({ templateId, locale });
-      toast.success(`Draft v${result.version.version} created`);
+      toast.success(`Черновик v${result.version.version} создан`);
       detail.reload();
     } catch (error) {
       toast.error(messageOf(error));
@@ -74,7 +74,7 @@ export function TemplateDetailPage() {
 
   if (detail.error) {
     return (
-      <AdminPage title="Template">
+      <AdminPage title="Шаблон">
         <ErrorState error={detail.error} retry={detail.reload} />
       </AdminPage>
     );
@@ -84,7 +84,7 @@ export function TemplateDetailPage() {
 
   return (
     <AdminPage
-      title={template?.name ?? 'Template'}
+      title={template?.name ?? 'Шаблон'}
       description={
         template ? (
           <>
@@ -108,14 +108,14 @@ export function TemplateDetailPage() {
             </SelectContent>
           </Select>
           <Button onClick={() => void createDraft()} disabled={busy}>
-            New draft
+            Новый черновик
           </Button>
         </div>
       }
     >
       {template && template.variables.length > 0 ? (
         <p className="text-muted-foreground text-sm">
-          Variables this template may use:{' '}
+          Переменные, которые может использовать шаблон:{' '}
           {template.variables.map((variable) => (
             <code key={variable} className="mr-2">
               {`{{${variable}}}`}
@@ -128,11 +128,11 @@ export function TemplateDetailPage() {
         loading={detail.loading}
         rows={detail.data?.versions ?? []}
         rowKey={(row) => row.id}
-        empty="No versions yet — create a draft to write one."
+        empty="Версий пока нет — создайте черновик."
         columns={[
           {
             key: 'version',
-            header: 'Version',
+            header: 'Версия',
             cell: (row) => (
               <Link
                 to="/versions/$versionId"
@@ -143,15 +143,15 @@ export function TemplateDetailPage() {
               </Link>
             ),
           },
-          { key: 'subject', header: 'Subject', cell: (row) => row.subject },
+          { key: 'subject', header: 'Тема', cell: (row) => row.subject },
           {
             key: 'status',
-            header: 'Status',
+            header: 'Статус',
             cell: (row) => <Badge variant={STATUS_VARIANT[row.status]}>{row.status}</Badge>,
           },
           {
             key: 'published',
-            header: 'Published',
+            header: 'Опубликована',
             className: 'whitespace-nowrap',
             cell: (row) => (row.publishedAt ? new Date(row.publishedAt).toLocaleString() : '—'),
           },

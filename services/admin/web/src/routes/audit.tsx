@@ -29,45 +29,45 @@ export function AuditPage() {
 
   if (list.error) {
     return (
-      <AdminPage title="Audit">
+      <AdminPage title="Журнал">
         <ErrorState error={list.error} retry={list.reload} />
       </AdminPage>
     );
   }
 
   return (
-    <AdminPage title="Audit" description="Changes to administrator access.">
+    <AdminPage title="Журнал" description="Изменения прав администраторов.">
       <DataTable
         loading={list.loading}
         rows={list.data?.items ?? []}
         rowKey={(row) => row.id}
-        empty="Nothing has been recorded yet."
+        empty="Пока ничего не записано."
         columns={[
           {
             key: 'createdAt',
-            header: 'When',
+            header: 'Когда',
             className: 'whitespace-nowrap',
             cell: (row) => new Date(row.createdAt).toLocaleString(),
           },
           {
             key: 'action',
-            header: 'Action',
+            header: 'Действие',
             cell: (row) => <Badge variant="outline">{row.action}</Badge>,
           },
           {
             key: 'actor',
-            header: 'By',
+            header: 'Кто',
             cell: (row) =>
               row.actorUserId ? (
                 <code className="text-xs">{row.actorUserId}</code>
               ) : (
                 // The first owner is created by the system, from the registration order in Auth.
-                <span className="text-muted-foreground text-sm">System</span>
+                <span className="text-muted-foreground text-sm">Система</span>
               ),
           },
           {
             key: 'details',
-            header: 'Details',
+            header: 'Подробности',
             cell: (row) => (
               <code className="text-muted-foreground text-xs">{JSON.stringify(row.details)}</code>
             ),

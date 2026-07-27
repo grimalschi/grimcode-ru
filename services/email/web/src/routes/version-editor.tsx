@@ -76,7 +76,7 @@ export function VersionEditorPage() {
     setBusy(true);
     try {
       await api.saveDraft({ id: versionId, subject, editorDocument: document });
-      toast.success('Draft saved');
+      toast.success('Черновик сохранён');
       state.reload();
     } catch (error) {
       toast.error(messageOf(error));
@@ -91,7 +91,7 @@ export function VersionEditorPage() {
       // Saving first, so what is published is what is on screen rather than the last saved copy.
       if (document) await api.saveDraft({ id: versionId, subject, editorDocument: document });
       await api.publishDraft({ id: versionId });
-      toast.success('Published — new messages will use this version');
+      toast.success('Опубликовано — новые письма пойдут по этой версии');
       state.reload();
     } catch (error) {
       // The server refuses a document that uses an undeclared variable, and says which one.
@@ -103,7 +103,7 @@ export function VersionEditorPage() {
 
   if (state.error) {
     return (
-      <AdminPage title="Version">
+      <AdminPage title="Версия">
         <ErrorState error={state.error} retry={state.reload} />
       </AdminPage>
     );
@@ -111,15 +111,15 @@ export function VersionEditorPage() {
 
   return (
     <AdminPage
-      title={version ? `${version.locale} · v${version.version}` : 'Version'}
+      title={version ? `${version.locale} · v${version.version}` : 'Версия'}
       description={
         version ? (
           <span className="flex items-center gap-2">
             <Badge variant={editable ? 'secondary' : 'outline'}>{version.status}</Badge>
             <span>
               {editable
-                ? 'A draft. Nothing here is sent until it is published.'
-                : 'Not a draft — shown as it was approved. Create a new draft to change it.'}
+                ? 'Черновик. Ничего отсюда не отправляется до публикации.'
+                : 'Не черновик — показан таким, каким его утвердили. Чтобы изменить, создайте новый черновик.'}
             </span>
           </span>
         ) : null
@@ -127,16 +127,16 @@ export function VersionEditorPage() {
       actions={
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => void navigate({ to: '/' })}>
-            All templates
+            Все шаблоны
           </Button>
           {editable ? (
             <>
               <TestSend versionId={versionId} />
               <Button variant="outline" onClick={() => void save()} disabled={busy}>
-                Save
+                Сохранить
               </Button>
               <Button onClick={() => void publish()} disabled={busy}>
-                Publish
+                Опубликовать
               </Button>
             </>
           ) : null}
@@ -148,7 +148,7 @@ export function VersionEditorPage() {
       ) : (
         <>
           <div className="space-y-2">
-            <Label htmlFor="subject">Subject</Label>
+            <Label htmlFor="subject">Тема</Label>
             <Input
               id="subject"
               value={subject}
@@ -156,14 +156,14 @@ export function VersionEditorPage() {
               onChange={(event) => setSubject(event.target.value)}
             />
             <p className="text-muted-foreground text-xs">
-              {'Variables are written as {{name}} and filled in when the message is sent.'}
+              {'Переменные пишутся как {{name}} и подставляются при отправке.'}
             </p>
           </div>
 
           <Tabs defaultValue="edit">
             <TabsList>
-              <TabsTrigger value="edit">{editable ? 'Edit' : 'Document'}</TabsTrigger>
-              <TabsTrigger value="preview">Preview</TabsTrigger>
+              <TabsTrigger value="edit">{editable ? 'Редактор' : 'Документ'}</TabsTrigger>
+              <TabsTrigger value="preview">Предпросмотр</TabsTrigger>
             </TabsList>
 
             <TabsContent value="preview">
@@ -186,11 +186,11 @@ export function VersionEditorPage() {
           {version.compiledHtml ? (
             <details className="rounded-lg border p-4">
               <summary className="cursor-pointer text-sm font-medium">
-                What was published
+                Что опубликовано
               </summary>
               <p className="text-muted-foreground mt-2 text-xs">
-                The exact HTML and text stored at publish time. Delivery sends this and never
-                re-renders the document.
+                Тот самый HTML и текст, сохранённые при публикации. Отправка берёт именно их и никогда
+                не пересобирает документ.
               </p>
               <pre className="mt-3 max-h-64 overflow-auto rounded bg-muted p-3 text-xs">
                 {version.compiledText}
@@ -229,16 +229,16 @@ function VersionPreview({ versionId }: { versionId: string }) {
   return (
     <div className="space-y-2">
       <p className="text-muted-foreground text-sm">
-        Subject: <span className="text-foreground">{state.data?.subject}</span>
+        Тема: <span className="text-foreground">{state.data?.subject}</span>
       </p>
       <iframe
-        title="Message preview"
+        title="Предпросмотр письма"
         sandbox=""
         srcDoc={state.data?.html ?? ''}
         className="h-96 w-full rounded-lg border bg-white"
       />
       <p className="text-muted-foreground text-xs">
-        Variables are shown as their {'{{name}}'} placeholders; each recipient gets their own values.
+        Переменные показаны как {'{{name}}'} — у каждого получателя будут свои значения.
       </p>
     </div>
   );
@@ -255,7 +255,7 @@ function TestSend({ versionId }: { versionId: string }) {
       // A test send is a real send: it goes through the transport and lands in the delivery log
       // with exactly the content that left the system.
       await api.testSend({ id: versionId, to: to.trim(), variables: {} });
-      toast.success('Sent — check the delivery log');
+      toast.success('Отправлено — смотрите журнал');
       setOpen(false);
     } catch (error) {
       toast.error(messageOf(error));
@@ -267,19 +267,18 @@ function TestSend({ versionId }: { versionId: string }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <Button variant="outline" onClick={() => setOpen(true)}>
-        Test send
+        Тестовая отправка
       </Button>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Send a test</DialogTitle>
+          <DialogTitle>Тестовая отправка</DialogTitle>
           <DialogDescription>
-            This really sends, through the configured transport, and is recorded in the delivery
-            log.
+            Это настоящая отправка через настроенный транспорт, и она попадёт в журнал.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2">
-          <Label htmlFor="test-to">To</Label>
+          <Label htmlFor="test-to">Кому</Label>
           <Input
             id="test-to"
             type="email"
@@ -291,10 +290,10 @@ function TestSend({ versionId }: { versionId: string }) {
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>
-            Cancel
+            Отмена
           </Button>
           <Button onClick={() => void submit()} disabled={busy || to.trim() === ''}>
-            Send
+            Отправить
           </Button>
         </DialogFooter>
       </DialogContent>

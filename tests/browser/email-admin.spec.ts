@@ -16,7 +16,7 @@ test.describe('the email admin', () => {
     await signIn(page);
     await page.goto('/admin/service/email/');
 
-    await expect(page.getByRole('heading', { name: 'Templates' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Шаблоны' })).toBeVisible();
     await expect(page.getByText('auth-password-reset')).toBeVisible();
 
     expectNoPageErrors(problems);
@@ -34,7 +34,7 @@ test.describe('the email admin', () => {
     // A published version opens read-only; that is the record of what was approved.
     await page.getByRole('link', { name: /en · v1/ }).first().click();
 
-    await expect(page.getByLabel('Subject')).toBeVisible();
+    await expect(page.getByLabel('Тема')).toBeVisible();
     // The editor's own surface, meaning the lazily loaded chunk arrived and ran.
     await expect(page.locator('.tiptap, [contenteditable]').first()).toBeVisible();
 
@@ -47,14 +47,14 @@ test.describe('the email admin', () => {
     await signIn(page);
     await page.goto('/admin/service/email/deliveries');
 
-    await expect(page.getByRole('heading', { name: 'Deliveries' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Отправки' })).toBeVisible();
 
     const firstRow = page.locator('tbody tr').first();
     await expect(firstRow).toBeVisible();
     await firstRow.click();
 
     // The stored snapshot, both as a rendered message and as its source.
-    const preview = page.frameLocator('iframe[title="Message preview"]');
+    const preview = page.frameLocator('iframe[title="Предпросмотр письма"]');
     await expect(preview.locator('body')).toBeVisible();
 
     /*
@@ -62,13 +62,13 @@ test.describe('the email admin', () => {
      * message is content someone else's flow produced, so it is shown, never trusted. Checked while
      * the tab is open, because the other tabs unmount it.
      */
-    const sandbox = await page.locator('iframe[title="Message preview"]').getAttribute('sandbox');
+    const sandbox = await page.locator('iframe[title="Предпросмотр письма"]').getAttribute('sandbox');
     expect(sandbox).toBe('');
 
     await page.getByRole('tab', { name: 'HTML' }).click();
     await expect(page.getByText('<!DOCTYPE', { exact: false })).toBeVisible();
 
-    await page.getByRole('tab', { name: 'Text' }).click();
+    await page.getByRole('tab', { name: 'Текст' }).click();
     await expect(page.locator('pre').first()).toBeVisible();
 
     expectNoPageErrors(problems);

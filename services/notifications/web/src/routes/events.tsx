@@ -70,7 +70,7 @@ export function EventsPage() {
 
   if (list.error) {
     return (
-      <AdminPage title="Events">
+      <AdminPage title="События">
         <ErrorState error={list.error} retry={list.reload} />
       </AdminPage>
     );
@@ -78,16 +78,16 @@ export function EventsPage() {
 
   return (
     <AdminPage
-      title="Events"
-      description="What the product asked to notify people about, and whether it reached Email."
+      title="События"
+      description="О чём продукт просил уведомить и дошло ли это до Email."
       actions={
         <div className="flex gap-2">
           <Select value={type} onValueChange={changeFilter(setType)}>
             <SelectTrigger className="w-56">
-              <SelectValue placeholder="Any event" />
+              <SelectValue placeholder="Любое событие" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ANY}>Any event</SelectItem>
+              <SelectItem value={ANY}>Любое событие</SelectItem>
               {NOTIFICATION_EVENT_TYPES.map((value) => (
                 <SelectItem key={value} value={value}>
                   {value}
@@ -98,10 +98,10 @@ export function EventsPage() {
 
           <Select value={status} onValueChange={changeFilter(setStatus)}>
             <SelectTrigger className="w-36">
-              <SelectValue placeholder="Any status" />
+              <SelectValue placeholder="Любой статус" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ANY}>Any status</SelectItem>
+              <SelectItem value={ANY}>Любой статус</SelectItem>
               {STATUSES.map((value) => (
                 <SelectItem key={value} value={value}>
                   {value}
@@ -116,20 +116,20 @@ export function EventsPage() {
         loading={list.loading}
         rows={list.data?.items ?? []}
         rowKey={(row) => row.id}
-        empty="No events yet."
+        empty="Событий пока нет."
         onRowClick={setSelected}
         columns={[
           {
             key: 'createdAt',
-            header: 'When',
+            header: 'Когда',
             className: 'whitespace-nowrap',
             cell: (row) => new Date(row.createdAt).toLocaleString(),
           },
-          { key: 'type', header: 'Event', cell: (row) => <Badge variant="outline">{row.type}</Badge> },
-          { key: 'recipient', header: 'To', cell: (row) => row.recipientEmail },
+          { key: 'type', header: 'Событие', cell: (row) => <Badge variant="outline">{row.type}</Badge> },
+          { key: 'recipient', header: 'Кому', cell: (row) => row.recipientEmail },
           {
             key: 'status',
-            header: 'Status',
+            header: 'Статус',
             cell: (row) => (
               <span className="flex items-center gap-2">
                 <span
@@ -170,8 +170,8 @@ function EventDialog({ id, onClose }: { id: string; onClose: () => void }) {
       <Dialog open onOpenChange={(open) => !open && onClose()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Event</DialogTitle>
-            <DialogDescription>Loading.</DialogDescription>
+            <DialogTitle>Событие</DialogTitle>
+            <DialogDescription>Загружаем.</DialogDescription>
           </DialogHeader>
         </DialogContent>
       </Dialog>
@@ -184,25 +184,25 @@ function EventDialog({ id, onClose }: { id: string; onClose: () => void }) {
         <DialogHeader>
           <DialogTitle>{event.type}</DialogTitle>
           <DialogDescription>
-            A record of one event. Nothing here can be changed.
+            Запись об одном событии. Изменить здесь ничего нельзя.
           </DialogDescription>
         </DialogHeader>
 
         <dl className="grid grid-cols-[9rem_1fr] gap-y-2 text-sm">
-          <dt className="text-muted-foreground">Recipient</dt>
+          <dt className="text-muted-foreground">Получатель</dt>
           <dd>{event.recipientEmail}</dd>
-          <dt className="text-muted-foreground">Status</dt>
+          <dt className="text-muted-foreground">Статус</dt>
           <dd>{event.status}</dd>
-          <dt className="text-muted-foreground">Accepted</dt>
+          <dt className="text-muted-foreground">Принято</dt>
           <dd>{new Date(event.createdAt).toLocaleString()}</dd>
-          <dt className="text-muted-foreground">Routed</dt>
-          <dd>{event.routedAt ? new Date(event.routedAt).toLocaleString() : 'Not yet'}</dd>
-          <dt className="text-muted-foreground">Delivery</dt>
+          <dt className="text-muted-foreground">Отправлено</dt>
+          <dd>{event.routedAt ? new Date(event.routedAt).toLocaleString() : 'Ещё нет'}</dd>
+          <dt className="text-muted-foreground">Доставка</dt>
           <dd>
             {/* The message itself lives in Email; this is only the link between the two. */}
             {event.deliveryId ? <code className="text-xs">{event.deliveryId}</code> : '—'}
           </dd>
-          <dt className="text-muted-foreground">Idempotency key</dt>
+          <dt className="text-muted-foreground">Ключ идемпотентности</dt>
           <dd className="truncate">
             <code className="text-xs">{event.dedupeKey}</code>
           </dd>

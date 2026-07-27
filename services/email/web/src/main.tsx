@@ -31,8 +31,8 @@ const VersionEditorPage = React.lazy(() =>
 );
 
 const TABS = [
-  { to: '/', label: 'Templates' },
-  { to: '/deliveries', label: 'Deliveries' },
+  { to: '/', label: 'Шаблоны' },
+  { to: '/deliveries', label: 'Отправки' },
 ];
 
 /**
@@ -98,7 +98,7 @@ const router = createRouter({
       getParentRoute: () => rootRoute,
       path: '/versions/$versionId',
       component: () => (
-        <React.Suspense fallback={<div className="p-6 text-muted-foreground">Opening the editor…</div>}>
+        <React.Suspense fallback={<div className="p-6 text-muted-foreground">Открываем редактор…</div>}>
           <VersionEditorPage />
         </React.Suspense>
       ),

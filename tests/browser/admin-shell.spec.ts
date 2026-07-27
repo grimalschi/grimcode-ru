@@ -38,11 +38,11 @@ test.describe('the admin shell', () => {
     await signIn(page);
     await page.goto('/admin/administrators');
 
-    await expect(page.getByRole('heading', { name: 'Administrators' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Add administrator' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Администраторы' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Добавить администратора' })).toBeVisible();
 
     await page.goto('/admin/audit');
-    await expect(page.getByRole('heading', { name: 'Audit' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Журнал' })).toBeVisible();
 
     expectNoPageErrors(problems);
   });
@@ -53,12 +53,12 @@ test.describe('themes', () => {
     await signIn(page);
     await page.goto('/admin/');
 
-    await page.getByRole('button', { name: /^Theme:/ }).click();
-    await page.getByRole('menuitem', { name: 'Dark' }).click();
+    await page.getByRole('button', { name: /^Тема:/ }).click();
+    await page.getByRole('menuitem', { name: 'Тёмная' }).click();
     await expect.poll(() => appliedTheme(page)).toBe('dark');
 
-    await page.getByRole('button', { name: /^Theme:/ }).click();
-    await page.getByRole('menuitem', { name: 'Light' }).click();
+    await page.getByRole('button', { name: /^Тема:/ }).click();
+    await page.getByRole('menuitem', { name: 'Светлая' }).click();
     await expect.poll(() => appliedTheme(page)).toBe('light');
   });
 
@@ -66,8 +66,8 @@ test.describe('themes', () => {
     await signIn(page);
     await page.goto('/admin/');
 
-    await page.getByRole('button', { name: /^Theme:/ }).click();
-    await page.getByRole('menuitem', { name: 'Dark' }).click();
+    await page.getByRole('button', { name: /^Тема:/ }).click();
+    await page.getByRole('menuitem', { name: 'Тёмная' }).click();
     await expect.poll(() => appliedTheme(page)).toBe('dark');
 
     await page.reload();
@@ -83,21 +83,21 @@ test.describe('themes', () => {
     await signIn(page);
     await page.goto('/admin/?service=auth#/');
 
-    const frame = page.frameLocator('iframe[title="Auth admin"]');
-    await expect(frame.getByRole('link', { name: 'Identities' })).toBeVisible();
+    const frame = page.frameLocator('iframe[title="Админка Auth"]');
+    await expect(frame.getByRole('link', { name: 'Пользователи' })).toBeVisible();
 
-    await page.getByRole('button', { name: /^Theme:/ }).click();
-    await page.getByRole('menuitem', { name: 'Dark' }).click();
+    await page.getByRole('button', { name: /^Тема:/ }).click();
+    await page.getByRole('menuitem', { name: 'Тёмная' }).click();
 
     await expect
       .poll(async () => frame.locator('html').getAttribute('data-theme'))
       .toBe('dark');
 
     // And the embedded admin offers no switch of its own.
-    await expect(frame.getByRole('button', { name: /^Theme:/ })).toHaveCount(0);
+    await expect(frame.getByRole('button', { name: /^Тема:/ })).toHaveCount(0);
 
-    await page.getByRole('button', { name: /^Theme:/ }).click();
-    await page.getByRole('menuitem', { name: 'Light' }).click();
+    await page.getByRole('button', { name: /^Тема:/ }).click();
+    await page.getByRole('menuitem', { name: 'Светлая' }).click();
     await expect
       .poll(async () => frame.locator('html').getAttribute('data-theme'))
       .toBe('light');
@@ -111,19 +111,19 @@ test.describe('the frame protocol', () => {
     await signIn(page);
     await page.goto('/admin/?service=auth#/');
 
-    const frame = page.frameLocator('iframe[title="Auth admin"]');
-    await expect(frame.getByRole('link', { name: 'Identities' })).toBeVisible();
+    const frame = page.frameLocator('iframe[title="Админка Auth"]');
+    await expect(frame.getByRole('link', { name: 'Пользователи' })).toBeVisible();
 
     // Navigation that starts inside the iframe.
-    await frame.getByRole('link', { name: 'Security log' }).click();
-    await expect(frame.getByRole('heading', { name: 'Security log' })).toBeVisible();
+    await frame.getByRole('link', { name: 'Журнал безопасности' }).click();
+    await expect(frame.getByRole('heading', { name: 'Журнал безопасности' })).toBeVisible();
 
     // The shell follows it into its own URL...
     await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('#/audit');
 
     // ...and does not send the old path back, which would cancel the navigation that just happened.
     await page.waitForTimeout(500);
-    await expect(frame.getByRole('heading', { name: 'Security log' })).toBeVisible();
+    await expect(frame.getByRole('heading', { name: 'Журнал безопасности' })).toBeVisible();
 
     expectNoPageErrors(problems);
   });
@@ -137,22 +137,24 @@ test.describe('the frame protocol', () => {
     await signIn(page);
     await page.goto('/admin/?service=auth#/');
 
-    await expect(page.frameLocator('iframe[title="Auth admin"]').getByRole('link', { name: 'Identities' })).toBeVisible();
+    await expect(
+      page.frameLocator('iframe[title="Админка Auth"]').getByRole('link', { name: 'Пользователи' }),
+    ).toBeVisible();
 
     await page.getByRole('link', { name: 'Email' }).click();
     await expect(
-      page.frameLocator('iframe[title="Email admin"]').getByRole('heading', { name: 'Templates' }),
+      page.frameLocator('iframe[title="Админка Email"]').getByRole('heading', { name: 'Шаблоны' }),
     ).toBeVisible();
 
     await page.getByRole('link', { name: 'Users' }).click();
     await expect(
-      page.frameLocator('iframe[title="Users admin"]').getByRole('heading', { name: 'Profiles' }),
+      page.frameLocator('iframe[title="Админка Users"]').getByRole('heading', { name: 'Профили' }),
     ).toBeVisible();
 
     // And back again, which is where a cached frame would show the wrong service.
     await page.getByRole('link', { name: 'Auth' }).click();
     await expect(
-      page.frameLocator('iframe[title="Auth admin"]').getByRole('heading', { name: 'Identities' }),
+      page.frameLocator('iframe[title="Админка Auth"]').getByRole('heading', { name: 'Пользователи' }),
     ).toBeVisible();
   });
 
@@ -160,8 +162,8 @@ test.describe('the frame protocol', () => {
     await signIn(page);
     await page.goto('/admin/?service=auth#/audit');
 
-    const frame = page.frameLocator('iframe[title="Auth admin"]');
-    await expect(frame.getByRole('heading', { name: 'Security log' })).toBeVisible();
+    const frame = page.frameLocator('iframe[title="Админка Auth"]');
+    await expect(frame.getByRole('heading', { name: 'Журнал безопасности' })).toBeVisible();
   });
 
   test('keeps the protected URL working when opened on its own', async ({ page }) => {
@@ -170,9 +172,9 @@ test.describe('the frame protocol', () => {
     await signIn(page);
     await page.goto('/admin/service/auth/audit');
 
-    await expect(page.getByRole('heading', { name: 'Security log' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Журнал безопасности' })).toBeVisible();
     // Standing alone it owns its theme, so the switch is there.
-    await expect(page.getByRole('button', { name: /^Theme:/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Тема:/ })).toBeVisible();
 
     expectNoPageErrors(problems);
   });

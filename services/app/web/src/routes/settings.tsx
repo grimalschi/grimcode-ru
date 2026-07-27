@@ -25,12 +25,12 @@ type SessionRow = z.infer<typeof sessionSummarySchema>;
  */
 export function SettingsScreen() {
   return (
-    <Page title="Settings">
+    <Page title="Настройки">
       <Tabs defaultValue="profile" className="max-w-2xl">
         <TabsList>
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="account">Account</TabsTrigger>
-          <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="profile">Профиль</TabsTrigger>
+          <TabsTrigger value="account">Аккаунт</TabsTrigger>
+          <TabsTrigger value="security">Безопасность</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile" className="space-y-6">
@@ -67,7 +67,7 @@ function ProfileSection() {
       await users.updateOwnProfile({
         displayName: displayName.trim() === '' ? null : displayName.trim(),
       });
-      toast.success('Saved');
+      toast.success('Сохранено');
       state.reload();
     } catch (error) {
       toast.error(messageOf(error));
@@ -81,13 +81,13 @@ function ProfileSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Profile</CardTitle>
-        <CardDescription>How you appear inside the product.</CardDescription>
+        <CardTitle>Профиль</CardTitle>
+        <CardDescription>Как вас видно внутри продукта.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={save} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="displayName">Display name</Label>
+            <Label htmlFor="displayName">Отображаемое имя</Label>
             <Input
               id="displayName"
               value={displayName}
@@ -95,7 +95,7 @@ function ProfileSection() {
             />
           </div>
           <Button type="submit" disabled={busy}>
-            Save
+            Сохранить
           </Button>
         </form>
       </CardContent>
@@ -115,7 +115,7 @@ function AccountSection() {
       await auth.requestEmailChange({ email });
       // The address only changes once the link in the new mailbox is opened; saying so avoids the
       // impression that it already did.
-      toast.success('Confirm the change from the link sent to the new address');
+      toast.success('Подтвердите изменение по ссылке, отправленной на новый адрес');
       setEmail('');
     } catch (error) {
       toast.error(messageOf(error));
@@ -127,7 +127,7 @@ function AccountSection() {
   const resend = async () => {
     try {
       await auth.resendOwnVerification({});
-      toast.success('A new confirmation link is on its way');
+      toast.success('Новая ссылка подтверждения отправлена');
     } catch (error) {
       toast.error(messageOf(error));
     }
@@ -136,26 +136,26 @@ function AccountSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Account</CardTitle>
-        <CardDescription>Your sign-in address.</CardDescription>
+        <CardTitle>Аккаунт</CardTitle>
+        <CardDescription>Адрес, с которым вы входите.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2 text-sm">
           <p className="font-medium">{identity?.email}</p>
           {identity?.emailVerifiedAt === null ? (
             <div className="flex items-center gap-3">
-              <span className="text-muted-foreground">Not confirmed yet.</span>
+              <span className="text-muted-foreground">Ещё не подтверждён.</span>
               <Button variant="outline" size="sm" onClick={() => void resend()}>
-                Send a new link
+                Отправить новую ссылку
               </Button>
             </div>
           ) : (
-            <p className="text-muted-foreground">Confirmed.</p>
+            <p className="text-muted-foreground">Подтверждён.</p>
           )}
         </div>
 
         <form onSubmit={requestChange} className="space-y-2">
-          <Label htmlFor="newEmail">Change address</Label>
+          <Label htmlFor="newEmail">Сменить адрес</Label>
           <div className="flex gap-2">
             <Input
               id="newEmail"
@@ -165,16 +165,16 @@ function AccountSection() {
               onChange={(event) => setEmail(event.target.value)}
             />
             <Button type="submit" disabled={busy || email.trim() === ''}>
-              Send
+              Отправить
             </Button>
           </div>
           <p className="text-muted-foreground text-xs">
-            The new address has to be confirmed, and the old one is told about the change.
+            Новый адрес нужно подтвердить, а старому мы сообщим об изменении.
           </p>
         </form>
 
         <Button variant="ghost" size="sm" onClick={() => void refresh()}>
-          Refresh
+          Обновить
         </Button>
       </CardContent>
     </Card>
@@ -191,7 +191,7 @@ function PasswordSection() {
     setBusy(true);
     try {
       await auth.changePassword({ currentPassword, password: newPassword });
-      toast.success('Password changed. Every other session was signed out.');
+      toast.success('Пароль изменён. Все остальные сессии завершены.');
       setCurrentPassword('');
       setNewPassword('');
     } catch (error) {
@@ -204,13 +204,13 @@ function PasswordSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Password</CardTitle>
-        <CardDescription>Changing it signs out every other session.</CardDescription>
+        <CardTitle>Пароль</CardTitle>
+        <CardDescription>Смена пароля завершает все остальные сессии.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="currentPassword">Current password</Label>
+            <Label htmlFor="currentPassword">Текущий пароль</Label>
             <Input
               id="currentPassword"
               type="password"
@@ -221,7 +221,7 @@ function PasswordSection() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="newPassword">New password</Label>
+            <Label htmlFor="newPassword">Новый пароль</Label>
             <Input
               id="newPassword"
               type="password"
@@ -233,7 +233,7 @@ function PasswordSection() {
             />
           </div>
           <Button type="submit" disabled={busy}>
-            Change password
+            Изменить пароль
           </Button>
         </form>
       </CardContent>
@@ -261,9 +261,9 @@ function SessionsSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Where you are signed in</CardTitle>
+        <CardTitle>Где вы вошли</CardTitle>
         <CardDescription>
-          Each browser that currently holds a valid session, newest first.
+          Каждый браузер, в котором сейчас есть действующая сессия. Сверху — новые.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -283,15 +283,15 @@ function SessionsSection() {
               >
                 <span className="min-w-0 flex-1">
                   <span className="block">
-                    Started {new Date(session.createdAt).toLocaleString()}
-                    {session.current ? ' — this browser' : ''}
+                    Начата {new Date(session.createdAt).toLocaleString()}
+                    {session.current ? ' — этот браузер' : ''}
                   </span>
                   <span className="text-muted-foreground block truncate text-xs">
-                    {session.userAgent ?? 'Unknown browser'}
+                    {session.userAgent ?? 'Неизвестный браузер'}
                   </span>
                 </span>
                 <span className="text-muted-foreground shrink-0 text-xs whitespace-nowrap">
-                  Seen {new Date(session.lastSeenAt).toLocaleString()}
+                  Активна {new Date(session.lastSeenAt).toLocaleString()}
                 </span>
               </li>
             ))}
@@ -299,10 +299,10 @@ function SessionsSection() {
         )}
 
         <Button variant="outline" onClick={() => void revokeAll()} disabled={busy}>
-          Sign out everywhere
+          Выйти везде
         </Button>
         <p className="text-muted-foreground text-xs">
-          This signs out every browser, including this one.
+          Завершит сессии во всех браузерах, включая этот.
         </p>
       </CardContent>
     </Card>

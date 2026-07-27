@@ -104,10 +104,10 @@ function Home() {
   if (service) return <ServiceFrame key={service} serviceId={service} />;
 
   return (
-    <AdminPage title="Admin" description="Pick a service in the sidebar.">
+    <AdminPage title="Админка" description="Выберите сервис в боковой панели.">
       <EmptyState
-        title="Nothing open"
-        description="The sidebar lists the services your role and grants allow."
+        title="Ничего не открыто"
+        description="В боковой панели — сервисы, которые позволяют ваша роль и доступы."
       />
     </AdminPage>
   );

@@ -69,7 +69,7 @@ export function AppSidebar({
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Services</SidebarGroupLabel>
+          <SidebarGroupLabel>Сервисы</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {ADMIN_SERVICES.filter((service) => allowed.has(service.id)).map((service) => {
@@ -97,22 +97,22 @@ export function AppSidebar({
 
         {session.role === 'owner' ? (
           <SidebarGroup>
-            <SidebarGroupLabel>Owner</SidebarGroupLabel>
+            <SidebarGroupLabel>Владелец</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Administrators">
+                  <SidebarMenuButton asChild tooltip="Администраторы">
                     <Link to="/administrators">
                       <ShieldIcon />
-                      <span>Administrators</span>
+                      <span>Администраторы</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Audit">
+                  <SidebarMenuButton asChild tooltip="Журнал">
                     <Link to="/audit">
                       <ScrollTextIcon />
-                      <span>Audit</span>
+                      <span>Журнал</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -130,7 +130,7 @@ export function AppSidebar({
           </div>
           <div className="flex items-center gap-1">
             <ThemeToggle />
-            <Button variant="ghost" size="icon" onClick={onLogout} aria-label="Log out">
+            <Button variant="ghost" size="icon" onClick={onLogout} aria-label="Выйти">
               <LogOutIcon />
             </Button>
           </div>

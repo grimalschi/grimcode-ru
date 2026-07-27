@@ -18,12 +18,12 @@ export const Route = createRootRoute({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'Template' },
+      { title: 'Шаблон' },
       {
         name: 'description',
-        content: 'A working template for a small product: site, application and admin.',
+        content: 'Рабочий шаблон небольшого продукта: сайт, приложение и админка.',
       },
-      { property: 'og:title', content: 'Template' },
+      { property: 'og:title', content: 'Шаблон' },
       { property: 'og:type', content: 'website' },
     ],
     links: [{ rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
@@ -33,14 +33,14 @@ export const Route = createRootRoute({
 });
 
 const NAVIGATION = [
-  { to: '/', label: 'Home' },
-  { to: '/about', label: 'About' },
-  { to: '/contact', label: 'Contact' },
+  { to: '/', label: 'Главная' },
+  { to: '/about', label: 'О проекте' },
+  { to: '/contact', label: 'Контакты' },
 ];
 
 function RootLayout() {
   return (
-    <html lang="en">
+    <html lang="ru">
       <head>
         <HeadContent />
       </head>
@@ -49,7 +49,7 @@ function RootLayout() {
           <header className="border-b">
             <div className="mx-auto flex h-14 w-full max-w-4xl items-center justify-between gap-4 px-6">
               <Link to="/" className="font-semibold">
-                Template
+                Шаблон
               </Link>
               <nav className="flex items-center gap-4 text-sm">
                 {NAVIGATION.map((item) => (
@@ -62,7 +62,7 @@ function RootLayout() {
                   </Link>
                 ))}
                 <a href="/app/" className="font-medium">
-                  Sign in
+                  Войти
                 </a>
               </nav>
             </div>
@@ -76,11 +76,11 @@ function RootLayout() {
             <div className="text-muted-foreground mx-auto w-full max-w-4xl space-y-3 px-6 py-8 text-sm">
               <Separator />
               <nav className="flex flex-wrap gap-4">
-                <Link to="/legal/terms">Terms</Link>
-                <Link to="/legal/privacy">Privacy</Link>
-                <Link to="/contact">Contact</Link>
+                <Link to="/legal/terms">Условия</Link>
+                <Link to="/legal/privacy">Конфиденциальность</Link>
+                <Link to="/contact">Контакты</Link>
               </nav>
-              <p>© Template</p>
+              <p>© Шаблон</p>
             </div>
           </footer>
         </div>
@@ -93,12 +93,12 @@ function RootLayout() {
 function NotFound() {
   return (
     <div className="mx-auto w-full max-w-4xl px-6 py-24">
-      <h1 className="text-3xl font-semibold">This page does not exist</h1>
+      <h1 className="text-3xl font-semibold">Такой страницы нет</h1>
       <p className="text-muted-foreground mt-2">
-        The address may be mistyped, or the page may have been removed.
+        Возможно, в адресе опечатка или страницу удалили.
       </p>
       <Link to="/" className="mt-6 inline-block underline underline-offset-4">
-        Go to the home page
+        На главную
       </Link>
     </div>
   );

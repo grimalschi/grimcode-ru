@@ -51,7 +51,7 @@ export function IdentitiesPage() {
 
   if (list.error) {
     return (
-      <AdminPage title="Identities">
+      <AdminPage title="Пользователи">
         <ErrorState error={list.error} retry={list.reload} />
       </AdminPage>
     );
@@ -59,13 +59,13 @@ export function IdentitiesPage() {
 
   return (
     <AdminPage
-      title="Identities"
-      description="Sign-in addresses, their confirmation state and their sessions."
+      title="Пользователи"
+      description="Адреса для входа, их подтверждение и сессии."
       actions={
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search by email"
+          placeholder="Поиск по адресу"
           className="w-64"
         />
       }
@@ -74,46 +74,46 @@ export function IdentitiesPage() {
         loading={list.loading}
         rows={list.data?.items ?? []}
         rowKey={(row) => row.id}
-        empty={search === '' ? 'Nobody has registered yet.' : 'Nothing matches that search.'}
+        empty={search === '' ? 'Ещё никто не регистрировался.' : 'Ничего не найдено.'}
         onRowClick={setSelected}
         columns={[
           {
             key: 'email',
-            header: 'Email',
+            header: 'Адрес',
             cell: (row) => (
               <div className="flex flex-col">
                 <span className="font-medium">{row.email}</span>
                 <span className="text-muted-foreground text-xs">
-                  Joined {new Date(row.createdAt).toLocaleDateString()}
+                  С {new Date(row.createdAt).toLocaleDateString()}
                 </span>
               </div>
             ),
           },
           {
             key: 'state',
-            header: 'State',
+            header: 'Состояние',
             cell: (row) => (
               <div className="flex flex-wrap gap-1">
                 {row.blockedAt ? (
-                  <Badge variant="destructive">Blocked</Badge>
+                  <Badge variant="destructive">Заблокирован</Badge>
                 ) : (
-                  <Badge variant="outline">Active</Badge>
+                  <Badge variant="outline">Активен</Badge>
                 )}
-                {row.emailVerifiedAt ? null : <Badge variant="secondary">Unconfirmed</Badge>}
+                {row.emailVerifiedAt ? null : <Badge variant="secondary">Не подтверждён</Badge>}
               </div>
             ),
           },
           {
             key: 'sessions',
-            header: 'Sessions',
+            header: 'Сессии',
             cell: (row) => row.activeSessionCount,
           },
           {
             key: 'lastLogin',
-            header: 'Last sign-in',
+            header: 'Последний вход',
             className: 'whitespace-nowrap',
             cell: (row) =>
-              row.lastLoginAt ? new Date(row.lastLoginAt).toLocaleString() : 'Never',
+              row.lastLoginAt ? new Date(row.lastLoginAt).toLocaleString() : 'Никогда',
           },
         ]}
       />
@@ -179,8 +179,8 @@ function IdentityDialog({
       <Dialog open onOpenChange={(open) => !open && onClose()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Identity</DialogTitle>
-            <DialogDescription>Loading.</DialogDescription>
+            <DialogTitle>Пользователь</DialogTitle>
+            <DialogDescription>Загружаем.</DialogDescription>
           </DialogHeader>
         </DialogContent>
       </Dialog>
@@ -193,20 +193,20 @@ function IdentityDialog({
         <DialogHeader>
           <DialogTitle>{identity.email}</DialogTitle>
           <DialogDescription>
-            Actions here go through the same flows a person would use themselves.
+            Действия здесь идут теми же путями, которыми прошёл бы сам человек.
           </DialogDescription>
         </DialogHeader>
 
         <dl className="grid grid-cols-[9rem_1fr] gap-y-2 text-sm">
-          <dt className="text-muted-foreground">Confirmed</dt>
+          <dt className="text-muted-foreground">Подтверждён</dt>
           <dd>
             {identity.emailVerifiedAt
               ? new Date(identity.emailVerifiedAt).toLocaleString()
-              : 'Not yet'}
+              : 'Ещё нет'}
           </dd>
-          <dt className="text-muted-foreground">Blocked</dt>
-          <dd>{identity.blockedAt ? new Date(identity.blockedAt).toLocaleString() : 'No'}</dd>
-          <dt className="text-muted-foreground">Sessions</dt>
+          <dt className="text-muted-foreground">Заблокирован</dt>
+          <dd>{identity.blockedAt ? new Date(identity.blockedAt).toLocaleString() : 'Нет'}</dd>
+          <dt className="text-muted-foreground">Сессии</dt>
           <dd>{identity.activeSessionCount}</dd>
         </dl>
 
@@ -216,10 +216,10 @@ function IdentityDialog({
             size="sm"
             disabled={busy}
             onClick={() =>
-              void run(() => api.sendRecovery({ id: identity.id }), 'Recovery link sent')
+              void run(() => api.sendRecovery({ id: identity.id }), 'Ссылка восстановления отправлена')
             }
           >
-            Send recovery link
+            Отправить ссылку восстановления
           </Button>
 
           {identity.emailVerifiedAt ? null : (
@@ -230,11 +230,11 @@ function IdentityDialog({
               onClick={() =>
                 void run(
                   () => api.resendVerification({ id: identity.id }),
-                  'Confirmation link sent',
+                  'Ссылка подтверждения отправлена',
                 )
               }
             >
-              Resend confirmation
+              Отправить подтверждение снова
             </Button>
           )}
 
@@ -243,10 +243,10 @@ function IdentityDialog({
             size="sm"
             disabled={busy || identity.activeSessionCount === 0}
             onClick={() =>
-              void run(() => api.revokeSessions({ id: identity.id }), 'Every session signed out')
+              void run(() => api.revokeSessions({ id: identity.id }), 'Все сессии завершены')
             }
           >
-            Sign out everywhere
+            Завершить все сессии
           </Button>
         </div>
 
@@ -259,14 +259,14 @@ function IdentityDialog({
             onClick={() =>
               void run(
                 () => api.setBlocked({ id: identity.id, blocked: identity.blockedAt === null }),
-                identity.blockedAt ? 'Unblocked' : 'Blocked',
+                identity.blockedAt ? 'Разблокирован' : 'Заблокирован',
               )
             }
           >
-            {identity.blockedAt ? 'Unblock' : 'Block'}
+            {identity.blockedAt ? 'Разблокировать' : 'Заблокировать'}
           </Button>
           <Button variant="ghost" size="sm" onClick={onClose}>
-            Close
+            Закрыть
           </Button>
         </DialogFooter>
       </DialogContent>

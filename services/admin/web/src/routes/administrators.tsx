@@ -64,7 +64,7 @@ export function AdministratorsPage() {
 
   if (list.error) {
     return (
-      <AdminPage title="Administrators">
+      <AdminPage title="Администраторы">
         <ErrorState error={list.error} retry={list.reload} />
       </AdminPage>
     );
@@ -72,43 +72,43 @@ export function AdministratorsPage() {
 
   return (
     <AdminPage
-      title="Administrators"
-      description="Who may open the admin panel, and which services each of them can reach."
+      title="Администраторы"
+      description="Кто может открыть админку и до каких сервисов доходит."
       actions={<AddAdministrator onAdded={onChanged} />}
     >
       <DataTable
         loading={list.loading}
         rows={list.data?.items ?? []}
         rowKey={(row) => row.id}
-        empty="No administrators yet."
+        empty="Администраторов пока нет."
         columns={[
           {
             key: 'email',
-            header: 'Administrator',
+            header: 'Администратор',
             cell: (row) => (
               <div className="flex flex-col">
                 <span className="font-medium">{row.email}</span>
                 {row.userId === session.userId ? (
-                  <span className="text-muted-foreground text-xs">This is you</span>
+                  <span className="text-muted-foreground text-xs">Это вы</span>
                 ) : null}
               </div>
             ),
           },
           {
             key: 'role',
-            header: 'Role',
+            header: 'Роль',
             cell: (row) => (
               <Badge variant={row.role === 'owner' ? 'default' : 'secondary'}>{row.role}</Badge>
             ),
           },
           {
             key: 'grants',
-            header: 'Services',
+            header: 'Сервисы',
             cell: (row) =>
               row.role === 'owner' ? (
-                <span className="text-muted-foreground text-sm">Everything, including the database</span>
+                <span className="text-muted-foreground text-sm">Всё, включая базу данных</span>
               ) : row.grants.length === 0 ? (
-                <span className="text-muted-foreground text-sm">None</span>
+                <span className="text-muted-foreground text-sm">Нет</span>
               ) : (
                 <div className="flex flex-wrap gap-1">
                   {row.grants.map((grant) => (
@@ -121,7 +121,7 @@ export function AdministratorsPage() {
           },
           {
             key: 'enabled',
-            header: 'Active',
+            header: 'Активен',
             cell: (row) => (
               <EnabledSwitch administrator={row} onChanged={onChanged} />
             ),
@@ -158,13 +158,13 @@ function EnabledSwitch({
     <Switch
       checked={administrator.enabled}
       disabled={busy}
-      aria-label={administrator.enabled ? 'Disable' : 'Enable'}
+      aria-label={administrator.enabled ? 'Отключить' : 'Включить'}
       onCheckedChange={(enabled) => {
         setBusy(true);
         api
           .updateAdministrator({ userId: administrator.userId, enabled })
           .then(() => {
-            toast.success(enabled ? 'Administrator enabled' : 'Administrator disabled');
+            toast.success(enabled ? 'Администратор включён' : 'Администратор отключён');
             onChanged();
           })
           // The server refuses to disable the last active owner; showing why is the whole point.
@@ -212,7 +212,7 @@ function AddAdministrator({ onAdded }: { onAdded: () => void }) {
     api
       .addAdministrator({ email, role, grants })
       .then(() => {
-        toast.success(`${email} can now open the admin panel`);
+        toast.success(`${email} теперь может открыть админку`);
         setOpen(false);
         setEmail('');
         setQuery('');
@@ -226,20 +226,20 @@ function AddAdministrator({ onAdded }: { onAdded: () => void }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>Add administrator</Button>
+        <Button>Добавить администратора</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add administrator</DialogTitle>
+          <DialogTitle>Добавить администратора</DialogTitle>
           <DialogDescription>
-            The person must already have an account. Adding them here grants admin access; it does
-            not create a user.
+            У человека уже должен быть аккаунт. Здесь выдаются права администратора, аккаунт не
+            создаётся.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="administrator-search">Who</Label>
+            <Label htmlFor="administrator-search">Кто</Label>
             <Input
               id="administrator-search"
               value={query}
@@ -247,30 +247,30 @@ function AddAdministrator({ onAdded }: { onAdded: () => void }) {
                 setQuery(event.target.value);
                 setEmail('');
               }}
-              placeholder="Start typing an email"
+              placeholder="Начните вводить адрес"
               autoComplete="off"
             />
 
             {email !== '' ? (
               <p className="text-sm">
-                Adding <span className="font-medium">{email}</span>.{' '}
+                Добавляем <span className="font-medium">{email}</span>.{' '}
                 <button
                   type="button"
                   className="underline underline-offset-4"
                   onClick={() => setEmail('')}
                 >
-                  Choose someone else
+                  Выбрать другого
                 </button>
               </p>
             ) : search === '' ? (
               <p className="text-muted-foreground text-xs">
-                Only people who already have an account can be added — this does not create one.
+                Добавить можно только того, у кого уже есть аккаунт — здесь он не создаётся.
               </p>
             ) : candidates.loading ? (
-              <p className="text-muted-foreground text-xs">Looking…</p>
+              <p className="text-muted-foreground text-xs">Ищем…</p>
             ) : (candidates.data?.users.length ?? 0) === 0 ? (
               <p className="text-muted-foreground text-xs">
-                Nobody with that address has signed up yet.
+                С таким адресом никто не регистрировался.
               </p>
             ) : (
               <ul className="divide-y rounded-md border">
@@ -284,7 +284,7 @@ function AddAdministrator({ onAdded }: { onAdded: () => void }) {
                     >
                       <span className="truncate">{candidate.email}</span>
                       {candidate.isAdministrator ? (
-                        <Badge variant="secondary">Already an administrator</Badge>
+                        <Badge variant="secondary">Уже администратор</Badge>
                       ) : null}
                     </button>
                   </li>
@@ -294,14 +294,14 @@ function AddAdministrator({ onAdded }: { onAdded: () => void }) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="administrator-role">Role</Label>
+            <Label htmlFor="administrator-role">Роль</Label>
             <Select value={role} onValueChange={(value) => setRole(value as 'owner' | 'admin')}>
               <SelectTrigger id="administrator-role">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="admin">Admin — only the services you grant</SelectItem>
-                <SelectItem value="owner">Owner — everything, including the database</SelectItem>
+                <SelectItem value="admin">Админ — только выданные сервисы</SelectItem>
+                <SelectItem value="owner">Владелец — всё, включая базу данных</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -311,10 +311,10 @@ function AddAdministrator({ onAdded }: { onAdded: () => void }) {
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>
-            Cancel
+            Отмена
           </Button>
           <Button onClick={submit} disabled={busy || email.trim() === ''}>
-            Add
+            Добавить
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -346,7 +346,7 @@ function EditAdministrator({
     api
       .updateAdministrator({ userId: administrator.userId, role, grants })
       .then(() => {
-        toast.success('Access updated');
+        toast.success('Доступ обновлён');
         setOpen(false);
         onChanged();
       })
@@ -358,15 +358,14 @@ function EditAdministrator({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="sm">
-          Edit
+          Изменить
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{administrator.email}</DialogTitle>
           <DialogDescription>
-            A change takes effect on this administrator's next request — they do not have to log in
-            again.
+            Изменение действует со следующего запроса этого администратора — заново входить не нужно.
           </DialogDescription>
         </DialogHeader>
 
@@ -378,8 +377,8 @@ function EditAdministrator({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="owner">Owner</SelectItem>
+                <SelectItem value="admin">Админ</SelectItem>
+                <SelectItem value="owner">Владелец</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -389,10 +388,10 @@ function EditAdministrator({
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>
-            Cancel
+            Отмена
           </Button>
           <Button onClick={submit} disabled={busy}>
-            Save
+            Сохранить
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -415,7 +414,7 @@ function GrantPicker({
 }) {
   return (
     <fieldset className="space-y-2">
-      <legend className="text-sm font-medium">Services</legend>
+      <legend className="text-sm font-medium">Сервисы</legend>
       {ASSIGNABLE_SERVICE_IDS.map((id) => (
         <label key={id} className="flex items-center gap-2 text-sm">
           <Checkbox
@@ -428,7 +427,7 @@ function GrantPicker({
         </label>
       ))}
       <p className="text-muted-foreground text-xs">
-        The database is owner-only and cannot be granted.
+        База данных доступна только владельцу и не выдаётся.
       </p>
     </fieldset>
   );

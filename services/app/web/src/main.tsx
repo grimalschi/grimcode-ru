@@ -93,17 +93,17 @@ function AppFrame({ children }: { children: React.ReactNode }) {
       <header className="flex h-14 items-center justify-between gap-4 border-b px-4">
         <nav className="flex items-center gap-4 text-sm">
           <Link to="/" className="font-medium [&.active]:underline underline-offset-4">
-            Home
+            Главная
           </Link>
           <Link to="/settings" className="[&.active]:underline underline-offset-4">
-            Settings
+            Настройки
           </Link>
         </nav>
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground hidden text-sm sm:inline">{identity?.email}</span>
           <ThemeToggle />
           <Button variant="ghost" size="sm" onClick={logout}>
-            Sign out
+            Выйти
           </Button>
         </div>
       </header>

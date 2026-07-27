@@ -57,7 +57,7 @@ export function TemplatesPage() {
 
   if (list.error) {
     return (
-      <AdminPage title="Templates">
+      <AdminPage title="Шаблоны">
         <ErrorState error={list.error} retry={list.reload} />
       </AdminPage>
     );
@@ -65,14 +65,14 @@ export function TemplatesPage() {
 
   return (
     <AdminPage
-      title="Templates"
-      description="Every message the product can send. Content lives in versions, one per language."
+      title="Шаблоны"
+      description="Все письма, которые может отправить продукт. Содержимое живёт в версиях, по одной на язык."
       actions={
         <div className="flex gap-2">
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search"
+            placeholder="Поиск"
             className="w-56"
           />
           <NewTemplate onCreated={list.reload} />
@@ -83,11 +83,11 @@ export function TemplatesPage() {
         loading={list.loading}
         rows={list.data?.items ?? []}
         rowKey={(row) => row.id}
-        empty="No templates yet."
+        empty="Шаблонов пока нет."
         columns={[
           {
             key: 'name',
-            header: 'Template',
+            header: 'Шаблон',
             cell: (row) => (
               <Link
                 to="/templates/$templateId"
@@ -101,17 +101,17 @@ export function TemplatesPage() {
           },
           {
             key: 'description',
-            header: 'Sent when',
+            header: 'Когда отправляется',
             cell: (row) => (
               <span className="text-muted-foreground text-sm">{row.description ?? '—'}</span>
             ),
           },
           {
             key: 'variables',
-            header: 'Variables',
+            header: 'Переменные',
             cell: (row) =>
               row.variables.length === 0 ? (
-                <span className="text-muted-foreground text-sm">None</span>
+                <span className="text-muted-foreground text-sm">Нет</span>
               ) : (
                 <div className="flex flex-wrap gap-1">
                   {row.variables.map((variable) => (
@@ -154,7 +154,7 @@ function NewTemplate({ onCreated }: { onCreated: () => void }) {
           .map((value) => value.trim())
           .filter(Boolean),
       });
-      toast.success('Template created');
+      toast.success('Шаблон создан');
       setOpen(false);
       setKey('');
       setName('');
@@ -170,19 +170,19 @@ function NewTemplate({ onCreated }: { onCreated: () => void }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>New template</Button>
+        <Button>Новый шаблон</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New template</DialogTitle>
+          <DialogTitle>Новый шаблон</DialogTitle>
           <DialogDescription>
-            The key is what the code refers to, so it does not change afterwards.
+            По ключу на шаблон ссылается код, поэтому потом он не меняется.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="key">Key</Label>
+            <Label htmlFor="key">Ключ</Label>
             <Input
               id="key"
               value={key}
@@ -191,7 +191,7 @@ function NewTemplate({ onCreated }: { onCreated: () => void }) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
+            <Label htmlFor="name">Название</Label>
             <Input
               id="name"
               value={name}
@@ -200,7 +200,7 @@ function NewTemplate({ onCreated }: { onCreated: () => void }) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="variables">Variables</Label>
+            <Label htmlFor="variables">Переменные</Label>
             <Input
               id="variables"
               value={variables}
@@ -208,17 +208,17 @@ function NewTemplate({ onCreated }: { onCreated: () => void }) {
               placeholder="email, trackingUrl"
             />
             <p className="text-muted-foreground text-xs">
-              Comma separated. Publishing refuses a document that uses anything not listed here.
+              Через запятую. Публикация отклонит документ, который использует что-то не из этого списка.
             </p>
           </div>
         </div>
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>
-            Cancel
+            Отмена
           </Button>
           <Button onClick={() => void submit()} disabled={busy || key.trim() === '' || name.trim() === ''}>
-            Create
+            Создать
           </Button>
         </DialogFooter>
       </DialogContent>

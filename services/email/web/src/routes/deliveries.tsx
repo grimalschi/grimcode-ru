@@ -91,7 +91,7 @@ export function DeliveriesPage() {
 
   if (list.error) {
     return (
-      <AdminPage title="Deliveries">
+      <AdminPage title="Отправки">
         <ErrorState error={list.error} retry={list.reload} />
       </AdminPage>
     );
@@ -99,14 +99,14 @@ export function DeliveriesPage() {
 
   return (
     <AdminPage
-      title="Deliveries"
-      description="Every message that left the system, exactly as it was sent."
+      title="Отправки"
+      description="Каждое письмо, покинувшее систему, ровно в том виде, в каком его отправили."
       actions={
         <div className="flex gap-2">
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search by recipient or subject"
+            placeholder="Поиск по получателю или теме"
             className="w-64"
           />
           <Select
@@ -120,7 +120,7 @@ export function DeliveriesPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ANY}>Any status</SelectItem>
+              <SelectItem value={ANY}>Любой статус</SelectItem>
               {STATUSES.map((value) => (
                 <SelectItem key={value} value={value}>
                   {value}
@@ -135,18 +135,18 @@ export function DeliveriesPage() {
         loading={list.loading}
         rows={list.data?.items ?? []}
         rowKey={(row) => row.id}
-        empty="Nothing has been sent yet."
+        empty="Пока ничего не отправлено."
         onRowClick={(row) => setOpenId(row.id)}
         columns={[
           {
             key: 'createdAt',
-            header: 'When',
+            header: 'Когда',
             className: 'whitespace-nowrap',
             cell: (row) => new Date(row.createdAt).toLocaleString(),
           },
           {
             key: 'recipient',
-            header: 'To',
+            header: 'Кому',
             cell: (row) => (
               <div className="flex flex-col">
                 <span>{row.recipientEmail}</span>
@@ -156,7 +156,7 @@ export function DeliveriesPage() {
           },
           {
             key: 'template',
-            header: 'Template',
+            header: 'Шаблон',
             cell: (row) => (
               <code className="text-xs">
                 {row.templateKey} · {row.locale}
@@ -165,7 +165,7 @@ export function DeliveriesPage() {
           },
           {
             key: 'status',
-            header: 'Status',
+            header: 'Статус',
             cell: (row) => (
               <div className="flex flex-col gap-0.5">
                 <span className="flex items-center gap-2">
@@ -202,11 +202,11 @@ function DeliveryDialog({ id, onClose }: { id: string; onClose: () => void }) {
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="w-[min(48rem,calc(100vw-2rem))] max-w-none">
         <DialogHeader>
-          <DialogTitle>{delivery?.subject ?? 'Message'}</DialogTitle>
+          <DialogTitle>{delivery?.subject ?? 'Письмо'}</DialogTitle>
           <DialogDescription>
             {delivery
-              ? `To ${delivery.recipientEmail} · ${delivery.transport} · ${delivery.status}`
-              : 'Loading'}
+              ? `Кому ${delivery.recipientEmail} · ${delivery.transport} · ${delivery.status}`
+              : 'Загружаем'}
           </DialogDescription>
         </DialogHeader>
 
@@ -215,9 +215,9 @@ function DeliveryDialog({ id, onClose }: { id: string; onClose: () => void }) {
         {delivery ? (
           <Tabs defaultValue="preview" className="min-w-0">
             <TabsList>
-              <TabsTrigger value="preview">Preview</TabsTrigger>
+              <TabsTrigger value="preview">Предпросмотр</TabsTrigger>
               <TabsTrigger value="html">HTML</TabsTrigger>
-              <TabsTrigger value="text">Text</TabsTrigger>
+              <TabsTrigger value="text">Текст</TabsTrigger>
             </TabsList>
 
             <TabsContent value="preview">
@@ -226,7 +226,7 @@ function DeliveryDialog({ id, onClose }: { id: string; onClose: () => void }) {
                 to this origin, so opening a record can never let its content act on the admin.
               */}
               <iframe
-                title="Message preview"
+                title="Предпросмотр письма"
                 sandbox=""
                 srcDoc={delivery.html}
                 className="h-96 w-full rounded-lg border bg-white"

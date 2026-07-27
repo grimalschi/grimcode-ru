@@ -37,7 +37,7 @@ const app = new Hono();
 app.get('/robots.txt', (context) =>
   context.text(
     [
-      '# The application and the admin panel are behind sign-in and have nothing to index.',
+      '# Приложение и админка находятся за входом, индексировать там нечего.',
       'User-agent: *',
       'Disallow: /app/',
       'Disallow: /admin/',

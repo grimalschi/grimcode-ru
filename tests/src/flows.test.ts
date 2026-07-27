@@ -333,7 +333,7 @@ describe('the public site', () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toMatch(/<h1[^>]*>About<\/h1>/);
+    expect(html).toMatch(/<h1[^>]*>О проекте<\/h1>/);
   });
 
   it('answers an unknown address with a real 404', async () => {

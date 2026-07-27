@@ -80,7 +80,7 @@ export function DataTable<T>({
           {!loading && rows.length === 0 ? (
             <TableRow>
               <TableCell colSpan={columns.length} className="text-muted-foreground h-24 text-center">
-                {empty ?? "Nothing here yet."}
+                {empty ?? "Пока пусто."}
               </TableCell>
             </TableRow>
           ) : null}
@@ -115,7 +115,7 @@ export function Pagination({
   return (
     <div className="flex items-center justify-between gap-4">
       <p className="text-muted-foreground text-sm">
-        {from}–{to} of {total}
+        {from}–{to} из {total}
       </p>
       <div className="flex gap-2">
         <Button
@@ -124,7 +124,7 @@ export function Pagination({
           disabled={offset === 0}
           onClick={() => onOffsetChange(Math.max(0, offset - limit))}
         >
-          Previous
+          Назад
         </Button>
         <Button
           variant="outline"
@@ -132,7 +132,7 @@ export function Pagination({
           disabled={to >= total}
           onClick={() => onOffsetChange(offset + limit)}
         >
-          Next
+          Дальше
         </Button>
       </div>
     </div>

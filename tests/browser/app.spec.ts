@@ -19,8 +19,8 @@ test.describe('an anonymous visitor', () => {
 
     // The card's title is a styled element rather than a heading, so this asserts on what a person
     // actually reads.
-    await expect(page.getByText('Sign in', { exact: true }).first()).toBeVisible();
-    await expect(page.getByLabel('Password')).toBeVisible();
+    await expect(page.getByText('Вход', { exact: true }).first()).toBeVisible();
+    await expect(page.getByLabel('Пароль')).toBeVisible();
 
     expectNoPageErrors(problems);
   });
@@ -30,7 +30,7 @@ test.describe('an anonymous visitor', () => {
     await page.waitForURL(/\/app\/login/);
 
     // None of the settings sections ever rendered.
-    await expect(page.getByRole('tab', { name: 'Security' })).toHaveCount(0);
+    await expect(page.getByRole('tab', { name: 'Безопасность' })).toHaveCount(0);
     await expect(page.getByText(OWNER_EMAIL)).toHaveCount(0);
   });
 
@@ -50,9 +50,9 @@ test.describe('an anonymous visitor', () => {
     for (const attempt of ['https://example.com/', '//example.com/', '/admin/', '/app/login']) {
       await page.goto(`/app/login?next=${encodeURIComponent(attempt)}`);
 
-      await page.getByLabel('Email').fill(OWNER_EMAIL);
-      await page.getByLabel('Password').fill(OWNER_PASSWORD);
-      await page.getByRole('button', { name: 'Sign in' }).click();
+      await page.getByLabel('Почта').fill(OWNER_EMAIL);
+      await page.getByLabel('Пароль').fill(OWNER_PASSWORD);
+      await page.getByRole('button', { name: 'Войти' }).click();
 
       await page.waitForURL((url) => !url.pathname.startsWith('/app/login'));
 
@@ -63,7 +63,7 @@ test.describe('an anonymous visitor', () => {
       expect(landed.pathname).not.toMatch(/^\/app\/login/);
 
       await page.goto('/app/settings');
-      await page.getByRole('button', { name: 'Sign out' }).click();
+      await page.getByRole('button', { name: 'Выйти' }).click();
       await page.waitForURL(/\/app\/login/);
     }
   });
@@ -76,12 +76,12 @@ test.describe('a signed-in person', () => {
     await signIn(page);
     await page.goto('/app/settings');
 
-    await expect(page.getByRole('tab', { name: 'Profile' })).toBeVisible();
-    await expect(page.getByRole('tab', { name: 'Account' })).toBeVisible();
-    await expect(page.getByRole('tab', { name: 'Security' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Профиль' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Аккаунт' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Безопасность' })).toBeVisible();
 
     // One settings screen with sections, not three separate destinations.
-    await expect(page.getByRole('link', { name: 'Profile' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Профиль' })).toHaveCount(0);
 
     expectNoPageErrors(problems);
   });
@@ -90,26 +90,26 @@ test.describe('a signed-in person', () => {
     await page.goto('/app/settings');
     await page.waitForURL(/\/app\/login/);
 
-    await page.getByLabel('Email').fill(OWNER_EMAIL);
-    await page.getByLabel('Password').fill(OWNER_PASSWORD);
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByLabel('Почта').fill(OWNER_EMAIL);
+    await page.getByLabel('Пароль').fill(OWNER_PASSWORD);
+    await page.getByRole('button', { name: 'Войти' }).click();
 
     await page.waitForURL(/\/app\/settings/);
-    await expect(page.getByRole('tab', { name: 'Security' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Безопасность' })).toBeVisible();
   });
 
   test('is put back out when the session ends', async ({ page }) => {
     await signIn(page);
     await page.goto('/app/settings');
-    await expect(page.getByRole('tab', { name: 'Security' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Безопасность' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Sign out' }).click();
+    await page.getByRole('button', { name: 'Выйти' }).click();
     await page.waitForURL(/\/app\/login/);
 
     // And going back does not bring the interface back with it.
     await page.goto('/app/settings');
     await page.waitForURL(/\/app\/login/);
-    await expect(page.getByRole('tab', { name: 'Security' })).toHaveCount(0);
+    await expect(page.getByRole('tab', { name: 'Безопасность' })).toHaveCount(0);
   });
 });
 
@@ -120,7 +120,7 @@ test.describe('the public site', () => {
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
-    await page.getByRole('link', { name: 'Sign in' }).click();
+    await page.getByRole('link', { name: 'Войти' }).click();
     await page.waitForURL(/\/app\//);
 
     expectNoPageErrors(problems);
@@ -130,6 +130,6 @@ test.describe('the public site', () => {
     const response = await page.goto('/no-such-page');
 
     expect(response?.status()).toBe(404);
-    await expect(page.getByText('This page does not exist')).toBeVisible();
+    await expect(page.getByText('Такой страницы нет')).toBeVisible();
   });
 });

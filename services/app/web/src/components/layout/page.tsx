@@ -63,7 +63,7 @@ export function ErrorState({ error, retry }: { error: unknown; retry?: () => voi
 
   return (
     <div className="border-destructive/40 bg-destructive/5 flex flex-col items-start gap-3 rounded-lg border p-6">
-      <p className="font-medium">This did not load.</p>
+      <p className="font-medium">Не загрузилось.</p>
       <p className="text-muted-foreground text-sm">{message}</p>
       {retry ? (
         <button
@@ -71,7 +71,7 @@ export function ErrorState({ error, retry }: { error: unknown; retry?: () => voi
           onClick={retry}
           className="text-sm font-medium underline underline-offset-4"
         >
-          Try again
+          Повторить
         </button>
       ) : null}
     </div>

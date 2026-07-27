@@ -5,22 +5,22 @@ import { LegalPage } from '@/components/legal-page';
 export const Route = createFileRoute('/legal/privacy')({
   head: () => ({
     meta: [
-      { title: 'Privacy — Template' },
-      { name: 'description', content: 'What personal data is collected, why, and for how long.' },
+      { title: 'Конфиденциальность — Шаблон' },
+      { name: 'description', content: 'Какие персональные данные собираются, зачем и на какой срок.' },
       { name: 'robots', content: 'noindex' },
     ],
   }),
   component: () => (
     <LegalPage
-      title="Privacy policy"
+      title="Политика конфиденциальности"
       sections={[
-        { heading: 'Who is responsible', body: 'The controller of the data, and how to reach them.' },
-        { heading: 'What is collected', body: 'Email address, profile details, and technical records.' },
-        { heading: 'Why', body: 'The purpose and the legal basis for each kind of data.' },
-        { heading: 'Who else sees it', body: 'Processors such as the email provider and the hosting.' },
-        { heading: 'How long it is kept', body: 'Retention periods, and what happens on deletion.' },
-        { heading: 'Your rights', body: 'Access, correction, deletion, objection, and how to ask.' },
-        { heading: 'Cookies', body: 'The session cookie is required; anything else needs consent.' },
+        { heading: 'Кто отвечает', body: 'Оператор данных и как с ним связаться.' },
+        { heading: 'Что собирается', body: 'Адрес почты, данные профиля и технические записи.' },
+        { heading: 'Зачем', body: 'Цель и основание для каждого вида данных.' },
+        { heading: 'Кто ещё видит', body: 'Обработчики: почтовый провайдер, хостинг и подобные.' },
+        { heading: 'Сколько хранится', body: 'Сроки хранения и что происходит при удалении.' },
+        { heading: 'Ваши права', body: 'Доступ, исправление, удаление, возражение и как их заявить.' },
+        { heading: 'Cookies', body: 'Сессионная cookie обязательна; на остальное нужно согласие.' },
       ]}
     />
   ),

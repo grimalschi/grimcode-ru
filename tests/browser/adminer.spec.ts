@@ -33,12 +33,12 @@ async function backgroundBrightness(frame: FrameLocator, selector: string): Prom
 async function openAdminer(page: Page, theme: 'light' | 'dark'): Promise<FrameLocator> {
   await page.goto('/admin/');
 
-  await page.getByRole('button', { name: /^Theme:/ }).click();
-  await page.getByRole('menuitem', { name: theme === 'dark' ? 'Dark' : 'Light' }).click();
+  await page.getByRole('button', { name: /^Тема:/ }).click();
+  await page.getByRole('menuitem', { name: theme === 'dark' ? 'Тёмная' : 'Светлая' }).click();
 
   await page.goto(`/admin/?service=adminer#/`);
 
-  const frame = page.frameLocator('iframe[title="Database admin"]');
+  const frame = page.frameLocator('iframe[title="Админка Database"]');
   await expect(frame.locator('#content')).toBeVisible();
 
   // The theme arrives by message a moment after the frame loads, so measuring colours before it

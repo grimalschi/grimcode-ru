@@ -21,7 +21,7 @@ import '@/styles.css';
 
 const BASE = '/admin/service/users';
 
-const TABS = [{ to: '/', label: 'Profiles' }];
+const TABS = [{ to: '/', label: 'Профили' }];
 
 /**
  * The Users service admin.

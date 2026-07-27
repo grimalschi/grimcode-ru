@@ -52,7 +52,7 @@ export function ProfilesPage() {
 
   if (list.error) {
     return (
-      <AdminPage title="Profiles">
+      <AdminPage title="Профили">
         <ErrorState error={list.error} retry={list.reload} />
       </AdminPage>
     );
@@ -60,13 +60,13 @@ export function ProfilesPage() {
 
   return (
     <AdminPage
-      title="Profiles"
-      description="Who people are inside the product. Sign-in details belong to Auth."
+      title="Профили"
+      description="Кто эти люди внутри продукта. Данные для входа принадлежат Auth."
       actions={
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search by name"
+          placeholder="Поиск по имени"
           className="w-64"
         />
       }
@@ -75,33 +75,33 @@ export function ProfilesPage() {
         loading={list.loading}
         rows={list.data?.items ?? []}
         rowKey={(row) => row.id}
-        empty={search === '' ? 'No profiles yet.' : 'Nothing matches that search.'}
+        empty={search === '' ? 'Профилей пока нет.' : 'Ничего не найдено.'}
         onRowClick={setSelected}
         columns={[
           {
             key: 'person',
-            header: 'Person',
+            header: 'Человек',
             cell: (row) => (
               <div className="flex flex-col">
                 <span className="font-medium">{row.email ?? row.displayName ?? '—'}</span>
                 <span className="text-muted-foreground text-xs">
                   {row.email && row.displayName ? row.displayName : null}
                   {/* Auth no longer has this identity, so the profile outlived the account. */}
-                  {row.email === null ? 'No account in Auth for this profile' : null}
+                  {row.email === null ? 'В Auth нет аккаунта для этого профиля' : null}
                 </span>
               </div>
             ),
           },
           {
             key: 'identity',
-            header: 'Identity',
+            header: 'Учётная запись',
             cell: (row) => (
               <code className="text-muted-foreground text-xs">{row.identityId}</code>
             ),
           },
           {
             key: 'created',
-            header: 'Joined',
+            header: 'С',
             className: 'whitespace-nowrap',
             cell: (row) => new Date(row.createdAt).toLocaleDateString(),
           },
@@ -140,9 +140,9 @@ function ProfileDialog({ id, onClose }: { id: string; onClose: () => void }) {
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{profile?.email ?? profile?.displayName ?? 'Profile'}</DialogTitle>
+          <DialogTitle>{profile?.email ?? profile?.displayName ?? 'Профиль'}</DialogTitle>
           <DialogDescription>
-            The profile is the person&apos;s to edit. This is a read-only view of it.
+            Профиль редактирует сам человек. Здесь он только для чтения.
           </DialogDescription>
         </DialogHeader>
 
@@ -150,28 +150,28 @@ function ProfileDialog({ id, onClose }: { id: string; onClose: () => void }) {
           <Skeleton className="h-40 w-full" />
         ) : (
         <dl className="grid grid-cols-[9rem_1fr] gap-y-2 text-sm">
-          <dt className="text-muted-foreground">Email</dt>
-          <dd>{profile.email ?? 'No account in Auth'}</dd>
-          <dt className="text-muted-foreground">Display name</dt>
+          <dt className="text-muted-foreground">Почта</dt>
+          <dd>{profile.email ?? 'В Auth нет аккаунта'}</dd>
+          <dt className="text-muted-foreground">Отображаемое имя</dt>
           <dd>{profile.displayName ?? '—'}</dd>
-          <dt className="text-muted-foreground">Identity</dt>
+          <dt className="text-muted-foreground">Учётная запись</dt>
           <dd>
             <code className="text-xs break-all">{profile.identityId}</code>
           </dd>
-          <dt className="text-muted-foreground">Profile</dt>
+          <dt className="text-muted-foreground">Профиль</dt>
           <dd>
             <code className="text-xs break-all">{profile.id}</code>
           </dd>
-          <dt className="text-muted-foreground">Language</dt>
+          <dt className="text-muted-foreground">Язык</dt>
           <dd>{profile.locale}</dd>
-          <dt className="text-muted-foreground">Joined</dt>
+          <dt className="text-muted-foreground">С</dt>
           <dd>{new Date(profile.createdAt).toLocaleString()}</dd>
         </dl>
         )}
 
         <DialogFooter>
           <Button variant="ghost" size="sm" onClick={onClose}>
-            Close
+            Закрыть
           </Button>
         </DialogFooter>
       </DialogContent>

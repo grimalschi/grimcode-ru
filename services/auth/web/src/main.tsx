@@ -23,8 +23,8 @@ import '@/styles.css';
 const BASE = '/admin/service/auth';
 
 const TABS = [
-  { to: '/', label: 'Identities' },
-  { to: '/audit', label: 'Security log' },
+  { to: '/', label: 'Пользователи' },
+  { to: '/audit', label: 'Журнал безопасности' },
 ];
 
 /**

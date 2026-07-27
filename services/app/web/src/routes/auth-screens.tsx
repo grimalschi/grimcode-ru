@@ -72,21 +72,21 @@ export function LoginScreen() {
 
   return (
     <AuthCard
-      title="Sign in"
+      title="Вход"
       footer={
         <>
           <Link to="/register" className="text-sm underline underline-offset-4">
-            Create an account
+            Создать аккаунт
           </Link>
           <Link to="/reset-password" className="text-sm underline underline-offset-4">
-            Forgot your password?
+            Забыли пароль?
           </Link>
         </>
       }
     >
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">Почта</Label>
           <Input
             id="email"
             type="email"
@@ -97,7 +97,7 @@ export function LoginScreen() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
+          <Label htmlFor="password">Пароль</Label>
           <Input
             id="password"
             type="password"
@@ -108,7 +108,7 @@ export function LoginScreen() {
           />
         </div>
         <Button type="submit" className="w-full" disabled={busy}>
-          Sign in
+          Войти
         </Button>
       </form>
     </AuthCard>
@@ -136,17 +136,17 @@ export function RegisterScreen() {
 
   return (
     <AuthCard
-      title="Create an account"
-      description="A confirmation link is sent to this address."
+      title="Создание аккаунта"
+      description="На этот адрес придёт ссылка для подтверждения."
       footer={
         <Link to="/login" search={{ next: undefined }} className="text-sm underline underline-offset-4">
-          I already have an account
+          У меня уже есть аккаунт
         </Link>
       }
     >
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">Почта</Label>
           <Input
             id="email"
             type="email"
@@ -157,7 +157,7 @@ export function RegisterScreen() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
+          <Label htmlFor="password">Пароль</Label>
           <Input
             id="password"
             type="password"
@@ -167,10 +167,10 @@ export function RegisterScreen() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
-          <p className="text-muted-foreground text-xs">At least 12 characters.</p>
+          <p className="text-muted-foreground text-xs">Не короче 12 символов.</p>
         </div>
         <Button type="submit" className="w-full" disabled={busy}>
-          Create account
+          Создать аккаунт
         </Button>
       </form>
     </AuthCard>
@@ -198,23 +198,23 @@ export function RequestResetScreen() {
   if (sent) {
     return (
       <AuthCard
-        title="Check your email"
-        description="If that address has an account, a recovery link is on its way. The link works once and expires."
+        title="Проверьте почту"
+        description="Если у этого адреса есть аккаунт, ссылка для восстановления уже в пути. Она работает один раз и истекает."
         footer={
           <Link to="/login" search={{ next: undefined }} className="text-sm underline underline-offset-4">
-            Back to sign in
+            К входу
           </Link>
         }
       >
-        <p className="text-muted-foreground text-sm">You can close this page.</p>
+        <p className="text-muted-foreground text-sm">Эту страницу можно закрыть.</p>
       </AuthCard>
     );
   }
 
   return (
     <AuthCard
-      title="Reset your password"
-      description="We will send a one-time link."
+      title="Восстановление пароля"
+      description="Пришлём одноразовую ссылку."
       footer={
         <Link to="/login" search={{ next: undefined }} className="text-sm underline underline-offset-4">
           Back to sign in
@@ -223,7 +223,7 @@ export function RequestResetScreen() {
     >
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">Почта</Label>
           <Input
             id="email"
             type="email"
@@ -234,7 +234,7 @@ export function RequestResetScreen() {
           />
         </div>
         <Button type="submit" className="w-full" disabled={busy}>
-          Send the link
+          Отправить ссылку
         </Button>
       </form>
     </AuthCard>
@@ -254,7 +254,7 @@ export function ResetPasswordScreen() {
     setBusy(true);
     try {
       await auth.resetPassword({ token, password });
-      toast.success('Your password has been changed. All other sessions were signed out.');
+      toast.success('Пароль изменён. Все остальные сессии завершены.');
       void navigate({ to: '/login', search: { next: undefined } });
     } catch (error) {
       toast.error(messageOf(error));
@@ -265,24 +265,24 @@ export function ResetPasswordScreen() {
   if (token === '') {
     return (
       <AuthCard
-        title="This link is incomplete"
-        description="Open the link from the email exactly as it was sent, or request a new one."
+        title="Ссылка неполная"
+        description="Откройте ссылку из письма ровно так, как её прислали, или запросите новую."
         footer={
           <Link to="/reset-password" className="text-sm underline underline-offset-4">
-            Request a new link
+            Запросить новую ссылку
           </Link>
         }
       >
-        <p className="text-muted-foreground text-sm">Nothing has been changed.</p>
+        <p className="text-muted-foreground text-sm">Ничего не изменилось.</p>
       </AuthCard>
     );
   }
 
   return (
-    <AuthCard title="Choose a new password">
+    <AuthCard title="Новый пароль">
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="password">New password</Label>
+          <Label htmlFor="password">Новый пароль</Label>
           <Input
             id="password"
             type="password"
@@ -293,11 +293,11 @@ export function ResetPasswordScreen() {
             onChange={(event) => setPassword(event.target.value)}
           />
           <p className="text-muted-foreground text-xs">
-            At least 12 characters. Every other session will be signed out.
+            Не короче 12 символов. Все остальные сессии будут завершены.
           </p>
         </div>
         <Button type="submit" className="w-full" disabled={busy}>
-          Change password
+          Изменить пароль
         </Button>
       </form>
     </AuthCard>
@@ -337,8 +337,8 @@ export function ConfirmEmailChangeScreen() {
 
   if (state === 'working') {
     return (
-      <AuthCard title="Confirming the change">
-        <p className="text-muted-foreground text-sm">One moment.</p>
+      <AuthCard title="Подтверждаем изменение">
+        <p className="text-muted-foreground text-sm">Секунду.</p>
       </AuthCard>
     );
   }
@@ -346,16 +346,16 @@ export function ConfirmEmailChangeScreen() {
   if (state === 'failed') {
     return (
       <AuthCard
-        title="This link did not work"
+        title="Ссылка не сработала"
         description={message}
         footer={
           <Link to="/settings" className="text-sm underline underline-offset-4">
-            Try again from settings
+            Попробовать снова из настроек
           </Link>
         }
       >
         <p className="text-muted-foreground text-sm">
-          The link works once and expires. Your address has not changed.
+          Ссылка работает один раз и истекает. Адрес не изменился.
         </p>
       </AuthCard>
     );
@@ -363,15 +363,15 @@ export function ConfirmEmailChangeScreen() {
 
   return (
     <AuthCard
-      title="Your address has changed"
+      title="Адрес изменён"
       footer={
         <Link to="/" className="text-sm underline underline-offset-4">
-          Continue
+          Продолжить
         </Link>
       }
     >
       <p className="text-muted-foreground text-sm">
-        Sign in with the new address from now on. The old one has been told about the change.
+        Дальше входите с новым адресом. Старому мы сообщили об изменении.
       </p>
     </AuthCard>
   );
@@ -403,24 +403,24 @@ export function VerifyEmailScreen() {
   }, [refresh, token]);
 
   if (state === 'working') {
-    return <AuthCard title="Confirming your email">
-      <p className="text-muted-foreground text-sm">One moment.</p>
+    return <AuthCard title="Подтверждаем почту">
+      <p className="text-muted-foreground text-sm">Секунду.</p>
     </AuthCard>;
   }
 
   if (state === 'failed') {
     return (
       <AuthCard
-        title="This link did not work"
+        title="Ссылка не сработала"
         description={message}
         footer={
           <Link to="/login" search={{ next: undefined }} className="text-sm underline underline-offset-4">
-            Go to sign in
+            Перейти ко входу
           </Link>
         }
       >
         <p className="text-muted-foreground text-sm">
-          A confirmation link works once and expires. You can ask for a new one from your settings.
+          Ссылка подтверждения работает один раз и истекает. Новую можно запросить в настройках.
         </p>
       </AuthCard>
     );
@@ -428,14 +428,14 @@ export function VerifyEmailScreen() {
 
   return (
     <AuthCard
-      title="Email confirmed"
+      title="Почта подтверждена"
       footer={
         <Link to="/" className="text-sm underline underline-offset-4">
-          Continue
+          Продолжить
         </Link>
       }
     >
-      <p className="text-muted-foreground text-sm">Thank you — your address is confirmed.</p>
+      <p className="text-muted-foreground text-sm">Спасибо — адрес подтверждён.</p>
     </AuthCard>
   );
 }

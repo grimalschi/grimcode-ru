@@ -24,44 +24,44 @@ export function AuditPage() {
 
   if (list.error) {
     return (
-      <AdminPage title="Security log">
+      <AdminPage title="Журнал безопасности">
         <ErrorState error={list.error} retry={list.reload} />
       </AdminPage>
     );
   }
 
   return (
-    <AdminPage title="Security log" description="What happened to accounts and sessions.">
+    <AdminPage title="Журнал безопасности" description="Что происходило с аккаунтами и сессиями.">
       <DataTable
         loading={list.loading}
         rows={list.data?.items ?? []}
         rowKey={(row) => row.id}
-        empty="Nothing has been recorded yet."
+        empty="Пока ничего не записано."
         columns={[
           {
             key: 'createdAt',
-            header: 'When',
+            header: 'Когда',
             className: 'whitespace-nowrap',
             cell: (row) => new Date(row.createdAt).toLocaleString(),
           },
           {
             key: 'action',
-            header: 'Event',
+            header: 'Событие',
             cell: (row) => <Badge variant="outline">{row.action}</Badge>,
           },
           {
             key: 'who',
-            header: 'By',
+            header: 'Кто',
             cell: (row) =>
               row.actorUserId ? (
-                <span className="text-sm">Administrator</span>
+                <span className="text-sm">Администратор</span>
               ) : (
-                <span className="text-muted-foreground text-sm">The person themselves</span>
+                <span className="text-muted-foreground text-sm">Сам человек</span>
               ),
           },
           {
             key: 'details',
-            header: 'Details',
+            header: 'Подробности',
             cell: (row) => (
               <code className="text-muted-foreground text-xs">{JSON.stringify(row.details)}</code>
             ),

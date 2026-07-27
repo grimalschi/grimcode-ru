@@ -44,7 +44,7 @@ export function ServiceFrame({ serviceId }: { serviceId: string }) {
 
   if (!service) {
     return (
-      <div className="text-muted-foreground p-6">This admin service does not exist.</div>
+      <div className="text-muted-foreground p-6">Такого сервиса нет.</div>
     );
   }
 
@@ -64,7 +64,7 @@ export function ServiceFrame({ serviceId }: { serviceId: string }) {
       <iframe
         ref={frame}
         src={initialSrc}
-        title={`${service.label} admin`}
+        title={`Админка ${service.label}`}
         className="h-full w-full border-0"
         // Same-origin by design: the frame protocol and the session cookie both need it.
         sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-downloads"

@@ -24,9 +24,9 @@ export async function signIn(page: Page): Promise<void> {
   requireOwnerCredentials();
 
   await page.goto('/app/login');
-  await page.getByLabel('Email').fill(OWNER_EMAIL);
-  await page.getByLabel('Password').fill(OWNER_PASSWORD);
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByLabel('Почта').fill(OWNER_EMAIL);
+  await page.getByLabel('Пароль').fill(OWNER_PASSWORD);
+  await page.getByRole('button', { name: 'Войти' }).click();
 
   await page.waitForURL((url) => !url.pathname.startsWith('/app/login'));
 }

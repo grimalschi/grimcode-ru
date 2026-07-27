@@ -17,8 +17,7 @@ export function LegalPage({
     <article className="mx-auto w-full max-w-2xl px-6 py-16">
       <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
       <p className="text-muted-foreground mt-4 text-sm">
-        This is a structure with placeholders, not a legal text. Replace every section before the
-        product goes live.
+        Это структура с заглушками, а не юридический текст. Замените каждый раздел до запуска.
       </p>
 
       <div className="mt-10 space-y-8">

@@ -24,19 +24,19 @@ export function DashboardScreen() {
 
 
   return (
-    <Page title={`Hello, ${profile.data?.profile.displayName ?? identity?.email ?? ''}`}>
+    <Page title={`Здравствуйте, ${profile.data?.profile.displayName ?? identity?.email ?? ''}`}>
       {identity && identity.emailVerifiedAt === null ? (
         <Alert>
-          <AlertTitle>Your email is not confirmed yet</AlertTitle>
+          <AlertTitle>Почта ещё не подтверждена</AlertTitle>
           <AlertDescription>
             {/*
               One paragraph, not three loose children: the description is a grid, so a bare text
               node, a link and a full stop would each become a row of their own.
             */}
             <p>
-              Open the link we sent you, or ask for a new one from{' '}
+              Откройте ссылку из письма или запросите новую в{' '}
               <Link to="/settings" className="underline underline-offset-4">
-                settings
+                настройках
               </Link>
               .
             </p>
@@ -47,9 +47,9 @@ export function DashboardScreen() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Your account</CardTitle>
+          <CardTitle>Ваш аккаунт</CardTitle>
           <CardDescription>
-            Identity is owned by Auth, the profile below by Users. They are separate on purpose.
+            Учётной записью владеет Auth, профилем ниже — Users. Они разделены намеренно.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
@@ -59,9 +59,9 @@ export function DashboardScreen() {
             <p className="text-muted-foreground">{messageOf(profile.error)}</p>
           ) : (
             <dl className="grid grid-cols-[10rem_1fr] gap-y-2">
-              <dt className="text-muted-foreground">Email</dt>
+              <dt className="text-muted-foreground">Почта</dt>
               <dd>{identity?.email}</dd>
-              <dt className="text-muted-foreground">Display name</dt>
+              <dt className="text-muted-foreground">Отображаемое имя</dt>
               <dd>{profile.data?.profile.displayName ?? '—'}</dd>
             </dl>
           )}
