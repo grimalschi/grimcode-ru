@@ -39,7 +39,13 @@ export function ThemeToggle() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={`Тема: ${LABELS[preference]}`}>
+        {/* size-7 to sit on the same line as the other icons down the sidebar's right edge. */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7"
+          aria-label={`Тема: ${LABELS[preference]}`}
+        >
           <Icon />
         </Button>
       </DropdownMenuTrigger>

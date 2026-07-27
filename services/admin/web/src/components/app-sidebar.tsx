@@ -85,7 +85,13 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
                     <a href={item.href} target="_blank" rel="noreferrer">
                       <item.icon />
                       <span className="flex-1">{item.label}</span>
-                      <ExternalLinkIcon className="text-muted-foreground size-3" />
+                      {/*
+                        The same 28px box as the collapse control in the header and the buttons in
+                        the footer, so every icon on the right edge of the sidebar sits on one line.
+                      */}
+                      <span className="flex size-7 shrink-0 items-center justify-center group-data-[collapsible=icon]:hidden">
+                        <ExternalLinkIcon className="text-muted-foreground size-3.5" />
+                      </span>
                     </a>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -184,7 +190,13 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
           </div>
           <div className="flex items-center gap-1">
             <ThemeToggle />
-            <Button variant="ghost" size="icon" onClick={onLogout} aria-label="Выйти">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={onLogout}
+              aria-label="Выйти"
+            >
               <LogOutIcon />
             </Button>
           </div>
