@@ -18,16 +18,16 @@ test.describe('the admin shell', () => {
     await page.goto('/admin/');
 
     await expect(page.getByRole('link', { name: 'Auth' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Database' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'База данных' })).toBeVisible();
 
     expectNoPageErrors(problems);
   });
 
-  test('shows the owner every service, database included', async ({ page }) => {
+  test('shows the owner every service and the database area', async ({ page }) => {
     await signIn(page);
     await page.goto('/admin/');
 
-    for (const label of ['Auth', 'Users', 'Notifications', 'Email', 'Database']) {
+    for (const label of ['Auth', 'Users', 'Notifications', 'Email', 'База данных']) {
       await expect(page.getByRole('link', { name: label })).toBeVisible();
     }
   });

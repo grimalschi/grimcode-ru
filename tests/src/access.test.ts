@@ -55,10 +55,9 @@ describe('the admin panel itself', () => {
     const state = await owner.call<{ role: string; services: string[] }>(ADMIN, 'session');
 
     expect(state.role).toBe('owner');
-    expect(state.services).toContain('adminer');
-    expect(new Set(state.services)).toEqual(
-      new Set(['auth', 'users', 'notifications', 'email', 'adminer']),
-    );
+    // The database is a section of the panel, reported separately from the services.
+    expect((state as unknown as { database: boolean }).database).toBe(true);
+    expect(new Set(state.services)).toEqual(new Set(['auth', 'users', 'notifications', 'email']));
   });
 
   /**
@@ -142,10 +141,16 @@ describe('grants', () => {
   });
 });
 
-describe('the database', () => {
+/**
+ * The database browser is a section of the panel, not a service admin.
+ *
+ * That is why it lives at `/admin/database/`, why only the owner reaches it, and why no grant can
+ * name it: there is nothing to hand out, so nothing can be handed out by mistake.
+ */
+describe('the database area', () => {
   it('is open to the owner', async () => {
     // Adminer answers a first request with its own redirect and cookie.
-    const status = await owner.status(`${serviceAdmin('adminer')}/`);
+    const status = await owner.status('/admin/database/');
     expect([200, 302]).toContain(status);
   });
 
@@ -157,10 +162,10 @@ describe('the database', () => {
       { csrf: true },
     );
 
-    expect(await grantedAdmin.session.status(`${serviceAdmin('adminer')}/`)).toBe(403);
+    expect(await grantedAdmin.session.status('/admin/database/')).toBe(403);
   });
 
-  it('cannot be granted at all', async () => {
+  it('is not a service, so nothing can grant it', async () => {
     const result = await owner.rpc(
       ADMIN,
       'updateAdministrator',
@@ -170,6 +175,10 @@ describe('the database', () => {
 
     // Rejected by the contract itself, before any handler could interpret it.
     expect(result.status).toBe(400);
+  });
+
+  it('is not reachable as a service admin either', async () => {
+    expect(await owner.status(`${serviceAdmin('adminer')}/`)).toBe(404);
   });
 
   it('has no public route', async () => {

@@ -19,6 +19,7 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AdministratorsPage } from '@/routes/administrators';
 import { AuditPage } from '@/routes/audit';
+import { DatabaseFrame } from '@/routes/database-frame';
 import { ServiceFrame } from '@/routes/service-frame';
 import { loadSession, SessionProvider, useSession, type AdminSession } from '@/session';
 
@@ -92,22 +93,26 @@ const indexRoute = createRoute({
   // service-relative path inside it.
   validateSearch: (search: Record<string, unknown>) => ({
     service: typeof search.service === 'string' ? search.service : undefined,
+    database: search.database === true || search.database === 'true' ? true : undefined,
   }),
   component: Home,
 });
 
 function Home() {
-  const { service } = indexRoute.useSearch();
+  const { service, database } = indexRoute.useSearch();
+
+  if (database) return <DatabaseFrame />;
+
   // Keyed by the service, so switching to another one builds a new frame. Without it React reuses
   // the component, and the iframe keeps the src it was first given — the sidebar changes and the
   // page does not.
   if (service) return <ServiceFrame key={service} serviceId={service} />;
 
   return (
-    <AdminPage title="Админка" description="Выберите сервис в боковой панели.">
+    <AdminPage title="Админка" description="Выберите раздел в боковой панели.">
       <EmptyState
         title="Ничего не открыто"
-        description="В боковой панели — сервисы, которые позволяют ваша роль и доступы."
+        description="В боковой панели — разделы, которые позволяют ваша роль и доступы."
       />
     </AdminPage>
   );
@@ -137,7 +142,7 @@ function OwnerOnly(Component: React.ComponentType) {
     const session = useSession();
 
     React.useEffect(() => {
-      if (session.role !== 'owner') void navigate({ to: '/', search: { service: undefined }, replace: true });
+      if (session.role !== 'owner') void navigate({ to: '/', search: { service: undefined, database: undefined }, replace: true });
     }, [navigate, session.role]);
 
     if (session.role !== 'owner') return null;

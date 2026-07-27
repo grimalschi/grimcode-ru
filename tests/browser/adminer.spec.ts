@@ -5,8 +5,8 @@ import { signIn } from './support.js';
 /**
  * The real Adminer, themed to match the panel around it.
  *
- * Adminer is a third-party PHP application with its own stylesheet, so its theme is not something
- * the admin's CSS can reach into. What is checked here is that the wrapper actually recolours it —
+ * The panel's database browser is a third-party PHP application with its own stylesheet, so its
+ * theme is not something the admin's CSS can reach into. What is checked here is that the wrapper actually recolours it —
  * on more than the first page, because the overview, a table listing and pagination are styled by
  * different rules and a wrapper that only handles one of them looks finished while it is not.
  */
@@ -36,9 +36,9 @@ async function openAdminer(page: Page, theme: 'light' | 'dark'): Promise<FrameLo
   await page.getByRole('button', { name: /^Тема:/ }).click();
   await page.getByRole('menuitem', { name: theme === 'dark' ? 'Тёмная' : 'Светлая' }).click();
 
-  await page.goto(`/admin/?service=adminer#/`);
+  await page.goto('/admin/?database=true');
 
-  const frame = page.frameLocator('iframe[title="Админка Database"]');
+  const frame = page.frameLocator('iframe[title="База данных"]');
   await expect(frame.locator('#content')).toBeVisible();
 
   // The theme arrives by message a moment after the frame loads, so measuring colours before it

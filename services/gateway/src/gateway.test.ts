@@ -10,14 +10,14 @@ import { routeRequest } from './router.js';
  * and header handling. The real oRPC round-trip is covered by the integration checks.
  */
 const stub = vi.hoisted(() => ({
-  authorize: null as unknown as (request: Request, service: string | null) => Promise<unknown>,
-  calls: [] as (string | null)[],
+  authorize: null as unknown as (request: Request, target: unknown) => Promise<unknown>,
+  calls: [] as unknown[],
 }));
 
 vi.mock('./authorize.js', () => ({
-  authorizeAdminRequest: (request: Request, service: string | null) => {
-    stub.calls.push(service);
-    return stub.authorize(request, service);
+  authorizeAdminRequest: (request: Request, target: unknown) => {
+    stub.calls.push(target);
+    return stub.authorize(request, target);
   },
 }));
 
@@ -68,9 +68,13 @@ async function route(path: string, init?: RequestInit): Promise<Response> {
 }
 
 describe('allowlists', () => {
-  it('keeps Adminer out of the public list and inside the admin list', () => {
+  /**
+   * The database browser is not a service of this template. It is a section of the admin panel, so
+   * it appears in neither list and is reached by its own area instead.
+   */
+  it('keeps Adminer out of both service lists', () => {
     expect(isPublicService('adminer')).toBe(false);
-    expect(isAdminService('adminer')).toBe(true);
+    expect(isAdminService('adminer')).toBe(false);
   });
 
   it('does not recognise an unknown service name', () => {
@@ -118,7 +122,7 @@ describe('admin authorization', () => {
   it('applies the same check to admin assets, not just HTML', async () => {
     const response = await route('/admin/assets/index-abc123.js');
     expect(response.status).toBe(403);
-    expect(stub.calls).toEqual([null]);
+    expect(stub.calls).toEqual([{ area: 'panel' }]);
     expect(forwarded).toHaveLength(0);
   });
 
@@ -158,16 +162,23 @@ describe('admin authorization', () => {
     expect(sent?.headers.get('x-template-admin-email')).toBeNull();
   });
 
-  it('asks Admin about the requested service name', async () => {
+  it('asks Admin about the requested service', async () => {
     stub.authorize = async () => OWNER;
-    await route('/admin/service/adminer/');
-    expect(stub.calls).toEqual(['adminer']);
+    await route('/admin/service/email/');
+    expect(stub.calls).toEqual([{ area: 'service', service: 'email' }]);
   });
 
-  it('asks Admin without a service name for central Admin', async () => {
+  it('asks Admin about the database area and proxies it to the browser', async () => {
+    stub.authorize = async () => OWNER;
+    await route('/admin/database/');
+    expect(stub.calls).toEqual([{ area: 'database' }]);
+    expect(forwarded[0]?.url).toBe('http://adminer:8080/admin/database/');
+  });
+
+  it('asks Admin about the panel itself for everything else', async () => {
     stub.authorize = async () => OWNER;
     await route('/admin/administrators');
-    expect(stub.calls).toEqual([null]);
+    expect(stub.calls).toEqual([{ area: 'panel' }]);
     expect(forwarded[0]?.url).toBe('http://admin:3002/admin/administrators');
   });
 
@@ -179,9 +190,9 @@ describe('admin authorization', () => {
     expect(forwarded).toHaveLength(0);
   });
 
-  it('denies an owner-only service to a regular administrator', async () => {
+  it('denies the owner-only database area to a regular administrator', async () => {
     stub.authorize = async () => ({ state: 'denied', reason: 'owner-only' });
-    const response = await route('/admin/service/adminer/');
+    const response = await route('/admin/database/');
     expect(response.status).toBe(403);
     expect(forwarded).toHaveLength(0);
   });
@@ -231,13 +242,13 @@ describe('response headers', () => {
     upstreamResponse = () =>
       new Response(null, {
         status: 302,
-        headers: { location: '/admin/service/adminer/?pgsql=', 'set-cookie': 'adminer_sid=abc' },
+        headers: { location: '/admin/database/?pgsql=', 'set-cookie': 'adminer_sid=abc' },
       });
     stub.authorize = async () => OWNER;
 
-    const response = await route('/admin/service/adminer/');
+    const response = await route('/admin/database/');
     expect(response.status).toBe(302);
-    expect(response.headers.get('location')).toBe('/admin/service/adminer/?pgsql=');
+    expect(response.headers.get('location')).toBe('/admin/database/?pgsql=');
     expect(response.headers.get('set-cookie')).toBe('adminer_sid=abc');
   });
 

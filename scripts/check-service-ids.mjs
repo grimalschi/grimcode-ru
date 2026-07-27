@@ -64,6 +64,13 @@ if (!same(canonicalAdmin, shellServices)) {
 }
 
 // Adminer is owner-only and must never be reachable without an admin check.
+if (canonicalAdmin.includes('adminer')) {
+  problems.push(
+    'Adminer is listed as an admin service. It is a section of the Admin panel, not a service: ' +
+      'it reads every service’s data at once, which is why no grant can name it.',
+  );
+}
+
 if (gatewayPublic.includes('adminer')) {
   problems.push('Adminer must never appear in Gateway\'s public allowlist');
 }

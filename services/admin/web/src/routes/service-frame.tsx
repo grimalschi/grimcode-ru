@@ -30,7 +30,12 @@ export function ServiceFrame({ serviceId }: { serviceId: string }) {
     (next: string) => {
       // `replace` keeps navigation that happened inside the iframe out of the browser history a
       // second time: the iframe already added its own entry.
-      void navigate({ to: '/', search: { service: serviceId }, hash: next, replace: true });
+      void navigate({
+        to: '/',
+        search: { service: serviceId, database: undefined },
+        hash: next,
+        replace: true,
+      });
     },
     [navigate, serviceId],
   );

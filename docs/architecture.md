@@ -1,6 +1,7 @@
 # Architecture
 
-Eight services behind one door, each owning its own data and its own interface.
+Seven services behind one door, each owning its own data and its own interface, plus the database
+browser the admin panel embeds.
 
 ## The shape of it
 
@@ -14,7 +15,7 @@ flowchart LR
   gateway -->|/service/users| users[Users]
   gateway -->|/admin| admin[Admin]
   gateway -->|/admin/service/*| serviceAdmins[Service admins]
-  gateway -->|/admin/service/adminer| adminer[(Adminer)]
+  gateway -->|/admin/database| adminer[(Database browser)]
 
   gateway -.->|authorize| admin
   admin -.->|resolveSession| auth
@@ -59,14 +60,16 @@ separate record. That is why deleting an administrator entry never touches the a
 
 Gateway is the only container published outside — locally by a single port, in production by the
 platform routing a domain to it. Everything else lives on the internal network with no host port at
-all, including Adminer.
+all, including the database browser.
 
 Gateway decides three things and nothing else:
 
 1. **Is this path public?** An explicit allowlist. A service not on it answers 404 from outside, no
    matter what it exposes internally.
-2. **May this person open the admin panel?** It asks Admin, every time, and caches nothing — which
-   is why a revoked grant takes effect on the very next request.
+2. **Which part of the panel is this, and may this person open it?** Gateway works out the target
+   from the URL — the panel, one service's admin, or the database area — and asks Admin, every time,
+   caching nothing. That is why a revoked grant takes effect on the very next request, and why
+   Gateway holds no policy: it knows the shape of the URLs, not who is allowed.
 3. **What does the service behind it get to know?** Gateway builds the `x-template-admin-*` headers
    itself after that decision, and strips whatever arrived with the request. A client cannot forge
    an administrator.
@@ -95,6 +98,10 @@ be the iframe's own navigation, and replaying the old path would silently cancel
 The canonical URL is `/admin?service=email#/templates/123`; the iframe is pointed at
 `/admin/service/email/templates/123`, which Gateway checks exactly as it would if a person opened it
 directly. Hiding a service in the sidebar is presentation, never protection.
+
+The database browser is embedded the same way but is **not** a service admin: it reads every
+service's data at once, so it is an area of the panel at `/admin/database/`, owner-only, and no
+grant can name it. See [administrator access](admin-access.md).
 
 ## Contracts, not conventions
 

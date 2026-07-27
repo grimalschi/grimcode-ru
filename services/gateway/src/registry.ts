@@ -22,17 +22,26 @@ export type PublicServiceName = keyof typeof PUBLIC_SERVICES;
 
 /**
  * `/admin/service/:name/**` — reachable only after Admin allowed the request.
- * Adminer is present here and deliberately absent from `PUBLIC_SERVICES`.
  */
 export const ADMIN_SERVICES = {
   auth: () => internalServiceUrl('auth'),
   users: () => internalServiceUrl('users'),
   notifications: () => internalServiceUrl('notifications'),
   email: () => internalServiceUrl('email'),
-  adminer: () => internalServiceUrl('adminer'),
 } as const satisfies Record<string, () => string>;
 
 export type AdminServiceName = keyof typeof ADMIN_SERVICES;
+
+/**
+ * The database browser behind the panel's own database area.
+ *
+ * It is not in `ADMIN_SERVICES` because it is not a service of this template: it is a third-party
+ * application the panel embeds, reading every service's data at once. Gateway knows where it lives;
+ * Admin decides who may reach it.
+ */
+export function databaseBrowserUrl(): string {
+  return internalServiceUrl('adminer');
+}
 
 export function isPublicService(name: string): name is PublicServiceName {
   return Object.hasOwn(PUBLIC_SERVICES, name);

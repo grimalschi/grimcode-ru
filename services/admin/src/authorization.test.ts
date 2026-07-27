@@ -2,7 +2,7 @@ import type { Identity } from '@template/contracts';
 import { createLogger } from '@template/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { authorize, visibleServices, type AuthClient } from './authorization.js';
+import { authorize, canOpenDatabase, visibleServices, type AuthClient } from './authorization.js';
 import type { AdministratorRow, AdminRepository } from './repository.js';
 
 const logger = createLogger('admin-test');
@@ -83,7 +83,7 @@ function deps(auth: AuthClient) {
 describe('session requirement', () => {
   it('denies a request without a session cookie', async () => {
     const result = await authorize(
-      { sessionToken: null, service: null },
+      { sessionToken: null, target: { area: 'panel' } },
       deps(fakeAuth({ session: FIRST })),
     );
     expect(result).toEqual({ state: 'denied', reason: 'no-session' });
@@ -91,7 +91,7 @@ describe('session requirement', () => {
 
   it('denies a session Auth no longer recognises', async () => {
     const result = await authorize(
-      { sessionToken: 'stale', service: null },
+      { sessionToken: 'stale', target: { area: 'panel' } },
       deps(fakeAuth({ session: null })),
     );
     expect(result).toEqual({ state: 'denied', reason: 'no-session' });
@@ -101,7 +101,7 @@ describe('session requirement', () => {
 describe('first owner bootstrap', () => {
   it('reports that nobody has registered yet instead of creating an owner', async () => {
     const result = await authorize(
-      { sessionToken: 't', service: null },
+      { sessionToken: 't', target: { area: 'panel' } },
       deps(fakeAuth({ session: FIRST, first: null })),
     );
     expect(result).toEqual({ state: 'awaiting-first-user' });
@@ -110,7 +110,7 @@ describe('first owner bootstrap', () => {
 
   it('makes the first registered Auth user the owner', async () => {
     const result = await authorize(
-      { sessionToken: 't', service: null },
+      { sessionToken: 't', target: { area: 'panel' } },
       deps(fakeAuth({ session: FIRST, first: FIRST })),
     );
     expect(result).toMatchObject({ state: 'allowed', role: 'owner', userId: FIRST.id });
@@ -119,7 +119,7 @@ describe('first owner bootstrap', () => {
   it('gives ownership to the first Auth user even when someone else opens the panel', async () => {
     // The second user opens /admin first, but ownership follows registration order.
     const result = await authorize(
-      { sessionToken: 't', service: null },
+      { sessionToken: 't', target: { area: 'panel' } },
       deps(fakeAuth({ session: SECOND, first: FIRST })),
     );
 
@@ -131,8 +131,8 @@ describe('first owner bootstrap', () => {
   it('is idempotent and audits only the call that really created the owner', async () => {
     const auth = fakeAuth({ session: FIRST, first: FIRST });
     const [a, b] = await Promise.all([
-      authorize({ sessionToken: 't', service: null }, deps(auth)),
-      authorize({ sessionToken: 't', service: null }, deps(auth)),
+      authorize({ sessionToken: 't', target: { area: 'panel' } }, deps(auth)),
+      authorize({ sessionToken: 't', target: { area: 'panel' } }, deps(auth)),
     ]);
 
     expect(a).toMatchObject({ state: 'allowed', userId: FIRST.id });
@@ -144,7 +144,7 @@ describe('first owner bootstrap', () => {
   it('stops attempting the bootstrap once any administrator exists', async () => {
     repo.rows.set(SECOND.id, administrator({ user_id: SECOND.id, role: 'admin' }));
     await authorize(
-      { sessionToken: 't', service: null },
+      { sessionToken: 't', target: { area: 'panel' } },
       deps(fakeAuth({ session: SECOND, first: FIRST })),
     );
     expect(repo.bootstrapCalls).toHaveLength(0);
@@ -157,24 +157,43 @@ describe('roles and grants', () => {
   });
 
   it('lets an owner open every admin service', async () => {
-    for (const service of ['auth', 'users', 'notifications', 'email', 'adminer'] as const) {
+    for (const service of ['auth', 'users', 'notifications', 'email'] as const) {
       const result = await authorize(
-        { sessionToken: 't', service },
+        { sessionToken: 't', target: { area: 'service', service } },
         deps(fakeAuth({ session: FIRST })),
       );
       expect(result).toMatchObject({ state: 'allowed', role: 'owner' });
     }
   });
 
+  /**
+   * The database area is part of the panel, not a service, and it reads every service's data at
+   * once — so it is the owner's alone and no grant can name it.
+   */
+  it('lets only an owner open the database area', async () => {
+    await expect(
+      authorize({ sessionToken: 't', target: { area: 'database' } }, deps(fakeAuth({ session: FIRST }))),
+    ).resolves.toMatchObject({ state: 'allowed', role: 'owner' });
+
+    repo.rows.set(
+      SECOND.id,
+      administrator({ user_id: SECOND.id, grants: ['auth', 'users', 'notifications', 'email'] }),
+    );
+
+    await expect(
+      authorize({ sessionToken: 't', target: { area: 'database' } }, deps(fakeAuth({ session: SECOND }))),
+    ).resolves.toEqual({ state: 'denied', reason: 'owner-only' });
+  });
+
   it('denies a granted service to an administrator who does not have it', async () => {
     repo.rows.set(SECOND.id, administrator({ user_id: SECOND.id, grants: ['email'] }));
 
     await expect(
-      authorize({ sessionToken: 't', service: 'email' }, deps(fakeAuth({ session: SECOND }))),
+      authorize({ sessionToken: 't', target: { area: 'service', service: 'email' } }, deps(fakeAuth({ session: SECOND }))),
     ).resolves.toMatchObject({ state: 'allowed', role: 'admin' });
 
     await expect(
-      authorize({ sessionToken: 't', service: 'auth' }, deps(fakeAuth({ session: SECOND }))),
+      authorize({ sessionToken: 't', target: { area: 'service', service: 'auth' } }, deps(fakeAuth({ session: SECOND }))),
     ).resolves.toEqual({ state: 'denied', reason: 'no-grant' });
   });
 
@@ -182,7 +201,7 @@ describe('roles and grants', () => {
     repo.rows.set(SECOND.id, administrator({ user_id: SECOND.id, grants: ['adminer', 'email'] }));
 
     const result = await authorize(
-      { sessionToken: 't', service: 'adminer' },
+      { sessionToken: 't', target: { area: 'database' } },
       deps(fakeAuth({ session: SECOND })),
     );
     expect(result).toEqual({ state: 'denied', reason: 'owner-only' });
@@ -191,7 +210,7 @@ describe('roles and grants', () => {
   it('lets any enabled administrator open central Admin', async () => {
     repo.rows.set(SECOND.id, administrator({ user_id: SECOND.id, grants: [] }));
     const result = await authorize(
-      { sessionToken: 't', service: null },
+      { sessionToken: 't', target: { area: 'panel' } },
       deps(fakeAuth({ session: SECOND })),
     );
     expect(result).toMatchObject({ state: 'allowed', role: 'admin' });
@@ -200,7 +219,7 @@ describe('roles and grants', () => {
   it('denies a disabled administrator without deleting their history', async () => {
     repo.rows.set(SECOND.id, administrator({ user_id: SECOND.id, enabled: false }));
     const result = await authorize(
-      { sessionToken: 't', service: null },
+      { sessionToken: 't', target: { area: 'panel' } },
       deps(fakeAuth({ session: SECOND })),
     );
     expect(result).toEqual({ state: 'denied', reason: 'disabled' });
@@ -208,7 +227,7 @@ describe('roles and grants', () => {
 
   it('refuses a service id that is not an admin service', async () => {
     const result = await authorize(
-      { sessionToken: 't', service: 'billing' as never },
+      { sessionToken: 't', target: { area: 'service', service: 'billing' as never } },
       deps(fakeAuth({ session: FIRST })),
     );
     expect(result).toEqual({ state: 'denied', reason: 'unknown-service' });
@@ -216,12 +235,17 @@ describe('roles and grants', () => {
 });
 
 describe('sidebar contents', () => {
-  it('shows every admin service to an owner, Adminer included', () => {
-    expect(visibleServices('owner', [])).toContain('adminer');
+  it('shows every admin service to an owner', () => {
+    expect(visibleServices('owner', [])).toEqual(['auth', 'users', 'notifications', 'email']);
   });
 
-  it('shows a regular administrator only their granted services and never Adminer', () => {
-    expect(visibleServices('admin', ['email', 'adminer'])).toEqual(['email']);
+  it('shows a regular administrator only what they were granted', () => {
+    expect(visibleServices('admin', ['email'])).toEqual(['email']);
     expect(visibleServices('admin', [])).toEqual([]);
+  });
+
+  it('offers the database area to owners only', () => {
+    expect(canOpenDatabase('owner')).toBe(true);
+    expect(canOpenDatabase('admin')).toBe(false);
   });
 });

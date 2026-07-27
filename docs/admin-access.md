@@ -17,27 +17,29 @@ the panel. They are different things, deliberately:
 | --- | --- | --- |
 | The admin panel | yes | yes |
 | Service admins | all of them | only what was granted |
-| The database (Adminer) | yes | **never**, whatever the grants say |
+| The database area | yes | **never** |
 | Managing administrators | yes | no |
 | The audit log | yes | no |
 
 An ordinary administrator sees only the services they were granted. That filtering is presentation:
 the protected URL of a hidden service passes the very same Gateway check, and Gateway refuses it.
 
-Adminer is not on the list of grantable services at all. `ASSIGNABLE_SERVICE_IDS` in `contracts/` is
-deliberately shorter than the sidebar, so "grant everything" cannot accidentally include direct
-database access — the contract rejects it before any handler sees it.
+## The database is a section of the panel, not a service
 
-## Why the database sits where it does
+Every service admin is one service's own window onto its own data. The database browser is not that:
+it reads every service's data at once, so calling it a service admin would have been calling it
+something it is not.
 
-It is reached at `/admin/service/adminer/`, like a service admin, but it is not one: the others are
-each a window into one service's own data, and this is a window into all of them at once. That is
-why it is owner-only, why it cannot be granted, and why the sidebar shows it under Owner rather than
-among the services.
+It is therefore an **area** of the panel, at `/admin/database/`, next to the administrator registry
+and the audit log. Nothing in the system calls it a service:
 
-Two lists carry that rule rather than a special case in the routing: `OWNER_ONLY_SERVICES` in Admin
-and `ASSIGNABLE_SERVICE_IDS` in the contracts. Neither is about Adminer specifically — a project
-that adds another console only the owner should reach adds it to the same lists.
+- it is absent from `ADMIN_SERVICE_IDS`, so no grant can name it and none ever could;
+- Gateway asks Admin about a **target** — `panel`, `service` or `database` — rather than about a
+  service name that might be one of those things or might not;
+- the sidebar shows it under Owner, because that is who it belongs to.
+
+The application behind it is still Adminer, still a container of its own, still reached only through
+Gateway with no host port anywhere. What changed is what the system calls it.
 
 ## The first owner
 

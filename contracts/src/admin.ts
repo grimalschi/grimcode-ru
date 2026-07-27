@@ -78,7 +78,15 @@ export const adminInternalContract = {
     .input(
       z.object({
         sessionToken: z.string().min(1).max(400).nullable(),
-        service: adminServiceIdSchema.nullable(),
+        /**
+         * What is being opened. Gateway decides which area a path belongs to; Admin decides who may
+         * reach it. The two questions stay apart, so neither service has to know the other's rules.
+         */
+        target: z.discriminatedUnion('area', [
+          z.object({ area: z.literal('panel') }),
+          z.object({ area: z.literal('service'), service: adminServiceIdSchema }),
+          z.object({ area: z.literal('database') }),
+        ]),
       }),
     )
     .output(authorizationResultSchema),
@@ -98,6 +106,8 @@ export const adminContract = {
         email: emailSchema,
         role: adminRoleSchema,
         services: z.array(adminServiceIdSchema),
+        /** Whether this administrator may open the panel's database browser. Owners only. */
+        database: z.boolean(),
       }),
     ),
 

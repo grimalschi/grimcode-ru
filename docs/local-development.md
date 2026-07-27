@@ -71,8 +71,8 @@ A day's work in a worktree cannot be wiped by re-running bootstrap out of habit.
 
 ## The database
 
-Adminer is at `/admin/service/adminer/`, owner-only, through Gateway. It is the real Adminer, themed
-to match the panel; it has no host port in any environment.
+The panel's database browser is at `/admin/database/`, owner-only, through Gateway. It is the real
+Adminer, themed to match the panel around it; it has no host port in any environment.
 
 `psql` works too — bootstrap published PostgreSQL on loopback for exactly that:
 

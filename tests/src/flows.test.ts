@@ -316,7 +316,7 @@ describe('the built admin surfaces', () => {
   it('serves the real Adminer, with its own redirect and cookie', async () => {
     // Adminer answers the first request with a redirect and a cookie of its own; following it by
     // hand is what proves the pair survives Gateway.
-    const page = await owner.fetch(`${serviceAdmin('adminer')}/`, {}, { follow: true });
+    const page = await owner.fetch('/admin/database/', {}, { follow: true });
     const html = await page.text();
 
     expect(page.status).toBe(200);

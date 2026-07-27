@@ -15,7 +15,7 @@ import {
   type Logger,
 } from '@template/shared';
 
-import { authorize, visibleServices, type AuthClient } from './authorization.js';
+import { authorize, canOpenDatabase, visibleServices, type AuthClient } from './authorization.js';
 import { toAdministrator, type AdminRepository } from './repository.js';
 
 export interface InternalContext {
@@ -92,6 +92,7 @@ export const adminRouter = adminOs.router({
       role: row.role,
       // Hiding a menu item is interface only — the direct URL passes the very same Gateway check.
       services: visibleServices(row.role, row.grants ?? []),
+      database: canOpenDatabase(row.role),
     };
   }),
 

@@ -8,6 +8,8 @@ export interface AdminSession {
   email: string;
   role: 'owner' | 'admin';
   services: AdminServiceId[];
+  /** Whether the panel offers its database browser. Owners only. */
+  database: boolean;
 }
 
 const SessionContext = React.createContext<AdminSession | null>(null);

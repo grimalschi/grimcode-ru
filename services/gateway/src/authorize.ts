@@ -1,5 +1,6 @@
 import type {
   adminInternalContract,
+  AdminServiceId,
   AuthorizationResult,
   ContractRouterClient,
 } from '@template/contracts';
@@ -12,9 +13,19 @@ import {
   sessionCookieName,
 } from '@template/shared';
 
-import type { AdminServiceName } from './registry.js';
 
 type AdminInternalClient = ContractRouterClient<typeof adminInternalContract>;
+
+/**
+ * What a path is asking to open.
+ *
+ * Gateway works this out from the URL and asks Admin whether it is allowed. It holds no policy of
+ * its own — which area exists is routing, who may reach it is not Gateway's business.
+ */
+export type AdminTarget =
+  | { area: 'panel' }
+  | { area: 'service'; service: AdminServiceId }
+  | { area: 'database' };
 
 /**
  * The whole admin check is one internal Admin method.
@@ -24,7 +35,7 @@ type AdminInternalClient = ContractRouterClient<typeof adminInternalContract>;
  */
 export async function authorizeAdminRequest(
   request: Request,
-  service: AdminServiceName | null,
+  target: AdminTarget,
   requestId: string,
 ): Promise<AuthorizationResult> {
   const sessionToken = parseCookies(request.headers.get('cookie'))[sessionCookieName()] ?? null;
@@ -35,7 +46,7 @@ export async function authorizeAdminRequest(
   });
 
   try {
-    return await client.authorize({ sessionToken, service });
+    return await client.authorize({ sessionToken, target });
   } catch (error) {
     // Admin being unreachable — or Auth being unreachable behind it — is an infrastructure
     // failure. Reporting it as "no rights" would hide an outage, so it fails closed instead.

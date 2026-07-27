@@ -1,10 +1,11 @@
 import type { AdminContext } from '@template/contracts';
 import { internalServiceUrl, ServiceUnavailableError, type Logger } from '@template/shared';
 
-import { authorizeAdminRequest } from './authorize.js';
+import { authorizeAdminRequest, type AdminTarget } from './authorize.js';
 import { proxyRequest } from './proxy.js';
 import {
   adminServiceUrl,
+  databaseBrowserUrl,
   isAdminService,
   isPublicService,
   publicServiceUrl,
@@ -75,14 +76,12 @@ export async function routeRequest(
  * separate public policy for admin assets.
  */
 async function routeAdmin(request: Request, pathname: string, requestId: string): Promise<Response> {
-  const serviceName = adminServiceNameOf(pathname);
+  const target = adminTargetOf(pathname);
 
-  if (serviceName !== null && !isAdminService(serviceName)) {
-    // Unknown name: it never becomes a hostname and Admin is never asked about it.
-    return notFound(request);
-  }
+  // An unknown service name never becomes a hostname and Admin is never asked about it.
+  if (target === null) return notFound(request);
 
-  const result = await authorizeAdminRequest(request, serviceName, requestId);
+  const result = await authorizeAdminRequest(request, target, requestId);
 
   if (result.state === 'awaiting-first-user') return awaitingFirstUser(request);
   if (result.state === 'denied') return forbidden(request);
@@ -95,7 +94,11 @@ async function routeAdmin(request: Request, pathname: string, requestId: string)
   };
 
   const targetBaseUrl =
-    serviceName === null ? internalServiceUrl('admin') : adminServiceUrl(serviceName);
+    target.area === 'panel'
+      ? internalServiceUrl('admin')
+      : target.area === 'database'
+        ? databaseBrowserUrl()
+        : adminServiceUrl(target.service);
 
   return proxyRequest(request, { targetBaseUrl, requestId, adminContext });
 }
@@ -114,11 +117,21 @@ async function routePublicService(
 }
 
 /**
- * Returns the service name of an `/admin/service/:name/**` path, or `null` for central Admin.
- * A bare `/admin/service` or `/admin/service/` has no name and is not a central Admin route.
+ * Which part of the admin panel a path is asking for, or `null` when it names nothing real.
+ *
+ * `/admin/service/:name/**` is one service's admin; `/admin/database/**` is the panel's own
+ * database browser; everything else under `/admin` is the panel itself. A bare `/admin/service`
+ * names no service and is not the panel either.
  */
-function adminServiceNameOf(pathname: string): string | null {
+function adminTargetOf(pathname: string): AdminTarget | null {
   const segments = pathname.split('/').filter(Boolean);
-  if (segments[1] !== 'service') return null;
-  return segments[2] ?? '';
+
+  if (segments[1] === 'database') return { area: 'database' };
+
+  if (segments[1] === 'service') {
+    const name = segments[2] ?? '';
+    return isAdminService(name) ? { area: 'service', service: name } : null;
+  }
+
+  return { area: 'panel' };
 }

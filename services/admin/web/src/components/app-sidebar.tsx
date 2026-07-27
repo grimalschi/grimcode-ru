@@ -26,7 +26,7 @@ import {
   SidebarMenuItem,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
-import { ADMIN_SERVICES } from '@/services';
+import { ADMIN_SERVICES, DATABASE_AREA } from '@/services';
 import type { AdminSession } from '@/session';
 
 const ICONS: Record<AdminServiceId, typeof ShieldIcon> = {
@@ -34,7 +34,6 @@ const ICONS: Record<AdminServiceId, typeof ShieldIcon> = {
   users: UsersIcon,
   notifications: BellIcon,
   email: MailIcon,
-  adminer: DatabaseIcon,
 };
 
 /**
@@ -50,7 +49,7 @@ export function AppSidebar({
   session: AdminSession;
   onLogout: () => void;
 }) {
-  const search = useSearch({ strict: false }) as { service?: string };
+  const search = useSearch({ strict: false }) as { service?: string; database?: boolean };
   const allowed = new Set(session.services);
 
   return (
@@ -72,14 +71,7 @@ export function AppSidebar({
           <SidebarGroupLabel>Сервисы</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {/*
-                The database is left out here and shown under Owner instead. It is not a service
-                admin: it is a window into every service's data at once, and only the owner ever
-                sees it. Sitting next to Auth and Users it read as a peer of theirs.
-              */}
-              {ADMIN_SERVICES.filter(
-                (service) => service.id !== 'adminer' && allowed.has(service.id),
-              ).map((service) => {
+              {ADMIN_SERVICES.filter((service) => allowed.has(service.id)).map((service) => {
                 const Icon = ICONS[service.id];
                 return (
                   <SidebarMenuItem key={service.id}>
@@ -90,7 +82,7 @@ export function AppSidebar({
                     >
                       {/* The hash carries the service-relative path, so a deep link survives a
                           reload and the browser's back button. */}
-                      <Link to="/" search={{ service: service.id }} hash="/">
+                      <Link to="/" search={{ service: service.id, database: undefined }} hash="/">
                         <Icon />
                         <span>{service.label}</span>
                       </Link>
@@ -123,16 +115,20 @@ export function AppSidebar({
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-                {allowed.has('adminer') ? (
+                {/*
+                  A section of the panel, not a service: it reads every service's data at once,
+                  which is why it lives here with the owner's other tools.
+                */}
+                {session.database ? (
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       asChild
-                      isActive={search.service === 'adminer'}
-                      tooltip="Database"
+                      isActive={search.database === true}
+                      tooltip={DATABASE_AREA.label}
                     >
-                      <Link to="/" search={{ service: 'adminer' }} hash="/">
+                      <Link to="/" search={{ service: undefined, database: true }}>
                         <DatabaseIcon />
-                        <span>Database</span>
+                        <span>{DATABASE_AREA.label}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

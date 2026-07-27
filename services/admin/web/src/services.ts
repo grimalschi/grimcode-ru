@@ -35,8 +35,22 @@ export const ADMIN_SERVICES: readonly AdminServiceEntry[] = [
     syncPath: true,
   },
   { id: 'email', label: 'Email', href: '/admin/service/email/', syncPath: true },
-  { id: 'adminer', label: 'Database', href: '/admin/service/adminer/', syncPath: false },
 ];
+
+/**
+ * The panel's own database browser.
+ *
+ * Not in the list above: that list is the services of this template, each with its own admin. This
+ * is a third-party application the panel embeds, showing every service's data at once, which is
+ * exactly why only the owner reaches it and why no grant mentions it.
+ *
+ * It navigates with ordinary server-rendered links, so the shell only hands it the theme and never
+ * tries to keep its path in sync.
+ */
+export const DATABASE_AREA = {
+  label: 'База данных',
+  href: '/admin/database/',
+} as const;
 
 export function findAdminService(id: string): AdminServiceEntry | undefined {
   return ADMIN_SERVICES.find((service) => service.id === id);

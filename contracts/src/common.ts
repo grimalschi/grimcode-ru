@@ -16,19 +16,37 @@ export const SERVICE_IDS = [
   'users',
   'notifications',
   'email',
-  'adminer',
 ] as const;
 
 export type ServiceId = (typeof SERVICE_IDS)[number];
 
-/** Services that expose an admin surface inside the central Admin shell. */
-export const ADMIN_SERVICE_IDS = ['auth', 'users', 'notifications', 'email', 'adminer'] as const;
+/**
+ * Services that expose an admin surface inside the central Admin shell.
+ *
+ * Every one of them is a service of this template with its own database, its own contract and its
+ * own built admin. The database browser is not on this list: it belongs to the Admin panel, not to
+ * a service — see `ADMIN_AREAS`.
+ */
+export const ADMIN_SERVICE_IDS = ['auth', 'users', 'notifications', 'email'] as const;
 
 export type AdminServiceId = (typeof ADMIN_SERVICE_IDS)[number];
 
 /**
+ * What a request to the admin panel is asking for.
+ *
+ * `panel` is the shell and its own API. `service` is one service's admin. `database` is the panel's
+ * own database browser — a window into every service's data at once, which is why it is a part of
+ * the panel and never something an owner can hand out.
+ */
+export const ADMIN_AREAS = ['panel', 'service', 'database'] as const;
+
+export type AdminArea = (typeof ADMIN_AREAS)[number];
+
+/**
  * Admin services an owner may hand to a regular administrator.
- * Adminer is deliberately absent: it is always owner-only and can never be granted.
+ *
+ * The same list as `ADMIN_SERVICE_IDS` today, and kept separate on purpose: a project that adds a
+ * service admin only the owner should reach leaves it out of this one.
  */
 export const ASSIGNABLE_SERVICE_IDS = ['auth', 'users', 'notifications', 'email'] as const;
 

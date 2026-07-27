@@ -13,13 +13,14 @@ an administrator signs in with the ordinary identity and session from Auth.
 | `owner` | every admin service, and manages administrators |
 | `admin` | only the services explicitly granted to them |
 
-**Adminer is always owner-only.** It is absent from the assignable grants in `contracts/`, and
-`authorization.ts` refuses it for a regular administrator even if a grant row somehow existed.
+**The database area is always owner-only.** It is not a service, so no grant can name it; it reads
+every service's data at once, which is the whole reason it belongs to the owner alone.
 
 ## The single authorization method
 
 Gateway calls `admin.authorize` on **every** `/admin/**` request — HTML, API and assets alike. It
-passes the session cookie and, when a service admin is requested, that service's name.
+passes the session cookie and the **target**: the panel itself, one service's admin, or the database
+area. Gateway works the target out from the URL and knows nothing about who may reach it.
 
 ```
 no session                        → denied: no-session
@@ -27,8 +28,9 @@ session Auth no longer knows      → denied: no-session
 registry empty, Auth empty        → awaiting-first-user
 not in the registry               → denied: not-an-administrator
 disabled                          → denied: disabled
-service is Adminer, not owner     → denied: owner-only
-owner                             → allowed (all admin services)
+target is the panel               → allowed for any enabled administrator
+target is the database, not owner → denied: owner-only
+owner                             → allowed
 admin with the grant              → allowed
 admin without the grant           → denied: no-grant
 ```
@@ -87,6 +89,10 @@ in the Auth database, which Admin may never read or reference.
 | `/internal/rpc` | internal Docker network only | Gateway, for `authorize` |
 | `/admin/rpc` | through Gateway's admin route | the central Admin shell |
 | `/admin/**` | through Gateway's admin route | the built shell assets |
+
+`/admin/database/**` is the panel's own area, proxied by Gateway to the database browser rather than
+to this service. It is owner-only and appears in no grant, because it reads every service's data at
+once — see [administrator access](../../docs/admin-access.md).
 
 ## Adding another service admin
 

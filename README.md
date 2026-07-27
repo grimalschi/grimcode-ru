@@ -27,7 +27,7 @@ first account you register becomes the owner.
 | **users** | The product profile and preferences |
 | **notifications** | Typed events, deduplicated, routed |
 | **email** | Templates, a self-hosted editor, transports, the delivery log |
-| **adminer** | The real Adminer, owner-only, through Gateway |
+| **database** | A section of the admin panel: the real Adminer, owner-only, through Gateway |
 
 ## Documentation
 

@@ -17,8 +17,16 @@ export interface AuthorizeDeps {
   logger: Logger;
 }
 
-/** Adminer is owner-only and can never be handed to a regular administrator. */
-const OWNER_ONLY_SERVICES: readonly AdminServiceId[] = ['adminer'];
+/**
+ * What a request is asking to open.
+ *
+ * Gateway works out which area a path belongs to; this decides who may reach it. Keeping the two
+ * apart means Gateway holds no policy and Admin holds no routing.
+ */
+export type AdminTarget =
+  | { area: 'panel' }
+  | { area: 'service'; service: AdminServiceId }
+  | { area: 'database' };
 
 /**
  * The single decision Gateway asks for on every `/admin/**` request.
@@ -28,10 +36,10 @@ const OWNER_ONLY_SERVICES: readonly AdminServiceId[] = ['adminer'];
  * through its contract; Admin never reads the Auth database.
  */
 export async function authorize(
-  input: { sessionToken: string | null; service: AdminServiceId | null },
+  input: { sessionToken: string | null; target: AdminTarget },
   deps: AuthorizeDeps,
 ): Promise<AuthorizationResult> {
-  if (input.service !== null && !ADMIN_SERVICE_IDS.includes(input.service)) {
+  if (input.target.area === 'service' && !ADMIN_SERVICE_IDS.includes(input.target.service)) {
     return { state: 'denied', reason: 'unknown-service' };
   }
 
@@ -58,18 +66,23 @@ export async function authorize(
     role: administrator.role,
   } as const;
 
-  // Central Admin itself is open to any enabled administrator; the sidebar then shows only what
-  // their role and grants allow.
-  if (input.service === null) return allowed;
+  // The panel itself is open to any enabled administrator; the sidebar then shows only what their
+  // role and grants allow.
+  if (input.target.area === 'panel') return allowed;
 
-  if (OWNER_ONLY_SERVICES.includes(input.service)) {
+  /*
+   * The database browser is part of the panel rather than a service admin, and it reads every
+   * service's data at once. That is why it is the owner's alone and appears in no grant: there is
+   * nothing to hand out, so nothing can be handed out by mistake.
+   */
+  if (input.target.area === 'database') {
     return administrator.role === 'owner' ? allowed : { state: 'denied', reason: 'owner-only' };
   }
 
   if (administrator.role === 'owner') return allowed;
 
   const grants = administrator.grants ?? [];
-  return grants.includes(input.service) ? allowed : { state: 'denied', reason: 'no-grant' };
+  return grants.includes(input.target.service) ? allowed : { state: 'denied', reason: 'no-grant' };
 }
 
 /**
@@ -94,7 +107,10 @@ export function visibleServices(
   grants: readonly string[],
 ): AdminServiceId[] {
   if (role === 'owner') return [...ADMIN_SERVICE_IDS];
-  return ADMIN_SERVICE_IDS.filter(
-    (service) => !OWNER_ONLY_SERVICES.includes(service) && grants.includes(service),
-  );
+  return ADMIN_SERVICE_IDS.filter((service) => grants.includes(service));
+}
+
+/** Whether the panel should offer its database browser at all. */
+export function canOpenDatabase(role: 'owner' | 'admin'): boolean {
+  return role === 'owner';
 }
