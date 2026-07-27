@@ -21,6 +21,9 @@ test-results/
 # Generated locally when Docker address pools are exhausted.
 docker/compose.network.local.yaml
 
+# Рабочие копии, которые агент заводит для своих веток.
+.claude/
+
 # Editor state.
 .idea/
 .vscode/
