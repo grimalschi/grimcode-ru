@@ -9,7 +9,7 @@
   },
   "scripts": {
     "bootstrap": "node scripts/bootstrap.mjs",
-    "worktree:bootstrap": "node scripts/worktree-bootstrap.mjs",
+    "bootstrap:worktree": "node scripts/bootstrap-worktree.mjs",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
@@ -23,8 +23,7 @@
     "logs": "node scripts/compose.mjs logs -f",
     "network:allocate": "node scripts/allocate-network.mjs",
     "test:acceptance": "pnpm --filter @template/acceptance acceptance",
-    "test:browser": "pnpm --filter @template/acceptance browser",
-    "bootstrap:worktree": "node scripts/bootstrap-worktree.mjs"
+    "test:browser": "pnpm --filter @template/acceptance browser"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
