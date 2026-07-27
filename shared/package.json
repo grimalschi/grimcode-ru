@@ -33,8 +33,7 @@
     "@orpc/server": "1.14.10",
     "@template/contracts": "workspace:*",
     "hono": "4.12.32",
-    "pg": "8.22.0",
-    "zod": "4.4.3"
+    "pg": "8.22.0"
   },
   "devDependencies": {
     "@types/node": "22.20.1",

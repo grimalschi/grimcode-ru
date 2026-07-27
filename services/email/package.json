@@ -17,7 +17,6 @@
     "dev:web": "vite --config web/vite.config.ts"
   },
   "dependencies": {
-    "@hono/node-server": "2.0.11",
     "@maily-to/render": "0.2.3",
     "@orpc/client": "1.14.10",
     "@orpc/server": "1.14.10",

@@ -17,14 +17,11 @@
     "dev:web": "vite --config web/vite.config.ts"
   },
   "dependencies": {
-    "@hono/node-server": "2.0.11",
     "@orpc/client": "1.14.10",
     "@orpc/server": "1.14.10",
     "@template/contracts": "workspace:*",
     "@template/shared": "workspace:*",
-    "hono": "4.12.32",
-    "pg": "8.22.0",
-    "zod": "4.4.3"
+    "hono": "4.12.32"
   },
   "devDependencies": {
     "@orpc/contract": "1.14.10",

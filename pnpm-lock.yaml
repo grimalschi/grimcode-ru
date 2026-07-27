@@ -57,9 +57,6 @@ importers:
 
   services/admin:
     dependencies:
-      '@hono/node-server':
-        specifier: 2.0.11
-        version: 2.0.11(hono@4.12.32)
       '@orpc/client':
         specifier: 1.14.10
         version: 1.14.10
@@ -75,12 +72,6 @@ importers:
       hono:
         specifier: 4.12.32
         version: 4.12.32
-      pg:
-        specifier: 8.22.0
-        version: 8.22.0
-      zod:
-        specifier: 4.4.3
-        version: 4.4.3
     devDependencies:
       '@orpc/contract':
         specifier: 1.14.10
@@ -148,15 +139,9 @@ importers:
 
   services/app:
     dependencies:
-      '@hono/node-server':
-        specifier: 2.0.11
-        version: 2.0.11(hono@4.12.32)
       '@template/shared':
         specifier: workspace:*
         version: link:../../shared
-      hono:
-        specifier: 4.12.32
-        version: 4.12.32
     devDependencies:
       '@orpc/client':
         specifier: 1.14.10
@@ -230,9 +215,6 @@ importers:
 
   services/auth:
     dependencies:
-      '@hono/node-server':
-        specifier: 2.0.11
-        version: 2.0.11(hono@4.12.32)
       '@orpc/client':
         specifier: 1.14.10
         version: 1.14.10
@@ -248,9 +230,6 @@ importers:
       hono:
         specifier: 4.12.32
         version: 4.12.32
-      pg:
-        specifier: 8.22.0
-        version: 8.22.0
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -321,9 +300,6 @@ importers:
 
   services/email:
     dependencies:
-      '@hono/node-server':
-        specifier: 2.0.11
-        version: 2.0.11(hono@4.12.32)
       '@maily-to/render':
         specifier: 0.2.3
         version: 0.2.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -424,12 +400,6 @@ importers:
 
   services/gateway:
     dependencies:
-      '@hono/node-server':
-        specifier: 2.0.11
-        version: 2.0.11(hono@4.12.32)
-      '@orpc/client':
-        specifier: 1.14.10
-        version: 1.14.10
       '@template/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -449,9 +419,6 @@ importers:
 
   services/notifications:
     dependencies:
-      '@hono/node-server':
-        specifier: 2.0.11
-        version: 2.0.11(hono@4.12.32)
       '@orpc/client':
         specifier: 1.14.10
         version: 1.14.10
@@ -467,9 +434,6 @@ importers:
       hono:
         specifier: 4.12.32
         version: 4.12.32
-      pg:
-        specifier: 8.22.0
-        version: 8.22.0
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -601,9 +565,6 @@ importers:
 
   services/users:
     dependencies:
-      '@hono/node-server':
-        specifier: 2.0.11
-        version: 2.0.11(hono@4.12.32)
       '@orpc/client':
         specifier: 1.14.10
         version: 1.14.10
@@ -619,9 +580,6 @@ importers:
       hono:
         specifier: 4.12.32
         version: 4.12.32
-      pg:
-        specifier: 8.22.0
-        version: 8.22.0
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -710,9 +668,6 @@ importers:
       pg:
         specifier: 8.22.0
         version: 8.22.0
-      zod:
-        specifier: 4.4.3
-        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: 22.20.1
@@ -732,9 +687,6 @@ importers:
       '@playwright/test':
         specifier: 1.62.0
         version: 1.62.0
-      '@template/contracts':
-        specifier: workspace:*
-        version: link:../contracts
       '@types/node':
         specifier: 22.20.1
         version: 22.20.1

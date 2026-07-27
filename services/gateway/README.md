@@ -71,8 +71,8 @@ also sets its own session cookie.
 | `PUBLIC_SITE_URL` | External origin, used in the sign-in link of the 403 page |
 | `SERVICE_URL_*` | Optional overrides of internal service base URLs |
 
-Gateway's own listening port is fixed inside the image. Locally the published host port is chosen
-by `pnpm bootstrap` and bound to loopback.
+Gateway's own listening port is fixed inside the image. Locally the published host port comes from
+`GATEWAY_PORT` in `.env`; in production nothing is published at all.
 
 ## Commands
 

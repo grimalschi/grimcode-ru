@@ -17,9 +17,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@hono/node-server": "2.0.11",
-    "@template/shared": "workspace:*",
-    "hono": "4.12.32"
+    "@template/shared": "workspace:*"
   },
   "devDependencies": {
     "@orpc/client": "1.14.10",

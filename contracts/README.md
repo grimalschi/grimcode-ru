@@ -13,7 +13,7 @@ forbidden, and cross-service communication goes through HTTP/oRPC using these co
 | `src/common.ts` | Service ids, admin roles, pagination, the verified admin context schema |
 | `src/auth.ts` | Identity, sessions, public auth flows, internal lookups, Auth service admin |
 | `src/admin.ts` | Administrator registry, the single `authorize` method Gateway calls, audit |
-| `src/users.ts` | Product profile, preferences, onboarding |
+| `src/users.ts` | Product profile |
 | `src/notifications.ts` | The closed set of typed events and their template routing |
 | `src/email.ts` | Templates, versions, publish, preview, test send and the delivery log |
 
