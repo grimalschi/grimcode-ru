@@ -143,7 +143,7 @@ export const authInternalContract = {
 };
 
 /**
- * Auth service admin surface. Reachable as `/admin/embed/services/auth/rpc` only after Gateway has
+ * Auth service admin surface. Reachable as `/admin/embed/service/auth/rpc` only after Gateway has
  * verified the session, the admin role and the grant on Auth.
  */
 export const authAdminContract = {

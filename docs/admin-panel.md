@@ -29,8 +29,8 @@ paths:
 
 | | |
 | --- | --- |
-| `/admin/services/email#/templates/123` | the panel's page, showing the Email admin |
-| `/admin/embed/services/email/templates/123` | the Email admin itself, embedded |
+| `/admin/service/email#/templates/123` | the panel's page, showing the Email admin |
+| `/admin/embed/service/email/templates/123` | the Email admin itself, embedded |
 | `/admin/database` | the panel's page, showing the database browser |
 | `/admin/embed/database/` | the browser itself |
 | `/admin/administrators`, `/admin/audit` | the panel's own sections |
@@ -72,7 +72,7 @@ presentation, so the server has to refuse it too.
 
 Copy the closest existing one — `services/auth/web` is the plainest — and change four things:
 
-1. `web/vite.config.ts`: the `base`, which must match `/admin/embed/services/<id>/`;
+1. `web/vite.config.ts`: the `base`, which must match `/admin/embed/service/<id>/`;
 2. `web/src/api.ts`: the prefix, the contract it is typed against, and which of its procedures
    change something and therefore carry a CSRF token;
 3. `web/src/main.tsx`: the `basepath`, the tabs and the routes;

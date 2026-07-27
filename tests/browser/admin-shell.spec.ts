@@ -81,7 +81,7 @@ test.describe('themes', () => {
    */
   test('reaches an embedded service admin', async ({ page }) => {
     await signIn(page);
-    await page.goto('/admin/services/auth#/');
+    await page.goto('/admin/service/auth#/');
 
     const frame = page.frameLocator('iframe[title="Админка Auth"]');
     await expect(frame.getByRole('link', { name: 'Пользователи' })).toBeVisible();
@@ -109,7 +109,7 @@ test.describe('the frame protocol', () => {
     const problems = collectPageErrors(page);
 
     await signIn(page);
-    await page.goto('/admin/services/auth#/');
+    await page.goto('/admin/service/auth#/');
 
     const frame = page.frameLocator('iframe[title="Админка Auth"]');
     await expect(frame.getByRole('link', { name: 'Пользователи' })).toBeVisible();
@@ -135,7 +135,7 @@ test.describe('the frame protocol', () => {
    */
   test('actually changes service when another one is chosen', async ({ page }) => {
     await signIn(page);
-    await page.goto('/admin/services/auth#/');
+    await page.goto('/admin/service/auth#/');
 
     await expect(
       page.frameLocator('iframe[title="Админка Auth"]').getByRole('link', { name: 'Пользователи' }),
@@ -160,7 +160,7 @@ test.describe('the frame protocol', () => {
 
   test('opens a deep link straight into the embedded admin', async ({ page }) => {
     await signIn(page);
-    await page.goto('/admin/services/auth#/audit');
+    await page.goto('/admin/service/auth#/audit');
 
     const frame = page.frameLocator('iframe[title="Админка Auth"]');
     await expect(frame.getByRole('heading', { name: 'Журнал безопасности' })).toBeVisible();
@@ -170,7 +170,7 @@ test.describe('the frame protocol', () => {
     const problems = collectPageErrors(page);
 
     await signIn(page);
-    await page.goto('/admin/embed/services/auth/audit');
+    await page.goto('/admin/embed/service/auth/audit');
 
     await expect(page.getByRole('heading', { name: 'Журнал безопасности' })).toBeVisible();
     // Standing alone it owns its theme, so the switch is there.

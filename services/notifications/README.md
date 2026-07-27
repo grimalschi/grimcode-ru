@@ -41,7 +41,7 @@ up in the service admin instead of disappearing into a log line.
 | Mount | Reachable as | Callers |
 | --- | --- | --- |
 | `/internal/rpc` | internal Docker network only | other services emitting events |
-| `/admin/embed/services/notifications/rpc` | through Gateway's admin route | administrators granted Notifications |
+| `/admin/embed/service/notifications/rpc` | through Gateway's admin route | administrators granted Notifications |
 
 Notifications has **no public surface**: it is deliberately absent from Gateway's public
 allowlist, so no browser can emit an event.

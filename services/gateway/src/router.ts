@@ -23,7 +23,7 @@ import {
  *
  * | Incoming path              | Target                        | Gateway check                        |
  * | -------------------------- | ----------------------------- | ------------------------------------ |
- * | `/admin/embed/services/:name/**`  | admin panel of that service   | session, role and grant on `:name`   |
+ * | `/admin/embed/service/:name/**`  | admin panel of that service   | session, role and grant on `:name`   |
  * | `/admin/**`                | admin                         | session and an admin role            |
  * | `/service/:name/**`        | service from the public list  | none — the service secures itself    |
  * | `/app/**`                  | app                           | none — App checks the user session   |
@@ -119,7 +119,7 @@ async function routePublicService(
 /**
  * Which part of the admin panel a path is asking for, or `null` when it names nothing real.
  *
- * Everything the panel embeds lives under `/admin/embed/`: `/admin/embed/services/:name/**` is one
+ * Everything the panel embeds lives under `/admin/embed/`: `/admin/embed/service/:name/**` is one
  * service's admin, `/admin/embed/database/**` is the database browser. Everything else under
  * `/admin` is the panel itself, so its own pages are ordinary paths that can never collide with an
  * embedded application.
@@ -130,7 +130,7 @@ function adminTargetOf(pathname: string): AdminTarget | null {
 
   if (segments[2] === 'database') return { area: 'database' };
 
-  if (segments[2] === 'services') {
+  if (segments[2] === 'service') {
     const name = segments[3] ?? '';
     return isAdminService(name) ? { area: 'service', service: name } : null;
   }

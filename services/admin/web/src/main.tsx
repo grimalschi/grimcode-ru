@@ -101,14 +101,14 @@ function Home() {
 
 /**
  * Every page of the panel is a path, and the hash carries the service-relative route inside an
- * embedded admin: `/admin/services/email#/templates/123`.
+ * embedded admin: `/admin/service/email#/templates/123`.
  *
  * Nothing collides with the applications the panel embeds, because those live under
  * `/admin/embed/` and Gateway proxies them there.
  */
 const serviceRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/services/$service',
+  path: '/service/$service',
   // Keyed by the service, so switching to another one builds a new frame. Without it React reuses
   // the component, and the iframe keeps the src it was first given — the sidebar changes and the
   // page does not.

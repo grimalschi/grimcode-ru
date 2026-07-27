@@ -33,7 +33,7 @@ const app = createServiceApp('auth', logger);
 /**
  * Three mounts, one per trust boundary.
  *
- * Gateway proxies `/service/auth/**` and `/admin/embed/services/auth/**` and never proxies
+ * Gateway proxies `/service/auth/**` and `/admin/embed/service/auth/**` and never proxies
  * `/internal/**`, so the internal surface stays reachable only from the Docker network.
  */
 
@@ -47,7 +47,7 @@ mountRpc(app, '/service/auth/rpc', publicRouter, ({ request, resHeaders, hono })
 
 mountRpc(app, '/internal/rpc', internalRouter, () => ({ repo }));
 
-mountRpc(app, '/admin/embed/services/auth/rpc', adminRouter, ({ request, hono }) => ({
+mountRpc(app, '/admin/embed/service/auth/rpc', adminRouter, ({ request, hono }) => ({
   repo,
   notifier: new Notifier(hono.get('logger'), () => hono.get('requestId')),
   logger: hono.get('logger'),
@@ -56,10 +56,10 @@ mountRpc(app, '/admin/embed/services/auth/rpc', adminRouter, ({ request, hono })
   admin: readAdminContext(request.headers),
 }));
 
-mountCsrfEndpoint(app, '/admin/embed/services/auth/csrf', 'auth');
+mountCsrfEndpoint(app, '/admin/embed/service/auth/csrf', 'auth');
 
 mountSpa(app, {
-  basePath: '/admin/embed/services/auth',
+  basePath: '/admin/embed/service/auth',
   rootDir: join(dirname(fileURLToPath(import.meta.url)), '../web/dist'),
 });
 

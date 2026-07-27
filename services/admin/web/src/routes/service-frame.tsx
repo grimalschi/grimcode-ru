@@ -10,14 +10,14 @@ import { findAdminService } from '@/services';
 /**
  * A service admin, embedded same-origin.
  *
- * The shell's URL is the canonical one — `/admin/services/email#/templates/123` — and the iframe is
- * pointed at `/admin/embed/services/email/templates/123`, which Gateway checks exactly as it would
+ * The shell's URL is the canonical one — `/admin/service/email#/templates/123` — and the iframe is
+ * pointed at `/admin/embed/service/email/templates/123`, which Gateway checks exactly as it would
  * if the administrator opened it directly.
  *
  * The shell never imports a service admin's code: composition happens over the frame protocol.
  */
 export function ServiceFrame() {
-  const { service: serviceId } = useParams({ from: '/services/$service' });
+  const { service: serviceId } = useParams({ from: '/service/$service' });
   const service = findAdminService(serviceId);
   const navigate = useNavigate();
   const frame = React.useRef<HTMLIFrameElement>(null);
@@ -31,7 +31,7 @@ export function ServiceFrame() {
     (next: string) => {
       // `replace` keeps navigation that happened inside the iframe out of the browser history a
       // second time: the iframe already added its own entry.
-      void navigate({ to: '/services/$service', params: { service: serviceId }, hash: next, replace: true });
+      void navigate({ to: '/service/$service', params: { service: serviceId }, hash: next, replace: true });
     },
     [navigate, serviceId],
   );

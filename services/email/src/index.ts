@@ -43,7 +43,7 @@ mountRpc(app, '/internal/rpc', internalRouter, ({ hono }) => ({
   logger: hono.get('logger'),
 }));
 
-mountRpc(app, '/admin/embed/services/email/rpc', adminRouter, ({ request, hono }) => ({
+mountRpc(app, '/admin/embed/service/email/rpc', adminRouter, ({ request, hono }) => ({
   repo,
   transport,
   logger: hono.get('logger'),
@@ -51,12 +51,12 @@ mountRpc(app, '/admin/embed/services/email/rpc', adminRouter, ({ request, hono }
   admin: readAdminContext(request.headers),
 }));
 
-mountCsrfEndpoint(app, '/admin/embed/services/email/csrf', 'email');
+mountCsrfEndpoint(app, '/admin/embed/service/email/csrf', 'email');
 
 // The editor lives in this service's own build and loads only on the editor route; it is never
 // part of the central Admin bundle or of runtime delivery.
 mountSpa(app, {
-  basePath: '/admin/embed/services/email',
+  basePath: '/admin/embed/service/email',
   rootDir: join(dirname(fileURLToPath(import.meta.url)), '../web/dist'),
 });
 

@@ -35,16 +35,16 @@ mountRpc(app, '/service/users/rpc', publicRouter, async ({ request, hono }) => (
 
 mountRpc(app, '/internal/rpc', internalRouter, () => ({ repo }));
 
-mountRpc(app, '/admin/embed/services/users/rpc', adminRouter, ({ request }) => ({
+mountRpc(app, '/admin/embed/service/users/rpc', adminRouter, ({ request }) => ({
   repo,
   request,
   admin: readAdminContext(request.headers),
 }));
 
-mountCsrfEndpoint(app, '/admin/embed/services/users/csrf', 'users');
+mountCsrfEndpoint(app, '/admin/embed/service/users/csrf', 'users');
 
 mountSpa(app, {
-  basePath: '/admin/embed/services/users',
+  basePath: '/admin/embed/service/users',
   rootDir: join(dirname(fileURLToPath(import.meta.url)), '../web/dist'),
 });
 

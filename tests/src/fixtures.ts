@@ -90,7 +90,7 @@ export async function ensureFixtureTemplate(
   variables: string[],
 ): Promise<string> {
   const page = await owner.call<{ items: { id: string; key: string }[] }>(
-    '/admin/embed/services/email',
+    '/admin/embed/service/email',
     'listTemplates',
     { query: key, limit: 50, offset: 0 },
   );
@@ -99,7 +99,7 @@ export async function ensureFixtureTemplate(
   if (existing) return existing.id;
 
   const created = await owner.call<{ template: { id: string } }>(
-    '/admin/embed/services/email',
+    '/admin/embed/service/email',
     'createTemplate',
     {
       key,

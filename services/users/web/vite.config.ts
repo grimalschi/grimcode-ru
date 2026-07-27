@@ -12,7 +12,7 @@ import { defineConfig } from 'vite';
  */
 export default defineConfig({
   root: fileURLToPath(new URL('.', import.meta.url)),
-  base: '/admin/embed/services/users/',
+  base: '/admin/embed/service/users/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },

@@ -34,15 +34,15 @@ mountRpc(app, '/internal/rpc', internalRouter, ({ hono }) => ({
   requestId: hono.get('requestId'),
 }));
 
-mountRpc(app, '/admin/embed/services/notifications/rpc', adminRouter, ({ request }) => ({
+mountRpc(app, '/admin/embed/service/notifications/rpc', adminRouter, ({ request }) => ({
   repo,
   admin: readAdminContext(request.headers),
 }));
 
-mountCsrfEndpoint(app, '/admin/embed/services/notifications/csrf', 'notifications');
+mountCsrfEndpoint(app, '/admin/embed/service/notifications/csrf', 'notifications');
 
 mountSpa(app, {
-  basePath: '/admin/embed/services/notifications',
+  basePath: '/admin/embed/service/notifications',
   rootDir: join(dirname(fileURLToPath(import.meta.url)), '../web/dist'),
 });
 

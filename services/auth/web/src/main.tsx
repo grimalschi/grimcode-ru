@@ -20,7 +20,7 @@ import { IdentitiesPage } from '@/routes/identities';
 
 import '@/styles.css';
 
-const BASE = '/admin/embed/services/auth';
+const BASE = '/admin/embed/service/auth';
 
 const TABS = [
   { to: '/', label: 'Пользователи' },

@@ -9,7 +9,7 @@ import type { emailContract } from '@template/contracts';
  * The call goes through Gateway, which has already checked the session, the admin role and the
  * grant on Email. Operations that change something also carry a CSRF token this service issued.
  */
-const BASE = '/admin/embed/services/email';
+const BASE = '/admin/embed/service/email';
 
 // `previewVersion` renders without storing anything, so it needs no token.
 const MUTATIONS = new Set([

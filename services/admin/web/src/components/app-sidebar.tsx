@@ -101,7 +101,7 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
                     <SidebarMenuButton asChild tooltip={service.label}>
                       {/* The hash carries the service-relative path, so a deep link survives a
                           reload and the browser's back button. */}
-                      <Link to="/services/$service" params={{ service: service.id }} hash="/">
+                      <Link to="/service/$service" params={{ service: service.id }} hash="/">
                         <Icon />
                         <span>{service.label}</span>
                       </Link>

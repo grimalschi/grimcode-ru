@@ -16,7 +16,7 @@ flowchart LR
   gateway -->|/service/auth| auth[Auth]
   gateway -->|/service/users| users[Users]
   gateway -->|/admin| admin[Admin]
-  gateway -->|/admin/embed/services/*| serviceAdmins[Service admins]
+  gateway -->|/admin/embed/service/*| serviceAdmins[Service admins]
   gateway -->|/admin/embed/database| adminer[(Database browser)]
 
   gateway -.->|authorize| admin

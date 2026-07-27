@@ -67,7 +67,7 @@ describe('the admin panel itself', () => {
   it('protects the admin assets, not only its pages', async () => {
     const anonymous = new Session();
     expect(await anonymous.status('/admin/assets/index.js')).toBe(403);
-    expect(await anonymous.status('/admin/embed/services/email/assets/index.js')).toBe(403);
+    expect(await anonymous.status('/admin/embed/service/email/assets/index.js')).toBe(403);
   });
 });
 
@@ -178,7 +178,7 @@ describe('the database area', () => {
   });
 
   it('is not reachable as a service admin either', async () => {
-    expect(await owner.status('/admin/embed/services/adminer/')).toBe(404);
+    expect(await owner.status('/admin/embed/service/adminer/')).toBe(404);
   });
 
   it('has no public route', async () => {

@@ -312,7 +312,7 @@ describe('the built admin surfaces', () => {
     const page = await owner.fetch(`${serviceAdmin('email')}/`);
     const html = await page.text();
 
-    const entry = /src="(\/admin\/embed\/services\/email\/assets\/[^"]+\.js)"/.exec(html)?.[1];
+    const entry = /src="(\/admin\/embed\/service\/email\/assets\/[^"]+\.js)"/.exec(html)?.[1];
     expect(entry).toBeDefined();
 
     const asset = await owner.fetch(entry!);

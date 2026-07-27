@@ -26,15 +26,15 @@ export interface AdminServiceEntry {
  * the very same Gateway check.
  */
 export const ADMIN_SERVICES: readonly AdminServiceEntry[] = [
-  { id: 'auth', label: 'Auth', embedHref: '/admin/embed/services/auth/', syncPath: true },
-  { id: 'users', label: 'Users', embedHref: '/admin/embed/services/users/', syncPath: true },
+  { id: 'auth', label: 'Auth', embedHref: '/admin/embed/service/auth/', syncPath: true },
+  { id: 'users', label: 'Users', embedHref: '/admin/embed/service/users/', syncPath: true },
   {
     id: 'notifications',
     label: 'Notifications',
-    embedHref: '/admin/embed/services/notifications/',
+    embedHref: '/admin/embed/service/notifications/',
     syncPath: true,
   },
-  { id: 'email', label: 'Email', embedHref: '/admin/embed/services/email/', syncPath: true },
+  { id: 'email', label: 'Email', embedHref: '/admin/embed/service/email/', syncPath: true },
 ];
 
 /**

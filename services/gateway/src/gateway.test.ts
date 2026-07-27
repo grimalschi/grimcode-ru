@@ -128,10 +128,10 @@ describe('admin authorization', () => {
 
   it('forwards a verified administrator context after Admin allowed the request', async () => {
     stub.authorize = async () => OWNER;
-    await route('/admin/embed/services/email/templates/123');
+    await route('/admin/embed/service/email/templates/123');
 
     const sent = forwarded[0];
-    expect(sent?.url).toBe('http://email:3006/admin/embed/services/email/templates/123');
+    expect(sent?.url).toBe('http://email:3006/admin/embed/service/email/templates/123');
     expect(sent?.headers.get('x-template-admin-user-id')).toBe(OWNER.userId);
     expect(sent?.headers.get('x-template-admin-email')).toBe('owner@example.com');
     expect(sent?.headers.get('x-template-admin-role')).toBe('owner');
@@ -142,7 +142,7 @@ describe('admin authorization', () => {
     stub.authorize = async () => OWNER;
     const headers = new Headers();
     for (const name of ADMIN_CONTEXT_HEADERS) headers.set(name, 'forged-by-client');
-    await route('/admin/embed/services/email/', { headers });
+    await route('/admin/embed/service/email/', { headers });
 
     const sent = forwarded[0];
     for (const name of ADMIN_CONTEXT_HEADERS) {
@@ -164,7 +164,7 @@ describe('admin authorization', () => {
 
   it('asks Admin about the requested service', async () => {
     stub.authorize = async () => OWNER;
-    await route('/admin/embed/services/email/');
+    await route('/admin/embed/service/email/');
     expect(stub.calls).toEqual([{ area: 'service', service: 'email' }]);
   });
 
@@ -184,7 +184,7 @@ describe('admin authorization', () => {
 
   it('refuses an unknown admin service without asking Admin at all', async () => {
     stub.authorize = async () => OWNER;
-    const response = await route('/admin/embed/services/billing/');
+    const response = await route('/admin/embed/service/billing/');
     expect(response.status).toBe(404);
     expect(stub.calls).toHaveLength(0);
     expect(forwarded).toHaveLength(0);

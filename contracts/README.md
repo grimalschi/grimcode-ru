@@ -23,7 +23,7 @@ Every service contract is split by trust boundary, and each part is mounted on i
 
 - `public` — reachable through Gateway as `/service/<name>/rpc`. Gateway performs no authorization
   here; securing these endpoints is the service's own responsibility.
-- `admin` — reachable as `/admin/embed/services/<name>/rpc` only after Gateway verified the session, the
+- `admin` — reachable as `/admin/embed/service/<name>/rpc` only after Gateway verified the session, the
   admin role and the grant on that service.
 - `internal` — mounted on `/internal/rpc`, which Gateway never proxies, so it stays reachable only
   from inside the Docker network.
