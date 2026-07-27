@@ -102,6 +102,24 @@ async function findFreePortInRange(start, end, taken) {
   );
 }
 
+/**
+ * The same address on another port.
+ *
+ * A checkout reachable from another machine has a real host in `PUBLIC_SITE_URL` —
+ * `http://192.168.1.5:63006` for a phone on the same network — and a worktree of it needs that host
+ * too. Only the port is this worktree's own; replacing the whole address would quietly send it back
+ * to loopback and break what was set up deliberately.
+ */
+function sameAddressOnPort(address, port) {
+  try {
+    const url = new URL(address);
+    url.port = String(port);
+    return url.origin;
+  } catch {
+    return `http://127.0.0.1:${port}`;
+  }
+}
+
 /** Every project slug a checkout of this repository still claims. */
 function liveProjectSlugs() {
   const slugs = new Set();
@@ -223,7 +241,11 @@ const postgresPort =
 resolved.set('PROJECT_SLUG', slug);
 resolved.set('GATEWAY_PORT', gatewayPort);
 resolved.set('POSTGRES_PORT', postgresPort);
-resolved.set('PUBLIC_SITE_URL', existing.get('PUBLIC_SITE_URL') || `http://127.0.0.1:${gatewayPort}`);
+resolved.set(
+  'PUBLIC_SITE_URL',
+  existing.get('PUBLIC_SITE_URL') ||
+    sameAddressOnPort(mainEnv.get('PUBLIC_SITE_URL') ?? 'http://127.0.0.1', gatewayPort),
+);
 // Carried over from the main checkout, it would point the test suites at the main checkout's port.
 resolved.delete('ACCEPTANCE_BASE_URL');
 
