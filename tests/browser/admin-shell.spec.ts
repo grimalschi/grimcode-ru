@@ -32,6 +32,32 @@ test.describe('the admin shell', () => {
     }
   });
 
+  /**
+   * The sidebar is the only thing on the screen that says which section is open: a service admin
+   * fills the frame with its own page, and the panel around it would otherwise look the same
+   * everywhere.
+   */
+  test('keeps the open section marked in the sidebar', async ({ page }) => {
+    await signIn(page);
+
+    await page.goto('/admin/service/auth#/');
+    await expect(page.getByRole('link', { name: 'Auth' })).toHaveAttribute('data-active', 'true');
+    await expect(page.getByRole('link', { name: 'Users' })).toHaveAttribute('data-active', 'false');
+
+    await page.goto('/admin/administrators');
+    await expect(page.getByRole('link', { name: 'Администраторы' })).toHaveAttribute(
+      'data-active',
+      'true',
+    );
+    await expect(page.getByRole('link', { name: 'Auth' })).toHaveAttribute('data-active', 'false');
+
+    await page.goto('/admin/database');
+    await expect(page.getByRole('link', { name: 'База данных' })).toHaveAttribute(
+      'data-active',
+      'true',
+    );
+  });
+
   test('opens the owner-only screens', async ({ page }) => {
     const problems = collectPageErrors(page);
 

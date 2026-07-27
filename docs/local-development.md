@@ -65,6 +65,16 @@ It finds the main checkout through git rather than a path written down anywhere,
 over, replaces what must differ, and copies the local service databases across with a logical dump
 and restore — so the new branch starts with the data you were already working with.
 
+Ports come out of `PORT_RANGE_START..PORT_RANGE_END`, the range `.env` reserves for worktrees, and
+`PUBLIC_SITE_URL` and `ACCEPTANCE_BASE_URL` follow the one it picked.
+
+It also clears away what deleted worktrees left on the machine. A checkout that is gone still has its
+Docker network holding address space nothing will ever use again — that is what exhausts Docker's
+pools and makes the next stack fail to start. Recognised narrowly: the Compose project label, this
+template's `<slug>_internal` name, no container attached, and a slug no live checkout uses. Volumes
+are listed rather than removed, because a volume is the database of a branch someone may want back;
+the command to remove them is printed.
+
 Running it again **keeps** databases the worktree already has. Replacing them is explicit:
 
 ```bash

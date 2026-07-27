@@ -1,5 +1,5 @@
 import type { AdminServiceId } from '@template/contracts';
-import { Link } from '@tanstack/react-router';
+import { Link, useMatchRoute } from '@tanstack/react-router';
 import {
   BellIcon,
   DatabaseIcon,
@@ -53,6 +53,10 @@ const PRODUCT = [
  */
 export function AppSidebar({ session, onLogout }: { session: AdminSession; onLogout: () => void }) {
   const allowed = new Set(session.services);
+  // Which section is open, so the sidebar keeps saying where you are. Asked of the router rather
+  // than compared against the address by hand: the panel is mounted under a base path, and the
+  // service pages carry the service-relative route in the hash.
+  const matchRoute = useMatchRoute();
 
   return (
     <Sidebar collapsible="icon">
@@ -98,7 +102,13 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
                 const Icon = ICONS[service.id];
                 return (
                   <SidebarMenuItem key={service.id}>
-                    <SidebarMenuButton asChild tooltip={service.label}>
+                    <SidebarMenuButton
+                      asChild
+                      tooltip={service.label}
+                      isActive={Boolean(
+                        matchRoute({ to: '/service/$service', params: { service: service.id } }),
+                      )}
+                    >
                       {/* The hash carries the service-relative path, so a deep link survives a
                           reload and the browser's back button. */}
                       <Link to="/service/$service" params={{ service: service.id }} hash="/">
@@ -119,7 +129,11 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Администраторы">
+                  <SidebarMenuButton
+                    asChild
+                    tooltip="Администраторы"
+                    isActive={Boolean(matchRoute({ to: '/administrators' }))}
+                  >
                     <Link to="/administrators">
                       <ShieldIcon />
                       <span>Администраторы</span>
@@ -127,7 +141,11 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Журнал">
+                  <SidebarMenuButton
+                    asChild
+                    tooltip="Журнал"
+                    isActive={Boolean(matchRoute({ to: '/audit' }))}
+                  >
                     <Link to="/audit">
                       <ScrollTextIcon />
                       <span>Журнал</span>
@@ -140,7 +158,11 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
                 */}
                 {session.database ? (
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild tooltip={DATABASE_AREA.label}>
+                    <SidebarMenuButton
+                      asChild
+                      tooltip={DATABASE_AREA.label}
+                      isActive={Boolean(matchRoute({ to: '/database' }))}
+                    >
                       <Link to="/database">
                         <DatabaseIcon />
                         <span>{DATABASE_AREA.label}</span>

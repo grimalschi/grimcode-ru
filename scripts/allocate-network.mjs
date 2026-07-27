@@ -8,6 +8,11 @@
  *
  * It never deletes or reconfigures anyone else's Docker network — it only reads which subnets are
  * taken and picks one that is not.
+ *
+ * It also knows how to recognise what this template left behind. Worktrees are created and thrown
+ * away often, and a deleted checkout leaves its network and its volume on the machine: the network
+ * keeps holding address space nothing will ever use again, which is what exhausts the pools in the
+ * first place.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -98,6 +103,111 @@ export function readOverride() {
 
 export function clearOverride() {
   if (existsSync(OVERRIDE_PATH)) unlinkSync(OVERRIDE_PATH);
+}
+
+/**
+ * Compose networks of this template that no checkout claims any more.
+ *
+ * Recognised narrowly on purpose: the Compose project label, this template's own `<slug>_internal`
+ * name, no container attached, and a project slug that no live checkout uses. A stopped stack of a
+ * checkout that still exists is never touched — its slug is live, and it is about to be started
+ * again.
+ */
+export function staleProjectNetworks(liveSlugs) {
+  let names;
+  try {
+    names = docker([
+      'network',
+      'ls',
+      '--filter',
+      'label=com.docker.compose.project',
+      '--format',
+      '{{.Name}}',
+    ])
+      .split('\n')
+      .filter(Boolean);
+  } catch {
+    // No Docker, or no networks to look at: nothing to clean either way.
+    return [];
+  }
+  if (names.length === 0) return [];
+
+  const stale = [];
+  for (const name of names) {
+    let line;
+    try {
+      line = docker([
+        'network',
+        'inspect',
+        name,
+        '--format',
+        '{{index .Labels "com.docker.compose.project"}}|{{len .Containers}}|{{range .IPAM.Config}}{{.Subnet}} {{end}}',
+      ]);
+    } catch {
+      continue;
+    }
+
+    const [project, attached, subnets] = line.split('|');
+    if (!project || liveSlugs.has(project)) continue;
+    if (name !== `${project}_internal`) continue;
+    if (Number(attached) !== 0) continue;
+
+    stale.push({ name, subnet: subnets.trim() });
+  }
+  return stale;
+}
+
+/** Removes them, returning what actually went. A network in use is left alone by Docker itself. */
+export function removeStaleProjectNetworks(liveSlugs) {
+  const removed = [];
+  for (const network of staleProjectNetworks(liveSlugs)) {
+    try {
+      docker(['network', 'rm', network.name]);
+      removed.push(network);
+    } catch {
+      // Something attached itself in the meantime. Not our business to force.
+    }
+  }
+  return removed;
+}
+
+/**
+ * Volumes of checkouts that no longer exist.
+ *
+ * Reported, never removed: a volume is the database of a branch someone may still want back, and
+ * this script has no way of knowing. The command to remove them is printed instead.
+ */
+export function orphanedProjectVolumes(liveSlugs) {
+  let names;
+  try {
+    names = docker([
+      'volume',
+      'ls',
+      '--filter',
+      'label=com.docker.compose.project',
+      '--format',
+      '{{.Name}}',
+    ])
+      .split('\n')
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+
+  return names.filter((name) => {
+    try {
+      const project = docker([
+        'volume',
+        'inspect',
+        name,
+        '--format',
+        '{{index .Labels "com.docker.compose.project"}}',
+      ]);
+      return project !== '' && !liveSlugs.has(project) && name === `${project}_postgres-data`;
+    } catch {
+      return false;
+    }
+  });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

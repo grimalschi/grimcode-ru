@@ -11,8 +11,11 @@
  *
  *   1. finds the main checkout through git, never through a path written down somewhere;
  *   2. takes the main checkout's `.env` as the starting point and replaces what must differ;
- *   3. picks free ports and, if Docker's address pools are exhausted, a free subnet;
- *   4. copies the main checkout's local databases across with a logical dump and restore.
+ *   3. clears away what deleted worktrees left on the machine — their networks hold address space
+ *      nothing will use again, which is what exhausts Docker's pools;
+ *   4. picks free ports inside PORT_RANGE_START..PORT_RANGE_END and, if the pools are exhausted
+ *      anyway, a free subnet;
+ *   5. copies the main checkout's local databases across with a logical dump and restore.
  *
  * The copy is of local development state, not of production data. A second run does **not** touch
  * a database this worktree already has: `--refresh-databases` is how that is asked for, so a day's
@@ -25,7 +28,14 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { defaultPoolsAvailable, findFreeSubnet, readOverride, writeOverride } from './allocate-network.mjs';
+import {
+  defaultPoolsAvailable,
+  findFreeSubnet,
+  orphanedProjectVolumes,
+  readOverride,
+  removeStaleProjectNetworks,
+  writeOverride,
+} from './allocate-network.mjs';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const refreshDatabases = process.argv.includes('--refresh-databases');
@@ -73,15 +83,36 @@ function isPortFree(port) {
   });
 }
 
-async function findFreePort(preferred, taken) {
-  for (let port = preferred; port < preferred + 400; port += 1) {
+/**
+ * A free port inside the range the project reserved for worktrees.
+ *
+ * Worktrees come and go, so their ports are picked rather than chosen — and only from the range
+ * `.env` declares, where nothing else on the machine is expected to listen.
+ */
+async function findFreePortInRange(start, end, taken) {
+  for (let port = start; port <= end; port += 1) {
     if (taken.has(port)) continue;
     if (await isPortFree(port)) {
       taken.add(port);
       return port;
     }
   }
-  throw new Error(`No free port found near ${preferred}`);
+  throw new Error(
+    `No free port left in ${start}..${end}. Widen PORT_RANGE_START/PORT_RANGE_END or remove a worktree.`,
+  );
+}
+
+/** Every project slug a checkout of this repository still claims. */
+function liveProjectSlugs() {
+  const slugs = new Set();
+  for (const line of git(['worktree', 'list', '--porcelain']).split('\n')) {
+    if (!line.startsWith('worktree ')) continue;
+    const envFile = join(resolve(line.slice('worktree '.length)), '.env');
+    if (!existsSync(envFile)) continue;
+    const slug = parseEnv(readFileSync(envFile, 'utf8')).get('PROJECT_SLUG');
+    if (slug) slugs.add(slug);
+  }
+  return slugs;
 }
 
 function normalizeSlug(value) {
@@ -167,15 +198,34 @@ for (const [key, value] of existing) resolved.set(key, value);
 const taken = new Set();
 const slug = existing.get('PROJECT_SLUG') || normalizeSlug(`${basename(repoRoot)}_${git(['rev-parse', '--abbrev-ref', 'HEAD'])}`);
 
+// --- Clear away what deleted worktrees left behind ----------------------------
+
+const live = liveProjectSlugs();
+live.add(slug);
+live.add(mainEnv.get('PROJECT_SLUG') ?? '');
+
+for (const network of removeStaleProjectNetworks(live)) {
+  console.log(`Removed the network of a checkout that is gone: ${network.name} ${network.subnet}`);
+}
+
+const orphanedVolumes = orphanedProjectVolumes(live);
+
+// --- Ports --------------------------------------------------------------------
+
+const rangeStart = Number(resolved.get('PORT_RANGE_START') || 63000);
+const rangeEnd = Number(resolved.get('PORT_RANGE_END') || 63099);
+
 const gatewayPort =
-  existing.get('GATEWAY_PORT') || String(await findFreePort(Number(mainEnv.get('GATEWAY_PORT') ?? 8080) + 1, taken));
+  existing.get('GATEWAY_PORT') || String(await findFreePortInRange(rangeStart, rangeEnd, taken));
 const postgresPort =
-  existing.get('POSTGRES_PORT') || String(await findFreePort(Number(mainEnv.get('POSTGRES_PORT') ?? 5432) + 1, taken));
+  existing.get('POSTGRES_PORT') || String(await findFreePortInRange(rangeStart, rangeEnd, taken));
 
 resolved.set('PROJECT_SLUG', slug);
 resolved.set('GATEWAY_PORT', gatewayPort);
 resolved.set('POSTGRES_PORT', postgresPort);
 resolved.set('PUBLIC_SITE_URL', existing.get('PUBLIC_SITE_URL') || `http://127.0.0.1:${gatewayPort}`);
+// The test suites look for the stack at this address, so it follows the port like everything else.
+resolved.set('ACCEPTANCE_BASE_URL', existing.get('ACCEPTANCE_BASE_URL') || `http://127.0.0.1:${gatewayPort}`);
 
 // A worktree gets its own database credentials as well, so a leaked password from one branch is
 // not a password for another.
@@ -217,6 +267,14 @@ if (pinned) {
   const subnet = findFreeSubnet();
   writeOverride(subnet);
   console.log(`  network         ${subnet} (Docker's default pools are exhausted)`);
+}
+
+if (orphanedVolumes.length > 0) {
+  // Not removed here: a volume is the database of a branch someone may still want back.
+  console.log('');
+  console.log('Volumes of checkouts that no longer exist are still on this machine:');
+  for (const name of orphanedVolumes) console.log(`  ${name}`);
+  console.log(`Remove them with:  docker volume rm ${orphanedVolumes.join(' ')}`);
 }
 
 // --- Copy the local databases across -------------------------------------------
