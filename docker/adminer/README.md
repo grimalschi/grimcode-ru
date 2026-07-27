@@ -13,7 +13,7 @@ Adminer image is updated.
 
 ## Router script
 
-Gateway forwards paths unchanged, so Adminer is reached at `/admin/service/adminer/**`. The base
+Gateway forwards paths unchanged, so Adminer is reached at `/admin/embed/database/**`. The base
 image starts PHP's built-in server with a document root only, which answers 404 for any such path.
 The Dockerfile therefore passes `index.php` as the server's router script, so every request reaches
 the wrapper — which already reads `REQUEST_URI` and serves `adminer.css` by basename. This is

@@ -23,7 +23,7 @@ import {
  *
  * | Incoming path              | Target                        | Gateway check                        |
  * | -------------------------- | ----------------------------- | ------------------------------------ |
- * | `/admin/service/:name/**`  | admin panel of that service   | session, role and grant on `:name`   |
+ * | `/admin/embed/services/:name/**`  | admin panel of that service   | session, role and grant on `:name`   |
  * | `/admin/**`                | admin                         | session and an admin role            |
  * | `/service/:name/**`        | service from the public list  | none — the service secures itself    |
  * | `/app/**`                  | app                           | none — App checks the user session   |

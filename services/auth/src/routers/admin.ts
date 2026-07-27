@@ -25,21 +25,21 @@ const os = implement(authAdminContract).$context<AdminRpcContext>();
  * request must come through Gateway's admin route *and* originate from the admin panel itself.
  */
 function requireAdmin(context: AdminRpcContext): AdminContext {
-  if (!context.admin) throw new ORPCError('FORBIDDEN', { message: 'Administrator context missing' });
+  if (!context.admin) throw new ORPCError('FORBIDDEN', { message: 'Контекст администратора отсутствует' });
   return context.admin;
 }
 
 function requireMutation(context: AdminRpcContext): AdminContext {
   const admin = requireAdmin(context);
   if (!isCsrfValid(context.request.headers, 'auth')) {
-    throw new ORPCError('FORBIDDEN', { message: 'CSRF token missing or invalid' });
+    throw new ORPCError('FORBIDDEN', { message: 'CSRF-токен отсутствует или неверен' });
   }
   return admin;
 }
 
 async function loadIdentity(repo: AuthRepository, id: string): Promise<IdentityRow> {
   const row = await repo.findIdentityById(id);
-  if (!row) throw new ORPCError('NOT_FOUND', { message: 'Identity not found' });
+  if (!row) throw new ORPCError('NOT_FOUND', { message: 'Пользователь не найден' });
   return row;
 }
 
@@ -123,7 +123,7 @@ export const adminRouter = os.router({
     const admin = requireMutation(context);
     const row = await loadIdentity(context.repo, input.id);
     if (row.email_verified_at !== null) {
-      throw new ORPCError('BAD_REQUEST', { message: 'This email is already verified' });
+      throw new ORPCError('BAD_REQUEST', { message: 'Адрес уже подтверждён' });
     }
 
     const token = newToken(32);
@@ -172,16 +172,16 @@ export const adminRouter = os.router({
   setBlocked: os.setBlocked.handler(async ({ input, context }) => {
     const admin = requireMutation(context);
     if (admin.role !== 'owner') {
-      throw new ORPCError('FORBIDDEN', { message: 'Only the owner can block an identity' });
+      throw new ORPCError('FORBIDDEN', { message: 'Блокировать может только владелец' });
     }
     if (input.blocked && admin.userId === input.id) {
       // Otherwise the last working owner session could be removed by the owner themselves.
-      throw new ORPCError('FORBIDDEN', { message: 'You cannot block your own identity' });
+      throw new ORPCError('FORBIDDEN', { message: 'Нельзя заблокировать самого себя' });
     }
 
     const row = await loadIdentity(context.repo, input.id);
     const updated = await context.repo.setBlocked(row.id, input.blocked);
-    if (!updated) throw new ORPCError('NOT_FOUND', { message: 'Identity not found' });
+    if (!updated) throw new ORPCError('NOT_FOUND', { message: 'Пользователь не найден' });
 
     if (input.blocked) {
       // Blocking takes effect immediately: sessions and outstanding auth tokens are revoked.

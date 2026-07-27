@@ -29,7 +29,7 @@ the very first registered user is when it bootstraps the first owner.
 | Mount | Reachable as | Who may call it |
 | --- | --- | --- |
 | `/service/auth/rpc` | through Gateway, no admin check | anyone — Auth secures these itself |
-| `/admin/service/auth/rpc` | through Gateway's admin route | administrators with a grant on Auth |
+| `/admin/embed/services/auth/rpc` | through Gateway's admin route | administrators with a grant on Auth |
 | `/internal/rpc` | internal Docker network only | other services |
 
 ### Public flows

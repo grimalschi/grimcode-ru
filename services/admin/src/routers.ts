@@ -43,7 +43,7 @@ export const internalRouter = internalOs.router({
 const adminOs = implement(adminContract.admin).$context<AdminRpcContext>();
 
 function requireAdmin(context: AdminRpcContext): AdminContext {
-  if (!context.admin) throw new ORPCError('FORBIDDEN', { message: 'Administrator context missing' });
+  if (!context.admin) throw new ORPCError('FORBIDDEN', { message: 'Контекст администратора отсутствует' });
   return context.admin;
 }
 
@@ -52,7 +52,7 @@ function requireAdmin(context: AdminRpcContext): AdminContext {
 function requireOwner(context: AdminRpcContext): AdminContext {
   const admin = requireAdmin(context);
   if (admin.role !== 'owner') {
-    throw new ORPCError('FORBIDDEN', { message: 'Only the owner can manage administrators' });
+    throw new ORPCError('FORBIDDEN', { message: 'Управлять администраторами может только владелец' });
   }
   return admin;
 }
@@ -60,10 +60,10 @@ function requireOwner(context: AdminRpcContext): AdminContext {
 function requireOwnerMutation(context: AdminRpcContext): AdminContext {
   const admin = requireAdmin(context);
   if (admin.role !== 'owner') {
-    throw new ORPCError('FORBIDDEN', { message: 'Only the owner can manage administrators' });
+    throw new ORPCError('FORBIDDEN', { message: 'Управлять администраторами может только владелец' });
   }
   if (!isCsrfValid(context.request.headers, 'panel')) {
-    throw new ORPCError('FORBIDDEN', { message: 'CSRF token missing or invalid' });
+    throw new ORPCError('FORBIDDEN', { message: 'CSRF-токен отсутствует или неверен' });
   }
   return admin;
 }
@@ -73,7 +73,7 @@ function lastOwnerGuard(userId: string) {
     const staysActiveOwner = next.role === 'owner' && next.enabled;
     if (!staysActiveOwner && activeOwners === 0) {
       throw new ORPCError('CONFLICT', {
-        message: 'The last active owner cannot be demoted or disabled',
+        message: 'Последнего активного владельца нельзя понизить или отключить',
         data: { userId },
       });
     }
@@ -84,7 +84,7 @@ export const adminRouter = adminOs.router({
   session: adminOs.session.handler(async ({ context }) => {
     const admin = requireAdmin(context);
     const row = await context.repo.findByUserId(admin.userId);
-    if (!row) throw new ORPCError('FORBIDDEN', { message: 'Not an administrator' });
+    if (!row) throw new ORPCError('FORBIDDEN', { message: 'Не администратор' });
 
     return {
       userId: row.user_id,
@@ -99,7 +99,7 @@ export const adminRouter = adminOs.router({
   listAdministrators: adminOs.listAdministrators.handler(async ({ input, context }) => {
     const admin = requireAdmin(context);
     if (admin.role !== 'owner') {
-      throw new ORPCError('FORBIDDEN', { message: 'Only the owner can see the administrator list' });
+      throw new ORPCError('FORBIDDEN', { message: 'Список администраторов видит только владелец' });
     }
 
     const { rows, total } = await context.repo.list(input.query, input.limit, input.offset);
@@ -136,12 +136,12 @@ export const adminRouter = adminOs.router({
     const { identity } = await context.auth.getIdentityByEmail({ email: input.email });
     if (!identity) {
       throw new ORPCError('NOT_FOUND', {
-        message: 'No registered user with this email. The user must sign up first.',
+        message: 'С таким адресом никто не зарегистрирован — сначала нужен аккаунт',
       });
     }
 
     if (await context.repo.findByUserId(identity.id)) {
-      throw new ORPCError('CONFLICT', { message: 'This user is already an administrator' });
+      throw new ORPCError('CONFLICT', { message: 'Этот человек уже администратор' });
     }
 
     const row = await context.repo.add(identity.id, identity.email, input.role, input.grants);
@@ -159,7 +159,7 @@ export const adminRouter = adminOs.router({
     const admin = requireOwnerMutation(context);
 
     const existing = await context.repo.findByUserId(input.userId);
-    if (!existing) throw new ORPCError('NOT_FOUND', { message: 'Administrator not found' });
+    if (!existing) throw new ORPCError('NOT_FOUND', { message: 'Администратор не найден' });
 
     // The last-owner rule is enforced inside the transaction, so two simultaneous requests cannot
     // both believe another owner remains.
@@ -186,7 +186,7 @@ export const adminRouter = adminOs.router({
   listAudit: adminOs.listAudit.handler(async ({ input, context }) => {
     const admin = requireAdmin(context);
     if (admin.role !== 'owner') {
-      throw new ORPCError('FORBIDDEN', { message: 'Only the owner can read the admin audit' });
+      throw new ORPCError('FORBIDDEN', { message: 'Журнал доступен только владельцу' });
     }
 
     const { rows, total } = await context.repo.listAudit(input.query, input.limit, input.offset);
@@ -230,7 +230,7 @@ export const adminRouter = adminOs.router({
     });
 
     if (!response.ok) {
-      throw new ORPCError('INTERNAL_SERVER_ERROR', { message: 'Sign out could not be completed' });
+      throw new ORPCError('INTERNAL_SERVER_ERROR', { message: 'Не удалось выйти' });
     }
 
     for (const cookie of response.headers.getSetCookie()) {

@@ -11,7 +11,7 @@ The path is never rewritten — a service receives exactly the address the brows
 
 | Incoming path | Target | Gateway check |
 | --- | --- | --- |
-| `/admin/service/:name/**` | admin surface of that service | session, admin role, grant on `:name` |
+| `/admin/embed/services/:name/**` | admin surface of that service | session, admin role, grant on `:name` |
 | `/admin/**` | `admin` | session and an admin role |
 | `/service/:name/**` | service from the public allowlist | none — the service secures itself |
 | `/app/**` | `app` | none — App verifies the user session itself |

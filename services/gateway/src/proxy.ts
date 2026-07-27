@@ -29,8 +29,8 @@ export interface ProxyOptions {
 /**
  * Forwards a request to a service without rewriting its path.
  *
- * The service receives exactly the address the browser asked for — `/admin/service/email/...`
- * arrives at Email as `/admin/service/email/...`.
+ * The service receives exactly the address the browser asked for — `/admin/embed/services/email/...`
+ * arrives at Email as `/admin/embed/services/email/...`.
  */
 export async function proxyRequest(request: Request, options: ProxyOptions): Promise<Response> {
   const incoming = new URL(request.url);

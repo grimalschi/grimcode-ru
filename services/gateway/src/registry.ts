@@ -21,7 +21,7 @@ export const PUBLIC_SERVICES = {
 export type PublicServiceName = keyof typeof PUBLIC_SERVICES;
 
 /**
- * `/admin/service/:name/**` — reachable only after Admin allowed the request.
+ * `/admin/embed/services/:name/**` — reachable only after Admin allowed the request.
  */
 export const ADMIN_SERVICES = {
   auth: () => internalServiceUrl('auth'),

@@ -21,7 +21,7 @@ export interface RpcRequestContext {
  * table itself:
  *
  * - `/service/<name>/rpc` — public, secured by the service itself;
- * - `/admin/service/<name>/rpc` — reachable only after Gateway verified the admin grant;
+ * - `/admin/embed/services/<name>/rpc` — reachable only after Gateway verified the admin grant;
  * - `/internal/rpc` — never proxied by Gateway, so it stays inside the Docker network.
  */
 export function mountRpc<TContext extends Record<string, unknown>>(

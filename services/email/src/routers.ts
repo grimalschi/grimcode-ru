@@ -81,21 +81,21 @@ export const internalRouter = internalOs.router({
 const adminOs = implement(emailAdminContract).$context<AdminRpcContext>();
 
 function requireAdmin(context: AdminRpcContext): AdminContext {
-  if (!context.admin) throw new ORPCError('FORBIDDEN', { message: 'Administrator context missing' });
+  if (!context.admin) throw new ORPCError('FORBIDDEN', { message: 'Контекст администратора отсутствует' });
   return context.admin;
 }
 
 function requireMutation(context: AdminRpcContext): AdminContext {
   const admin = requireAdmin(context);
   if (!isCsrfValid(context.request.headers, 'email')) {
-    throw new ORPCError('FORBIDDEN', { message: 'CSRF token missing or invalid' });
+    throw new ORPCError('FORBIDDEN', { message: 'CSRF-токен отсутствует или неверен' });
   }
   return admin;
 }
 
 async function loadVersion(repo: EmailRepository, id: string): Promise<VersionRow> {
   const row = await repo.findVersion(id);
-  if (!row) throw new ORPCError('NOT_FOUND', { message: 'Template version not found' });
+  if (!row) throw new ORPCError('NOT_FOUND', { message: 'Версия шаблона не найдена' });
   return row;
 }
 
@@ -116,7 +116,7 @@ export const adminRouter = adminOs.router({
   getTemplate: adminOs.getTemplate.handler(async ({ input, context }) => {
     requireAdmin(context);
     const template = await context.repo.findTemplateById(input.id);
-    if (!template) throw new ORPCError('NOT_FOUND', { message: 'Template not found' });
+    if (!template) throw new ORPCError('NOT_FOUND', { message: 'Шаблон не найден' });
 
     const versions = await context.repo.listVersions(template.id);
     return {
@@ -132,7 +132,7 @@ export const adminRouter = adminOs.router({
   createTemplate: adminOs.createTemplate.handler(async ({ input, context }) => {
     const admin = requireMutation(context);
     if (await context.repo.findTemplateByKey(input.key)) {
-      throw new ORPCError('CONFLICT', { message: 'A template with this key already exists' });
+      throw new ORPCError('CONFLICT', { message: 'Шаблон с таким ключом уже есть' });
     }
 
     const row = await context.repo.createTemplate(
@@ -171,7 +171,7 @@ export const adminRouter = adminOs.router({
   createDraft: adminOs.createDraft.handler(async ({ input, context }) => {
     const admin = requireMutation(context);
     const template = await context.repo.findTemplateById(input.templateId);
-    if (!template) throw new ORPCError('NOT_FOUND', { message: 'Template not found' });
+    if (!template) throw new ORPCError('NOT_FOUND', { message: 'Шаблон не найден' });
 
     const row = await context.repo.createDraft(template.id, {
       subject: template.name,
@@ -209,7 +209,7 @@ export const adminRouter = adminOs.router({
     const draft = await loadVersion(context.repo, input.id);
 
     const template = await context.repo.findTemplateById(draft.template_id);
-    if (!template) throw new ORPCError('NOT_FOUND', { message: 'Template not found' });
+    if (!template) throw new ORPCError('NOT_FOUND', { message: 'Шаблон не найден' });
 
     let compiled;
     try {
@@ -253,7 +253,7 @@ export const adminRouter = adminOs.router({
     const admin = requireMutation(context);
     const version = await loadVersion(context.repo, input.id);
     const template = await context.repo.findTemplateById(version.template_id);
-    if (!template) throw new ORPCError('NOT_FOUND', { message: 'Template not found' });
+    if (!template) throw new ORPCError('NOT_FOUND', { message: 'Шаблон не найден' });
 
     let rendered;
     try {
@@ -331,7 +331,7 @@ export const adminRouter = adminOs.router({
   getDelivery: adminOs.getDelivery.handler(async ({ input, context }) => {
     requireAdmin(context);
     const row = await context.repo.findDelivery(input.id);
-    if (!row) throw new ORPCError('NOT_FOUND', { message: 'Delivery not found' });
+    if (!row) throw new ORPCError('NOT_FOUND', { message: 'Отправка не найдена' });
 
     return {
       delivery: {
@@ -358,7 +358,7 @@ export const adminRouter = adminOs.router({
 
     const bytes = Buffer.from(input.data, 'base64');
     if (bytes.length > 2_000_000) {
-      throw new ORPCError('BAD_REQUEST', { message: 'Images are limited to 2 MB' });
+      throw new ORPCError('BAD_REQUEST', { message: 'Изображение не больше 2 МБ' });
     }
 
     // The template stores images inline in the document, so nothing has to be hosted or served,

@@ -87,7 +87,15 @@ export const internalRouter = internalOs.router({
         dedupeKey: `notification:${row.id}`,
       });
 
-      await context.repo.markRouted(row.id, result.deliveryId);
+      /*
+       * Email answers with the delivery it stored even when the transport refused it. Recording
+       * that as `routed` would put a green row in the log for a message nobody received.
+       */
+      if (result.status === 'failed') {
+        await context.repo.markFailed(row.id, 'Email accepted the message but could not send it.');
+      } else {
+        await context.repo.markRouted(row.id, result.deliveryId);
+      }
     } catch (error) {
       // The event stays stored as `failed`, so the failure is visible in the service admin
       // instead of disappearing.
@@ -102,7 +110,7 @@ export const internalRouter = internalOs.router({
 const adminOs = implement(notificationsAdminContract).$context<AdminRpcContext>();
 
 function requireAdmin(context: AdminRpcContext): AdminContext {
-  if (!context.admin) throw new ORPCError('FORBIDDEN', { message: 'Administrator context missing' });
+  if (!context.admin) throw new ORPCError('FORBIDDEN', { message: 'Контекст администратора отсутствует' });
   return context.admin;
 }
 
@@ -120,7 +128,7 @@ export const adminRouter = adminOs.router({
   getEvent: adminOs.getEvent.handler(async ({ input, context }) => {
     requireAdmin(context);
     const row = await context.repo.findById(input.id);
-    if (!row) throw new ORPCError('NOT_FOUND', { message: 'Event not found' });
+    if (!row) throw new ORPCError('NOT_FOUND', { message: 'Событие не найдено' });
     return { event: toStored(row) };
   }),
 });

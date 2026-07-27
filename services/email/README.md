@@ -96,8 +96,8 @@ that left the system.
 | Mount | Reachable as | Callers |
 | --- | --- | --- |
 | `/internal/rpc` | internal Docker network only | Notifications |
-| `/admin/service/email/rpc` | through Gateway's admin route | administrators granted Email |
-| `/admin/service/email/**` | through Gateway's admin route | the built service admin |
+| `/admin/embed/services/email/rpc` | through Gateway's admin route | administrators granted Email |
+| `/admin/embed/services/email/**` | through Gateway's admin route | the built service admin |
 
 Email has **no public surface**: it is absent from Gateway's public allowlist.
 

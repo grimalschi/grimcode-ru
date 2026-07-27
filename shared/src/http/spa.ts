@@ -27,7 +27,7 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 export interface SpaOptions {
-  /** Public path the SPA is mounted on, for example `/admin/service/email`. */
+  /** Public path the SPA is mounted on, for example `/admin/embed/services/email`. */
   basePath: string;
   /** Directory holding the built SPA. */
   rootDir: string;
@@ -37,7 +37,7 @@ export interface SpaOptions {
  * Serves a built single-page application on a path prefix.
  *
  * Deep links inside the SPA fall back to `index.html`, so a protected URL such as
- * `/admin/service/email/templates/123` renders the app instead of a 404. Admin authorization has
+ * `/admin/embed/services/email/templates/123` renders the app instead of a 404. Admin authorization has
  * already happened at Gateway — these assets are behind the very same check as the HTML.
  */
 export function mountSpa(app: ServiceApp, options: SpaOptions): void {

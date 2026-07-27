@@ -1,6 +1,15 @@
 import type { Identity } from '@template/contracts';
 import { newId, sha256, withTransaction, type Pool, type PoolClient } from '@template/shared';
 
+/**
+ * As much of a User-Agent as the session listing carries.
+ *
+ * Beyond this it is noise, and storing more than the contract allows made the listing fail
+ * validation rather than show the sessions — the screen someone opens precisely when they suspect
+ * one of them is not theirs.
+ */
+const USER_AGENT_MAX = 400;
+
 export type TokenPurpose = 'email-verification' | 'password-reset' | 'email-change';
 
 export interface IdentityRow {
@@ -188,7 +197,7 @@ export class AuthRepository {
     await this.pool.query(
       `INSERT INTO sessions (id, identity_id, token_hash, user_agent, expires_at)
        VALUES ($1, $2, $3, $4, now() + make_interval(secs => $5))`,
-      [id, identityId, sha256(token), userAgent, ttlSeconds],
+      [id, identityId, sha256(token), userAgent?.slice(0, USER_AGENT_MAX) ?? null, ttlSeconds],
     );
     return id;
   }

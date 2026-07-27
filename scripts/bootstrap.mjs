@@ -104,9 +104,6 @@ resolved.set('POSTGRES_BIND_HOST', postgresBind);
 if (!resolved.get('PUBLIC_SITE_URL')) {
   resolved.set('PUBLIC_SITE_URL', `http://127.0.0.1:${gatewayPort}`);
 }
-if (!resolved.get('AUTH_SESSION_SECRET') || resolved.get('AUTH_SESSION_SECRET')?.includes('change-me')) {
-  resolved.set('AUTH_SESSION_SECRET', randomBytes(32).toString('base64url'));
-}
 
 const user = resolved.get('POSTGRES_USER') || 'template';
 const password = resolved.get('POSTGRES_PASSWORD') || randomBytes(12).toString('base64url');

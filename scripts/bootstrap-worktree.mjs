@@ -182,9 +182,6 @@ resolved.set('PUBLIC_SITE_URL', existing.get('PUBLIC_SITE_URL') || `http://127.0
 if (!existing.has('POSTGRES_PASSWORD')) {
   resolved.set('POSTGRES_PASSWORD', randomBytes(12).toString('base64url'));
 }
-if (!existing.has('AUTH_SESSION_SECRET')) {
-  resolved.set('AUTH_SESSION_SECRET', randomBytes(32).toString('base64url'));
-}
 
 const user = resolved.get('POSTGRES_USER') || 'template';
 resolved.set('POSTGRES_USER', user);

@@ -62,7 +62,7 @@ export interface AdminRpcContext {
 }
 
 function requireIdentity(context: PublicContext): Identity {
-  if (!context.identity) throw new ORPCError('UNAUTHORIZED', { message: 'No active session' });
+  if (!context.identity) throw new ORPCError('UNAUTHORIZED', { message: 'Сессия не активна' });
   return context.identity;
 }
 
@@ -97,7 +97,7 @@ export const internalRouter = internalOs.router({
 const adminOs = implement(usersAdminContract).$context<AdminRpcContext>();
 
 function requireAdmin(context: AdminRpcContext): AdminContext {
-  if (!context.admin) throw new ORPCError('FORBIDDEN', { message: 'Administrator context missing' });
+  if (!context.admin) throw new ORPCError('FORBIDDEN', { message: 'Контекст администратора отсутствует' });
   return context.admin;
 }
 
@@ -116,7 +116,7 @@ export const adminRouter = adminOs.router({
   getProfile: adminOs.getProfile.handler(async ({ input, context }) => {
     requireAdmin(context);
     const row = await context.repo.findById(input.id);
-    if (!row) throw new ORPCError('NOT_FOUND', { message: 'Profile not found' });
+    if (!row) throw new ORPCError('NOT_FOUND', { message: 'Профиль не найден' });
 
     const [profile] = await withEmails([row]);
     return { profile: profile! };

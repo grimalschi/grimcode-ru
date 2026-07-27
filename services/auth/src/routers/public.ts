@@ -53,11 +53,11 @@ const os = implement(authPublicContract).$context<PublicContext>();
 
 async function currentIdentity(context: PublicContext): Promise<{ row: IdentityRow; token: string }> {
   const token = parseCookies(context.request.headers.get('cookie'))[sessionCookieName()];
-  if (!token) throw new ORPCError('UNAUTHORIZED', { message: 'No active session' });
+  if (!token) throw new ORPCError('UNAUTHORIZED', { message: 'Сессия не активна' });
 
   const resolved = await context.repo.resolveSession(token);
   if (!resolved || resolved.identity.blocked_at !== null) {
-    throw new ORPCError('UNAUTHORIZED', { message: 'No active session' });
+    throw new ORPCError('UNAUTHORIZED', { message: 'Сессия не активна' });
   }
   return { row: resolved.identity, token };
 }
@@ -132,11 +132,11 @@ export const publicRouter = os.router({
       : await verifyPassword(input.password, DUMMY_PASSWORD_HASH);
 
     if (!identity || !valid) {
-      throw new ORPCError('UNAUTHORIZED', { message: 'Incorrect email or password' });
+      throw new ORPCError('UNAUTHORIZED', { message: 'Неверный адрес или пароль' });
     }
     if (identity.blocked_at !== null) {
       await context.repo.audit({ identityId: identity.id, action: 'login.blocked' });
-      throw new ORPCError('FORBIDDEN', { message: 'This account is blocked' });
+      throw new ORPCError('FORBIDDEN', { message: 'Аккаунт заблокирован' });
     }
 
     const token = newSessionToken();
@@ -223,7 +223,7 @@ export const publicRouter = os.router({
 
   resetPassword: os.resetPassword.handler(async ({ input, context }) => {
     const consumed = await context.repo.consumeToken(input.token, 'password-reset');
-    if (!consumed) throw new ORPCError('BAD_REQUEST', { message: 'This link is no longer valid' });
+    if (!consumed) throw new ORPCError('BAD_REQUEST', { message: 'Ссылка больше не действует' });
 
     await context.repo.setPasswordHash(consumed.identity_id, await hashPassword(input.password));
     // A password change ends every existing session, including any an attacker may hold.
@@ -238,7 +238,7 @@ export const publicRouter = os.router({
     const { row } = await currentIdentity(context);
 
     if (!(await verifyPassword(input.currentPassword, row.password_hash))) {
-      throw new ORPCError('UNAUTHORIZED', { message: 'Current password is incorrect' });
+      throw new ORPCError('UNAUTHORIZED', { message: 'Текущий пароль неверен' });
     }
 
     await context.repo.setPasswordHash(row.id, await hashPassword(input.password));
@@ -252,7 +252,7 @@ export const publicRouter = os.router({
 
   verifyEmail: os.verifyEmail.handler(async ({ input, context }) => {
     const consumed = await context.repo.consumeToken(input.token, 'email-verification');
-    if (!consumed) throw new ORPCError('BAD_REQUEST', { message: 'This link is no longer valid' });
+    if (!consumed) throw new ORPCError('BAD_REQUEST', { message: 'Ссылка больше не действует' });
 
     await context.repo.markEmailVerified(consumed.identity_id);
     await context.repo.audit({ identityId: consumed.identity_id, action: 'email.verified' });
@@ -310,15 +310,15 @@ export const publicRouter = os.router({
 
   confirmEmailChange: os.confirmEmailChange.handler(async ({ input, context }) => {
     const consumed = await context.repo.consumeToken(input.token, 'email-change');
-    if (!consumed) throw new ORPCError('BAD_REQUEST', { message: 'This link is no longer valid' });
+    if (!consumed) throw new ORPCError('BAD_REQUEST', { message: 'Ссылка больше не действует' });
 
     const nextEmail = consumed.payload.email;
     if (typeof nextEmail !== 'string') {
-      throw new ORPCError('BAD_REQUEST', { message: 'This link is no longer valid' });
+      throw new ORPCError('BAD_REQUEST', { message: 'Ссылка больше не действует' });
     }
 
     const previous = await context.repo.findIdentityById(consumed.identity_id);
-    if (!previous) throw new ORPCError('BAD_REQUEST', { message: 'This link is no longer valid' });
+    if (!previous) throw new ORPCError('BAD_REQUEST', { message: 'Ссылка больше не действует' });
 
     await context.repo.setEmail(consumed.identity_id, nextEmail);
     await context.repo.audit({
