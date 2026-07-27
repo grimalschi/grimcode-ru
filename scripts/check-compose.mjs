@@ -98,11 +98,23 @@ function checkProduction() {
     problems.push('Production Compose contains a PostgreSQL container; the database is managed');
   }
 
-  const missing = ['gateway', 'site', 'app', 'admin', 'auth', 'users', 'notifications', 'email', 'adminer'].filter(
-    (name) => !production.services?.[name],
-  );
-  if (missing.length > 0) {
-    problems.push(`Production Compose is missing: ${missing.join(', ')}`);
+  /*
+   * The two topologies are written out in full, each readable on its own, and that is the one
+   * hazard of it: a service added to one file and forgotten in the other. Compared here rather
+   * than against a list kept by hand, which would be a third place to forget.
+   *
+   * PostgreSQL is the single deliberate difference: a container locally, a managed database in
+   * production.
+   */
+  const local = new Set(Object.keys(config.services ?? {}));
+  local.delete('postgres');
+  const deployed = new Set(Object.keys(production.services ?? {}));
+
+  for (const name of local) {
+    if (!deployed.has(name)) problems.push(`"${name}" runs locally but is missing from production`);
+  }
+  for (const name of deployed) {
+    if (!local.has(name)) problems.push(`"${name}" is deployed but missing from local development`);
   }
 }
 
