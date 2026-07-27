@@ -47,7 +47,6 @@ try {
 
 const config = JSON.parse(raw);
 const problems = [];
-const notes = [];
 
 /**
  * The production topology, checked with values that only exist for the check.
@@ -132,10 +131,12 @@ for (const [name, service] of Object.entries(config.services ?? {})) {
     const host = typeof port === 'string' ? port.split(':')[0] : port.host_ip;
     if (host && LOOPBACK.has(host)) continue;
 
-    const where = host || 'all interfaces';
-    if (name === 'gateway') {
-      notes.push(`Gateway is published on "${where}", not only on loopback`);
-    } else {
+    // Gateway on every interface is the documented default: the project has to be reachable from a
+    // virtual machine's host or a phone. Only the others are a mistake.
+    if (name === 'gateway') continue;
+
+    {
+      const where = host || 'all interfaces';
       problems.push(
         `"${name}" publishes ${port.published ?? port} on "${where}"; ` +
           'only Gateway may be opened beyond loopback',
@@ -162,7 +163,6 @@ const published = Object.entries(config.services)
   .filter(([, service]) => (service.ports ?? []).length > 0)
   .map(([name]) => name);
 
-for (const note of notes) console.log(`Note: ${note}.`);
 console.log(
   `Compose check passed (local publishes ${published.join(', ') || 'nothing'}; production nothing).`,
 );

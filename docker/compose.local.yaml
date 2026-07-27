@@ -42,9 +42,9 @@ services:
 
   gateway:
     ports:
-      # Единственный контейнер, опубликованный наружу. По умолчанию только localhost;
-      # GATEWAY_BIND_HOST=0.0.0.0 открывает проект другим машинам.
-      - '${GATEWAY_BIND_HOST:-127.0.0.1}:${GATEWAY_PORT:-63000}:8080'
+      # Единственный контейнер, опубликованный наружу — и на всех интерфейсах, чтобы проект
+      # открывался с другой машины. GATEWAY_BIND_HOST=127.0.0.1 сужает до localhost.
+      - '${GATEWAY_BIND_HOST:-0.0.0.0}:${GATEWAY_PORT:-63000}:8080'
 
 volumes:
   postgres-data:
