@@ -17,7 +17,7 @@ The suite reads `.env` itself, so it finds the port the stack is on. It needs an
 
 | Variable | Meaning |
 | --- | --- |
-| `ACCEPTANCE_BASE_URL` | Where the stack answers. Defaults to `GATEWAY_PORT` on loopback. |
+| `ACCEPTANCE_BASE_URL` | Only to aim the suite at another stack: it defaults to `GATEWAY_PORT` on loopback, so it is not in `.env`. |
 | `ACCEPTANCE_OWNER_EMAIL`, `ACCEPTANCE_OWNER_PASSWORD` | An existing owner. |
 
 On a stack with no accounts at all, the credentials can be left out: the suite registers the first

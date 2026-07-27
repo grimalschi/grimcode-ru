@@ -224,8 +224,8 @@ resolved.set('PROJECT_SLUG', slug);
 resolved.set('GATEWAY_PORT', gatewayPort);
 resolved.set('POSTGRES_PORT', postgresPort);
 resolved.set('PUBLIC_SITE_URL', existing.get('PUBLIC_SITE_URL') || `http://127.0.0.1:${gatewayPort}`);
-// The test suites look for the stack at this address, so it follows the port like everything else.
-resolved.set('ACCEPTANCE_BASE_URL', existing.get('ACCEPTANCE_BASE_URL') || `http://127.0.0.1:${gatewayPort}`);
+// Carried over from the main checkout, it would point the test suites at the main checkout's port.
+resolved.delete('ACCEPTANCE_BASE_URL');
 
 // A worktree gets its own database credentials as well, so a leaked password from one branch is
 // not a password for another.

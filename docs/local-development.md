@@ -66,7 +66,7 @@ over, replaces what must differ, and copies the local service databases across w
 and restore — so the new branch starts with the data you were already working with.
 
 Ports come out of `PORT_RANGE_START..PORT_RANGE_END`, the range `.env` reserves for worktrees, and
-`PUBLIC_SITE_URL` and `ACCEPTANCE_BASE_URL` follow the one it picked.
+`PUBLIC_SITE_URL` follows the one it picked.
 
 It also clears away what deleted worktrees left on the machine. A checkout that is gone still has its
 Docker network holding address space nothing will ever use again — that is what exhausts Docker's
