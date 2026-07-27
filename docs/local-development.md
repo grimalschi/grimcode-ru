@@ -7,7 +7,7 @@
 ```bash
 pnpm install
 cp .env.example .env
-pnpm up
+pnpm start
 ```
 
 `.env` is the only local configuration and nothing generates it: the values shipped in
@@ -29,7 +29,7 @@ subnet of its own and never touches anyone else's.
 
 | | |
 | --- | --- |
-| `pnpm up` / `pnpm down` | Start and stop the stack |
+| `pnpm start` / `pnpm stop` | Start and stop the stack |
 | `pnpm logs <service>` | Follow one service |
 | `pnpm check` | Lint, types, unit tests, production build, boundaries, service ids, Compose |
 | `pnpm test:acceptance` | The HTTP checks, against the running stack |
@@ -107,6 +107,7 @@ node scripts/compose.mjs exec postgres psql -U template -d "${PROJECT_SLUG}_auth
 | `check-boundaries.mjs` | A service importing another service, type-only imports included |
 | `check-service-ids.mjs` | A service known to Gateway but invisible in the Admin shell, or the reverse; Adminer being public or grantable |
 | `check-compose.mjs` | Anything but Gateway published locally; anything at all published in production; a PostgreSQL container in production |
+| `check-scripts.mjs` | A script named after a pnpm command — `pnpm up` would run pnpm's dependency update instead of starting the project |
 
 They exist because each protects a rule that is easy to break by accident and hard to notice.
 

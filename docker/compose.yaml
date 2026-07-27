@@ -1,6 +1,6 @@
 # Production topology — the deployed system, and the reason this file has the plain name.
 #
-# Local development runs `docker/compose.local.yaml` instead, through `pnpm up`.
+# Local development runs `docker/compose.local.yaml` instead, through `pnpm start`.
 #
 # Only Gateway is reachable from outside; everything else lives on the internal network with no
 # host port at all. PostgreSQL is not here: in production the database is a managed resource of the
