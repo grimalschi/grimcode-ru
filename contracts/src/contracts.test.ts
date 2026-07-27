@@ -4,7 +4,6 @@ import { authorizationResultSchema } from './admin.js';
 import {
   ADMIN_SERVICE_IDS,
   ASSIGNABLE_SERVICE_IDS,
-  SERVICE_IDS,
   adminContextSchema,
   assignableServiceIdSchema,
   paginationInputSchema,
@@ -13,12 +12,6 @@ import { editorDocumentSchema, EDITOR_FORMAT, editorFormatSchema } from './email
 import { EVENT_TEMPLATE_KEYS, NOTIFICATION_EVENT_TYPES, notificationEventSchema } from './notifications.js';
 
 describe('service ids', () => {
-  it('keeps every admin service inside the canonical service list', () => {
-    for (const id of ADMIN_SERVICE_IDS) {
-      expect(SERVICE_IDS).toContain(id);
-    }
-  });
-
   it('never lets an owner grant Adminer to a regular administrator', () => {
     expect(ASSIGNABLE_SERVICE_IDS).not.toContain('adminer' as never);
     expect(assignableServiceIdSchema.safeParse('adminer').success).toBe(false);

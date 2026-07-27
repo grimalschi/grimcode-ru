@@ -1,3 +1,5 @@
+*[Documentation](README.md) → Administrator access*
+
 # Administrator access
 
 Who may open the admin panel, what they may reach inside it, and how the first one comes to exist.
@@ -30,13 +32,13 @@ Every service admin is one service's own window onto its own data. The database 
 it reads every service's data at once, so calling it a service admin would have been calling it
 something it is not.
 
-It is therefore an **area** of the panel, at `/admin/database/`, next to the administrator registry
+It is therefore a **section** of the panel, at `/admin/database`, next to the administrator registry
 and the audit log. Nothing in the system calls it a service:
 
 - it is absent from `ADMIN_SERVICE_IDS`, so no grant can name it and none ever could;
 - Gateway asks Admin about a **target** — `panel`, `service` or `database` — rather than about a
   service name that might be one of those things or might not;
-- the sidebar shows it under Owner, because that is who it belongs to.
+- the sidebar shows it under «Админка», with the panel's own sections.
 
 The application behind it is still Adminer, still a container of its own, still reached only through
 Gateway with no host port anywhere. What changed is what the system calls it.

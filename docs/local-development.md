@@ -1,3 +1,5 @@
+*[Documentation](README.md) → Local development*
+
 # Local development
 
 ## Getting it running
@@ -71,7 +73,7 @@ A day's work in a worktree cannot be wiped by re-running bootstrap out of habit.
 
 ## The database
 
-The panel's database browser is at `/admin/database/`, owner-only, through Gateway. It is the real
+The panel's database browser is at `/admin/database`, owner-only, through Gateway. It is the real
 Adminer, themed to match the panel around it; it has no host port in any environment.
 
 `psql` works too — bootstrap published PostgreSQL on loopback for exactly that:
@@ -101,4 +103,4 @@ They exist because each protects a rule that is easy to break by accident and ha
 
 `check-service-ids.mjs` will tell you if you missed one of the three places ids live.
 
-For a service admin interface, see [that section of the Admin README](../services/admin/README.md).
+For a service admin interface, see [the admin panel](admin-panel.md).

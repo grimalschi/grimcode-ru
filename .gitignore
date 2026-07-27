@@ -19,3 +19,8 @@ test-results/
 
 # Generated locally when Docker address pools are exhausted.
 docker/compose.network.local.yaml
+
+# Editor state.
+.idea/
+.vscode/
+.DS_Store

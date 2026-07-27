@@ -90,27 +90,9 @@ in the Auth database, which Admin may never read or reference.
 | `/admin/rpc` | through Gateway's admin route | the central Admin shell |
 | `/admin/**` | through Gateway's admin route | the built shell assets |
 
-`/admin/database/**` is the panel's own area, proxied by Gateway to the database browser rather than
-to this service. It is owner-only and appears in no grant, because it reads every service's data at
-once — see [administrator access](../../docs/admin-access.md).
-
-## Adding another service admin
-
-Copy the closest existing one — `services/auth/web` is the plainest — and change four things:
-
-1. `vite.config.ts`: the `base`, which must match the service's protected path;
-2. `src/api.ts`: the prefix, the contract it is typed against, and which of its procedures change
-   something and therefore carry a CSRF token;
-3. `src/main.tsx`: the `basepath`, the tabs and the routes;
-4. `package.json`: the build and typecheck scripts, and the build-time dependencies.
-
-Then add the service to `ADMIN_SERVICE_IDS` in `contracts/`, to Gateway's allowlist, and to
-[`services.ts`](web/src/services.ts) here. `scripts/check-service-ids.mjs` refuses a service that
-appears in one of the three and not the others.
-
-There is deliberately no generator for this. A script would have to keep its own copy of the file
-list, the dependency versions and the config templates, and would quietly fall behind the admins it
-claims to produce; copying a directory that is known to work cannot.
+`/admin/embed/**` is proxied by Gateway to the embedded applications rather than to this service:
+`services/:id` to that service's admin, `database` to the database browser. See
+[the admin panel](../../docs/admin-panel.md).
 
 ## Environment
 

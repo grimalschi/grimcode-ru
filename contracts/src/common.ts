@@ -1,31 +1,11 @@
 import { z } from 'zod';
 
 /**
- * Canonical service ids of the template.
- *
- * Gateway keeps its own explicit allowlists and the central Admin shell keeps its own explicit
- * sidebar list. Neither of them derives ids from this constant at runtime — an automated test
- * reconciles all three declarations instead. See `services/gateway/src/registry.ts`,
- * `services/admin/web/src/services.ts` and `contracts/src/registry.test.ts`.
- */
-export const SERVICE_IDS = [
-  'site',
-  'app',
-  'admin',
-  'auth',
-  'users',
-  'notifications',
-  'email',
-] as const;
-
-export type ServiceId = (typeof SERVICE_IDS)[number];
-
-/**
  * Services that expose an admin surface inside the central Admin shell.
  *
  * Every one of them is a service of this template with its own database, its own contract and its
  * own built admin. The database browser is not on this list: it belongs to the Admin panel, not to
- * a service — see `ADMIN_AREAS`.
+ * a service — see `adminTargetSchema`.
  */
 export const ADMIN_SERVICE_IDS = ['auth', 'users', 'notifications', 'email'] as const;
 
@@ -34,13 +14,20 @@ export type AdminServiceId = (typeof ADMIN_SERVICE_IDS)[number];
 /**
  * What a request to the admin panel is asking for.
  *
- * `panel` is the shell and its own API. `service` is one service's admin. `database` is the panel's
- * own database browser — a window into every service's data at once, which is why it is a part of
- * the panel and never something an owner can hand out.
+ * `panel` is the shell and its own pages. `service` is one service's admin. `database` is the
+ * panel's own database browser — a window into every service's data at once, which is why it is
+ * part of the panel and never something an owner can hand out.
+ *
+ * Gateway works the target out from the URL and Admin decides who may reach it. Both read this
+ * definition, so neither can drift into a shape the other does not understand.
  */
-export const ADMIN_AREAS = ['panel', 'service', 'database'] as const;
+export const adminTargetSchema = z.discriminatedUnion('area', [
+  z.object({ area: z.literal('panel') }),
+  z.object({ area: z.literal('service'), service: z.enum(ADMIN_SERVICE_IDS) }),
+  z.object({ area: z.literal('database') }),
+]);
 
-export type AdminArea = (typeof ADMIN_AREAS)[number];
+export type AdminTarget = z.infer<typeof adminTargetSchema>;
 
 /**
  * Admin services an owner may hand to a regular administrator.
@@ -52,7 +39,6 @@ export const ASSIGNABLE_SERVICE_IDS = ['auth', 'users', 'notifications', 'email'
 
 export type AssignableServiceId = (typeof ASSIGNABLE_SERVICE_IDS)[number];
 
-export const serviceIdSchema = z.enum(SERVICE_IDS);
 export const adminServiceIdSchema = z.enum(ADMIN_SERVICE_IDS);
 export const assignableServiceIdSchema = z.enum(ASSIGNABLE_SERVICE_IDS);
 

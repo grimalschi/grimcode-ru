@@ -1,6 +1,6 @@
 import type {
   adminInternalContract,
-  AdminServiceId,
+  AdminTarget,
   AuthorizationResult,
   ContractRouterClient,
 } from '@template/contracts';
@@ -16,16 +16,6 @@ import {
 
 type AdminInternalClient = ContractRouterClient<typeof adminInternalContract>;
 
-/**
- * What a path is asking to open.
- *
- * Gateway works this out from the URL and asks Admin whether it is allowed. It holds no policy of
- * its own — which area exists is routing, who may reach it is not Gateway's business.
- */
-export type AdminTarget =
-  | { area: 'panel' }
-  | { area: 'service'; service: AdminServiceId }
-  | { area: 'database' };
 
 /**
  * The whole admin check is one internal Admin method.

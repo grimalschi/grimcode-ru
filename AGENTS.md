@@ -1,11 +1,11 @@
 # Agent entry point
 
-Before architecture, implementation, documentation or deployment work:
+Read before architecture, implementation, documentation or deployment work:
 
-1. Read `DIRECTIVES.md` completely. It is the highest-priority, owner-controlled project document.
-2. Read `BOILERPLATE_SPEC.md` completely. It defines the template to build and its acceptance criteria.
-3. Use `docker/adminer/` as the ready Adminer reference implementation described by the specification.
+1. `DIRECTIVES.md` — the owner-controlled project rules. Highest priority.
+2. [`docs/`](docs/) — how the project is built and why. Start with
+   [the overview](docs/README.md).
+3. The README next to each service, for the part being worked on.
 
-Do not edit `DIRECTIVES.md` unless the project owner explicitly asks for that exact change.
-If implementation and documentation disagree with the directives or specification, stop and resolve
-the mismatch explicitly.
+Do not edit `DIRECTIVES.md` unless the owner asks for that exact change. If the code and the
+documentation disagree, say so rather than picking one.

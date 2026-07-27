@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   adminRoleSchema,
   adminServiceIdSchema,
+  adminTargetSchema,
   assignableServiceIdSchema,
   emailSchema,
   idSchema,
@@ -78,15 +79,8 @@ export const adminInternalContract = {
     .input(
       z.object({
         sessionToken: z.string().min(1).max(400).nullable(),
-        /**
-         * What is being opened. Gateway decides which area a path belongs to; Admin decides who may
-         * reach it. The two questions stay apart, so neither service has to know the other's rules.
-         */
-        target: z.discriminatedUnion('area', [
-          z.object({ area: z.literal('panel') }),
-          z.object({ area: z.literal('service'), service: adminServiceIdSchema }),
-          z.object({ area: z.literal('database') }),
-        ]),
+        /** What is being opened; Gateway works it out from the URL. */
+        target: adminTargetSchema,
       }),
     )
     .output(authorizationResultSchema),

@@ -1,3 +1,5 @@
+*[Documentation](README.md) → Architecture*
+
 # Architecture
 
 Seven services behind one door, each owning its own data and its own interface, plus the database
@@ -14,8 +16,8 @@ flowchart LR
   gateway -->|/service/auth| auth[Auth]
   gateway -->|/service/users| users[Users]
   gateway -->|/admin| admin[Admin]
-  gateway -->|/admin/service/*| serviceAdmins[Service admins]
-  gateway -->|/admin/database| adminer[(Database browser)]
+  gateway -->|/admin/embed/services/*| serviceAdmins[Service admins]
+  gateway -->|/admin/embed/database| adminer[(Database browser)]
 
   gateway -.->|authorize| admin
   admin -.->|resolveSession| auth
@@ -80,28 +82,12 @@ would be worse than one that was down.
 ## The admin panel is composed, not merged
 
 The central shell owns the sidebar, the theme and the URL. Each service admin is a separate build,
-owned by its service, embedded as a same-origin iframe. The shell never imports their code.
+owned by its service, embedded as a same-origin iframe; the shell never imports their code. Hiding
+a service in the sidebar is presentation, never protection — the embedded URL passes the same
+Gateway check.
 
-```mermaid
-sequenceDiagram
-  participant Shell
-  participant Frame as Service admin
-  Shell->>Frame: theme
-  Frame->>Shell: ready
-  Frame->>Shell: path (after its own navigation)
-  Shell->>Frame: navigate (only when the shell's path differs)
-```
-
-The rule that matters: every iframe load re-sends the theme, and never the shell's path. A load can
-be the iframe's own navigation, and replaying the old path would silently cancel it.
-
-The canonical URL is `/admin?service=email#/templates/123`; the iframe is pointed at
-`/admin/service/email/templates/123`, which Gateway checks exactly as it would if a person opened it
-directly. Hiding a service in the sidebar is presentation, never protection.
-
-The database browser is embedded the same way but is **not** a service admin: it reads every
-service's data at once, so it is an area of the panel at `/admin/database/`, owner-only, and no
-grant can name it. See [administrator access](admin-access.md).
+See [the admin panel](admin-panel.md) for what it contains, how the two sides talk, and how to add
+to it.
 
 ## Contracts, not conventions
 
@@ -128,6 +114,7 @@ lifecycle.
 
 ## Further reading
 
-- [Deployment](deployment.md) — what a deployment supplies and what it must not.
+- [The admin panel](admin-panel.md) — what it contains and how it is composed.
 - [Administrator access](admin-access.md) — roles, grants and the first owner.
 - [Local development](local-development.md) — running it, worktrees, checks.
+- [Deployment](deployment.md) — what a deployment supplies and what it must not.

@@ -1,7 +1,7 @@
-import type { AdminContext } from '@template/contracts';
+import type { AdminContext, AdminTarget } from '@template/contracts';
 import { internalServiceUrl, ServiceUnavailableError, type Logger } from '@template/shared';
 
-import { authorizeAdminRequest, type AdminTarget } from './authorize.js';
+import { authorizeAdminRequest } from './authorize.js';
 import { proxyRequest } from './proxy.js';
 import {
   adminServiceUrl,

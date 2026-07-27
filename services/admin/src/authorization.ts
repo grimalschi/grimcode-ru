@@ -1,5 +1,6 @@
 import {
   ADMIN_SERVICE_IDS,
+  type AdminTarget,
   type AdminServiceId,
   type AuthorizationResult,
   type authInternalContract,
@@ -17,16 +18,6 @@ export interface AuthorizeDeps {
   logger: Logger;
 }
 
-/**
- * What a request is asking to open.
- *
- * Gateway works out which area a path belongs to; this decides who may reach it. Keeping the two
- * apart means Gateway holds no policy and Admin holds no routing.
- */
-export type AdminTarget =
-  | { area: 'panel' }
-  | { area: 'service'; service: AdminServiceId }
-  | { area: 'database' };
 
 /**
  * The single decision Gateway asks for on every `/admin/**` request.
