@@ -1,56 +1,101 @@
-# Grimcode project template
+# Шаблон проекта Grimcode
 
-A working product with its boring parts already done: a public site, an application behind sign-in,
-an admin panel with roles and grants, and email with a real editor — seven services that already
-talk to each other.
+Работающий продукт, у которого скучная часть уже сделана: публичный сайт, приложение за входом,
+админка с ролями и правами и почта с настоящим редактором — семь сервисов, которые уже умеют
+разговаривать друг с другом.
 
-Copying this repository gives a project its first day back.
+Копия этого репозитория возвращает проекту его первый день.
+
+## Запуск
+
+Нужны только Docker и Node 22+.
 
 ```bash
 pnpm install
-pnpm bootstrap
+```
+
+```bash
+cp .env.example .env
+```
+
+```bash
 pnpm up
 ```
 
-The stack prints where it is. `/` is the site, `/app/` the application, `/admin` the panel. The
-first account you register becomes the owner.
+Это весь старт. `.env` — единственная локальная настройка, его никто не генерирует, и значения из
+`.env.example` работают как есть.
 
-## What is inside
+Перед первым запуском стоит посмотреть на два из них:
+
+| Переменная | Зачем |
+| --- | --- |
+| `PROJECT_SLUG` | Имя compose-проекта, префикс cookie и имена баз (`<slug>_auth` и так далее). Задаётся один раз, в самом начале: если поменять позже, старые базы останутся лежать рядом. |
+| `GATEWAY_PORT` | По умолчанию 8080. Меняйте, если порт занят, и приведите к нему `PUBLIC_SITE_URL` и `ACCEPTANCE_BASE_URL`. |
+
+`PUBLIC_SITE_URL` — внешний адрес проекта. Локально это порт gateway, в продакшне настоящий адрес, и
+его схема решает, ставится ли у сессионной cookie флаг `Secure`.
+
+Дальше проект живёт по адресу из `PUBLIC_SITE_URL`:
 
 | | |
 | --- | --- |
-| **gateway** | The only door: routing, allowlists, the admin decision |
-| **site** | Public pages, server-rendered |
-| **app** | Sign-in, the account, one settings screen |
-| **admin** | Roles, grants, audit, and the shell the service admins are composed into |
-| **auth** | Identity, sessions, passwords, recovery, security log |
-| **users** | The product profile |
-| **notifications** | Typed events, deduplicated, routed |
-| **email** | Templates, a self-hosted editor, transports, the delivery log |
-| **database** | A section of the panel: the real Adminer, owner-only, through Gateway |
+| `/` | сайт |
+| `/app/` | приложение |
+| `/admin` | админка |
 
-## Documentation
+**Первый зарегистрированный аккаунт становится владельцем админки.** Зарегистрируйтесь на
+`/app/register` и откройте `/admin`. Владельцу никто ничего не выдаёт: это самая ранняя identity в
+auth, и правило существует затем, чтобы свежий проект не мог запереть сам себя.
 
-[**docs/**](docs/README.md) — the architecture, the admin panel, administrator access, local
-development and deployment, and the positions this template takes on your behalf.
+Письма локально никуда не уходят: при `EMAIL_PROVIDER=log` каждое сообщение остаётся в журнале
+отправки — там же во время разработки читаются ссылки подтверждения и восстановления
+(`/admin/service/email`).
 
-Each service has its own README next to its code, and the
-[acceptance tests](tests/README.md) describe what is verified against a running stack.
+## Команды на каждый день
 
-## Checks
+| | |
+| --- | --- |
+| `pnpm up` / `pnpm down` | Поднять и остановить проект |
+| `pnpm logs <сервис>` | Смотреть логи одного сервиса |
+| `pnpm check` | Линт, типы, юнит-тесты, продакшн-сборка, границы, идентификаторы сервисов, compose |
+| `pnpm test:acceptance` | Приёмочные проверки по HTTP против поднятого проекта |
+| `pnpm test:browser` | Браузерные проверки в Chromium против поднятого проекта |
+| `pnpm bootstrap:worktree` | Настроить git worktree как отдельную копию: свои порты, свой PostgreSQL, базы переносятся |
+| `pnpm network:allocate` | Только если у Docker кончились пулы адресов: выделяет этой копии свою подсеть |
 
-```bash
-pnpm check
-```
+Зелёным должен быть `pnpm check`. Он работает на чистой копии и не требует поднятого проекта.
 
-Lint, types, unit tests, the production build, service boundaries, service ids and the Compose
-topology. Against a running stack there are two more: `pnpm test:acceptance` and `pnpm test:browser`.
+## Что внутри
 
-## Using it as a template
+| | |
+| --- | --- |
+| **gateway** | Единственная дверь: маршрутизация, списки разрешённого, решение о доступе в админку |
+| **site** | Публичные страницы, рендерятся на сервере |
+| **app** | Вход, аккаунт, один экран настроек |
+| **admin** | Роли, права, аудит и оболочка, в которую встраиваются админки сервисов |
+| **auth** | Identity, сессии, пароли, восстановление, журнал безопасности |
+| **users** | Продуктовый профиль |
+| **notifications** | Типизированные события, дедупликация, маршрутизация |
+| **email** | Шаблоны, собственный редактор, транспорты, журнал отправки |
+| **База данных** | Раздел админки: настоящий Adminer, только владельцу, через gateway |
 
-Copy the repository, run the three commands above, and start replacing. The parts most projects
-change first are the site's wording, the seed email templates and the product profile; the parts
-most projects never touch are Gateway, Auth and the admin panel's own machinery.
+Наружу опубликован только gateway. Всё остальное доступно исключительно во внутренней сети Docker, а
+PostgreSQL локально — контейнер проекта, в продакшне — внешняя управляемая база: проект в обоих
+случаях знает про неё ровно `DATABASE_URL`.
 
-`DIRECTIVES.md` holds the owner's project rules and `AGENTS.md` is the reading order for coding
-agents.
+## Документация
+
+[**docs/**](docs/README.md) — архитектура, админка, доступы администраторов, локальная разработка и
+деплой, а также позиции, которые шаблон занимает за вас.
+
+У каждого сервиса свой README рядом с кодом, а [приёмочные тесты](tests/README.md) описывают, что
+именно проверяется на живом проекте.
+
+## Как пользоваться шаблоном
+
+Скопируйте репозиторий, выполните три команды выше и начинайте заменять. Первым обычно меняют тексты
+сайта, стартовые шаблоны писем и продуктовый профиль; почти никогда не трогают gateway, auth и
+внутреннее устройство админки.
+
+`DIRECTIVES.md` хранит правила проекта, написанные его владельцем, а `AGENTS.md` — порядок чтения для
+агентов, которые будут писать код.

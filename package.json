@@ -8,7 +8,6 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "bootstrap": "node scripts/bootstrap.mjs",
     "bootstrap:worktree": "node scripts/bootstrap-worktree.mjs",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",

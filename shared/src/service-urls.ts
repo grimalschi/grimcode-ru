@@ -3,7 +3,7 @@ import { optionalEnv } from './env.js';
 /**
  * Fixed internal ports of the template.
  *
- * They are pinned in the images and in Compose. Nobody types them by hand: locally bootstrap only
+ * They are pinned in the images and in Compose. Nobody types them by hand: locally `.env` only
  * chooses the published host ports of Gateway and PostgreSQL.
  */
 export const INTERNAL_PORTS = {

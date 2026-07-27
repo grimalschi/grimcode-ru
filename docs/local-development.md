@@ -6,20 +6,22 @@
 
 ```bash
 pnpm install
-pnpm bootstrap
+cp .env.example .env
 pnpm up
 ```
 
-`bootstrap` writes the git-ignored `.env`: it picks the project slug, finds free ports, generates
-secrets and prints where the stack will be. It never overwrites a value a human already put there,
-so running it again is safe.
+`.env` is the only local configuration and nothing generates it: the values shipped in
+`.env.example` run as they are. Two are worth setting before the first run — `PROJECT_SLUG`, which
+names the Compose project, the cookies and the databases, and `GATEWAY_PORT` if 8080 is taken on
+this machine. `PUBLIC_SITE_URL` has to follow the port: it is what ends up in email links and what
+decides whether the session cookie is marked `Secure`.
 
-Nobody types a port number. If Docker's address pools are exhausted — which happens on a machine
-running many worktrees — bootstrap also picks a free subnet for this copy. It never touches anyone
-else's Docker network.
-
-The stack is then on the port it printed. `/` is the site, `/app/` the application, `/admin` the
+The stack is then at `PUBLIC_SITE_URL`. `/` is the site, `/app/` the application, `/admin` the
 panel. The first account you register becomes the owner of the panel.
+
+If Docker refuses to create the network because its address pools are exhausted — which happens on a
+machine running many projects and worktrees at once — `pnpm network:allocate` gives this copy a free
+subnet of its own and never touches anyone else's.
 
 ## Everyday commands
 
@@ -28,8 +30,8 @@ panel. The first account you register becomes the owner of the panel.
 | `pnpm up` / `pnpm down` | Start and stop the stack |
 | `pnpm logs <service>` | Follow one service |
 | `pnpm check` | Lint, types, unit tests, production build, boundaries, service ids, Compose |
-| `pnpm test:acceptance` | 51 HTTP checks against the running stack |
-| `pnpm test:browser` | 24 Chromium checks |
+| `pnpm test:acceptance` | 54 HTTP checks against the running stack |
+| `pnpm test:browser` | 27 Chromium checks |
 
 `pnpm check` is what has to be green. It runs from a clean checkout with the single lockfile and
 needs no running stack.
@@ -69,14 +71,18 @@ Running it again **keeps** databases the worktree already has. Replacing them is
 pnpm bootstrap:worktree --refresh-databases
 ```
 
-A day's work in a worktree cannot be wiped by re-running bootstrap out of habit.
+A day's work in a worktree cannot be wiped by re-running it out of habit.
+
+This is the one place a script still writes `.env` for you, and the reason is that a worktree's
+values are derived rather than chosen: the main checkout's file is the starting point, and what
+must differ — the slug, the ports, the database credentials — is replaced.
 
 ## The database
 
 The panel's database browser is at `/admin/database`, owner-only, through Gateway. It is the real
 Adminer, themed to match the panel around it; it has no host port in any environment.
 
-`psql` works too — bootstrap published PostgreSQL on loopback for exactly that:
+`psql` works too — PostgreSQL is published on loopback for exactly that:
 
 ```bash
 node scripts/compose.mjs exec postgres psql -U "$POSTGRES_USER" -d "${PROJECT_SLUG}_auth"

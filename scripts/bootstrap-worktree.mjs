@@ -139,14 +139,14 @@ function compose(root, args, options = {}) {
 const mainCheckout = findMainCheckout();
 
 if (resolve(mainCheckout) === resolve(repoRoot)) {
-  console.error('This is the main checkout, not a worktree. Run `pnpm bootstrap` here instead.');
+  console.error('This is the main checkout, not a worktree. Copy .env.example to .env here instead.');
   process.exit(1);
 }
 
 const mainEnvPath = join(mainCheckout, '.env');
 if (!existsSync(mainEnvPath)) {
   console.error(
-    `The main checkout at ${mainCheckout} has no .env yet. Run \`pnpm bootstrap\` there first.`,
+    `The main checkout at ${mainCheckout} has no .env yet. Copy .env.example to .env there first.`,
   );
   process.exit(1);
 }

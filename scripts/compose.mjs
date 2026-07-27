@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Thin wrapper around `docker compose` that always uses the repository's Compose file and the
- * git-ignored `.env`, so the Compose project name and the ports are the ones bootstrap chose.
+ * git-ignored `.env`, so the Compose project name and the ports are the ones this copy was given.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -12,7 +12,7 @@ const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const envPath = join(repoRoot, '.env');
 
 if (!existsSync(envPath)) {
-  console.error('No .env found. Run `pnpm bootstrap` first.');
+  console.error('No .env found. Copy .env.example to .env first: cp .env.example .env');
   process.exit(1);
 }
 
