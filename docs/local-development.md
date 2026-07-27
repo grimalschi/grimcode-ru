@@ -40,14 +40,12 @@ needs no running stack.
 
 ## Reaching it from another machine
 
-The gateway binds to loopback by default. To reach the stack from the host of a virtual machine, or
-from a phone on the same network:
+Nothing to configure: the gateway is published on every interface, so the stack answers on the
+machine's address from the host of a virtual machine or a phone on the same network. The database is
+not — it stays on loopback, and there is no setting that moves it.
 
-```bash
-GATEWAY_BIND_HOST=0.0.0.0
-```
-
-in `.env`. The database has no such variable: it stays on loopback whatever the application does.
+The one consequence worth knowing: until an account is registered, whoever registers first becomes
+the owner of the panel. On a network you do not control, register immediately after starting.
 
 ## Worktrees
 
