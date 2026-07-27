@@ -48,7 +48,6 @@ function toVersion(row: VersionRow) {
   return {
     id: row.id,
     templateId: row.template_id,
-    locale: row.locale,
     version: row.version,
     status: row.status,
     subject: row.subject,
@@ -173,7 +172,7 @@ export const adminRouter = adminOs.router({
     const template = await context.repo.findTemplateById(input.templateId);
     if (!template) throw new ORPCError('NOT_FOUND', { message: 'Template not found' });
 
-    const row = await context.repo.createDraft(template.id, input.locale, {
+    const row = await context.repo.createDraft(template.id, {
       subject: template.name,
       document: { type: 'doc', content: [] },
     });
@@ -181,7 +180,7 @@ export const adminRouter = adminOs.router({
       action: 'version.draft.created',
       actorUserId: admin.userId,
       actorRole: admin.role,
-      details: { templateKey: template.key, locale: input.locale, version: row.version },
+      details: { templateKey: template.key, version: row.version },
     });
 
     return { ok: true as const, version: toVersion(row) };
@@ -228,7 +227,7 @@ export const adminRouter = adminOs.router({
       action: 'version.published',
       actorUserId: admin.userId,
       actorRole: admin.role,
-      details: { templateKey: template.key, locale: row.locale, version: row.version },
+      details: { templateKey: template.key, version: row.version },
     });
 
     return { ok: true as const, version: toVersion(row) };
@@ -273,7 +272,6 @@ export const adminRouter = adminOs.router({
       dedupeKey,
       templateKey: template.key,
       templateVersionId: version.id,
-      locale: version.locale,
       recipientEmail: input.to,
       subject: rendered.subject,
       html: rendered.html,
@@ -312,8 +310,7 @@ export const adminRouter = adminOs.router({
         id: row.id,
         templateKey: row.template_key,
         templateVersionId: row.template_version_id,
-        locale: row.locale,
-        recipientEmail: row.recipient_email,
+            recipientEmail: row.recipient_email,
         subject: row.subject,
         transport: row.transport,
         status: row.status,
@@ -340,8 +337,7 @@ export const adminRouter = adminOs.router({
         id: row.id,
         templateKey: row.template_key,
         templateVersionId: row.template_version_id,
-        locale: row.locale,
-        recipientEmail: row.recipient_email,
+            recipientEmail: row.recipient_email,
         subject: row.subject,
         html: row.html,
         text: row.text,

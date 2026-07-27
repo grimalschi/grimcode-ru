@@ -99,4 +99,33 @@ export const migrations: readonly Migration[] = [
         CHECK (status IN ('queued', 'sent', 'failed'));
     `,
   },
+  {
+    version: 4,
+    name: 'one-language',
+    sql: `
+      -- Templates have one series of versions, not one per language. Multiple languages are a real
+      -- feature, but not one a template can guess the shape of: a product that needs them adds the
+      -- column back knowing how it chooses between them.
+      DROP INDEX template_versions_published_idx;
+      DROP INDEX template_versions_template_idx;
+      ALTER TABLE template_versions DROP CONSTRAINT template_versions_template_id_locale_version_key;
+
+      DELETE FROM template_versions a
+       USING template_versions b
+       WHERE a.template_id = b.template_id
+         AND a.version = b.version
+         AND a.locale <> 'ru'
+         AND b.locale = 'ru';
+
+      ALTER TABLE template_versions DROP COLUMN locale;
+      ALTER TABLE deliveries DROP COLUMN locale;
+
+      ALTER TABLE template_versions ADD CONSTRAINT template_versions_template_id_version_key
+        UNIQUE (template_id, version);
+      CREATE UNIQUE INDEX template_versions_published_idx
+        ON template_versions (template_id) WHERE status = 'published';
+      CREATE INDEX template_versions_template_idx
+        ON template_versions (template_id, version DESC);
+    `,
+  },
 ];

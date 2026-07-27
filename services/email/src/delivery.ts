@@ -1,4 +1,3 @@
-import { DEFAULT_LOCALE } from '@template/contracts';
 import type { Logger } from '@template/shared';
 
 import type { EmailRepository } from './repository.js';
@@ -6,15 +5,14 @@ import { fillHtml, fillText, renderSubject, type VariableValue } from './render.
 import type { Transport } from './transport.js';
 
 export class UnknownTemplateError extends Error {
-  constructor(templateKey: string, locale: string) {
-    super(`No published version of "${templateKey}" for locale "${locale}"`);
+  constructor(templateKey: string) {
+    super(`No published version of "${templateKey}"`);
     this.name = 'UnknownTemplateError';
   }
 }
 
 export interface SendInput {
   templateKey: string;
-  locale: string;
   to: string;
   variables: Record<string, VariableValue>;
   dedupeKey: string;
@@ -42,14 +40,10 @@ export async function sendTemplate(
     return { deliveryId: existing.id, deduplicated: true, status: existing.status };
   }
 
-  const published =
-    (await deps.repo.findPublished(input.templateKey, input.locale)) ??
-    // A locale without its own published version falls back to the default one rather than
-    // sending nothing.
-    (await deps.repo.findPublished(input.templateKey, DEFAULT_LOCALE));
+  const published = await deps.repo.findPublished(input.templateKey);
 
   if (!published || published.compiled_html === null || published.compiled_text === null) {
-    throw new UnknownTemplateError(input.templateKey, input.locale);
+    throw new UnknownTemplateError(input.templateKey);
   }
 
   // The published content keeps `{{name}}` placeholders for the values that are only known per
@@ -66,7 +60,6 @@ export async function sendTemplate(
     dedupeKey: input.dedupeKey,
     templateKey: input.templateKey,
     templateVersionId: published.id,
-    locale: published.locale,
     recipientEmail: input.to,
     subject: message.subject,
     html: message.html,

@@ -17,7 +17,6 @@ export interface TemplateRow {
 export interface VersionRow {
   id: string;
   template_id: string;
-  locale: string;
   version: number;
   status: 'draft' | 'published' | 'archived';
   subject: string;
@@ -35,7 +34,6 @@ export interface DeliveryRow {
   dedupe_key: string;
   template_key: string;
   template_version_id: string | null;
-  locale: string;
   recipient_email: string;
   subject: string;
   html: string;
@@ -51,11 +49,11 @@ export interface DeliveryRow {
 
 const TEMPLATE_COLUMNS = 'id, key, name, description, variables, created_at, updated_at';
 const VERSION_COLUMNS = `
-  id, template_id, locale, version, status, subject, editor_format, editor_document,
+  id, template_id, version, status, subject, editor_format, editor_document,
   compiled_html, compiled_text, published_at, created_at, updated_at
 `;
 const DELIVERY_COLUMNS = `
-  id, dedupe_key, template_key, template_version_id, locale, recipient_email, subject, html, text,
+  id, dedupe_key, template_key, template_version_id, recipient_email, subject, html, text,
   transport, status, provider_message_id, provider_status, error, created_at, sent_at
 `;
 
@@ -155,37 +153,36 @@ export class EmailRepository {
   async listVersions(templateId: string): Promise<VersionRow[]> {
     const { rows } = await this.pool.query<VersionRow>(
       `SELECT ${VERSION_COLUMNS} FROM template_versions
-        WHERE template_id = $1 ORDER BY locale ASC, version DESC`,
+        WHERE template_id = $1 ORDER BY version DESC`,
       [templateId],
     );
     return rows;
   }
 
-  /** The version runtime delivery must use: the published one for that template and locale. */
-  async findPublished(templateKey: string, locale: string): Promise<VersionRow | null> {
+  /** The version runtime delivery must use: the published one for that template. */
+  async findPublished(templateKey: string): Promise<VersionRow | null> {
     const { rows } = await this.pool.query<VersionRow>(
-      `SELECT v.id, v.template_id, v.locale, v.version, v.status, v.subject, v.editor_format,
+      `SELECT v.id, v.template_id, v.version, v.status, v.subject, v.editor_format,
               v.editor_document, v.compiled_html, v.compiled_text, v.published_at,
               v.created_at, v.updated_at
          FROM template_versions v
          JOIN templates t ON t.id = v.template_id
-        WHERE t.key = $1 AND v.locale = $2 AND v.status = 'published'`,
-      [templateKey, locale],
+        WHERE t.key = $1 AND v.status = 'published'`,
+      [templateKey],
     );
     return rows[0] ?? null;
   }
 
-  /** Creates a draft, copying the newest version of the same locale when one exists. */
+  /** Creates a draft, copying the newest version when one exists. */
   async createDraft(
     templateId: string,
-    locale: string,
     fallback: { subject: string; document: EditorDocument },
   ): Promise<VersionRow> {
     return withTransaction(this.pool, async (client) => {
       const { rows: latest } = await client.query<VersionRow>(
         `SELECT ${VERSION_COLUMNS} FROM template_versions
-          WHERE template_id = $1 AND locale = $2 ORDER BY version DESC LIMIT 1`,
-        [templateId, locale],
+          WHERE template_id = $1 ORDER BY version DESC LIMIT 1`,
+        [templateId],
       );
 
       const previous = latest[0];
@@ -193,13 +190,12 @@ export class EmailRepository {
 
       const { rows } = await client.query<VersionRow>(
         `INSERT INTO template_versions
-           (id, template_id, locale, version, status, subject, editor_format, editor_document)
-         VALUES ($1, $2, $3, $4, 'draft', $5, $6, $7::jsonb)
+           (id, template_id, version, status, subject, editor_format, editor_document)
+         VALUES ($1, $2, $3, 'draft', $4, $5, $6::jsonb)
          RETURNING ${VERSION_COLUMNS}`,
         [
           newId(),
           templateId,
-          locale,
           nextVersion,
           previous?.subject ?? fallback.subject,
           EDITOR_FORMAT,
@@ -229,13 +225,13 @@ export class EmailRepository {
   /**
    * Publishes a draft together with the HTML and text the server produced.
    *
-   * The previously published version of the same locale is archived in the same transaction, so
-   * the partial unique index always sees exactly one published version.
+   * The previously published version is archived in the same transaction, so the partial unique
+   * index always sees exactly one published version.
    */
   async publish(id: string, compiled: { html: string; text: string }): Promise<VersionRow> {
     return withTransaction(this.pool, async (client) => {
-      const { rows: current } = await client.query<{ template_id: string; locale: string }>(
-        `SELECT template_id, locale FROM template_versions WHERE id = $1 AND status = 'draft'`,
+      const { rows: current } = await client.query<{ template_id: string }>(
+        `SELECT template_id FROM template_versions WHERE id = $1 AND status = 'draft'`,
         [id],
       );
       const target = current[0];
@@ -243,8 +239,8 @@ export class EmailRepository {
 
       await client.query(
         `UPDATE template_versions SET status = 'archived', updated_at = now()
-          WHERE template_id = $1 AND locale = $2 AND status = 'published'`,
-        [target.template_id, target.locale],
+          WHERE template_id = $1 AND status = 'published'`,
+        [target.template_id],
       );
 
       const { rows } = await client.query<VersionRow>(
@@ -273,7 +269,6 @@ export class EmailRepository {
     dedupeKey: string;
     templateKey: string;
     templateVersionId: string | null;
-    locale: string;
     recipientEmail: string;
     subject: string;
     html: string;
@@ -282,9 +277,9 @@ export class EmailRepository {
   }): Promise<{ row: DeliveryRow; created: boolean }> {
     const { rows } = await this.pool.query<DeliveryRow>(
       `INSERT INTO deliveries
-         (id, dedupe_key, template_key, template_version_id, locale, recipient_email,
+         (id, dedupe_key, template_key, template_version_id, recipient_email,
           subject, html, text, transport)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (dedupe_key) DO NOTHING
        RETURNING ${DELIVERY_COLUMNS}`,
       [
@@ -292,7 +287,6 @@ export class EmailRepository {
         input.dedupeKey,
         input.templateKey,
         input.templateVersionId,
-        input.locale,
         input.recipientEmail,
         input.subject,
         input.html,
@@ -418,7 +412,7 @@ export class EmailRepository {
         seed.description,
         seed.variables,
       );
-      const draft = await this.createDraft(template.id, seed.locale, {
+      const draft = await this.createDraft(template.id, {
         subject: seed.subject,
         document: seed.document,
       });

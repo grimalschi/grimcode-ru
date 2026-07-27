@@ -81,7 +81,6 @@ export const internalRouter = internalOs.router({
 
       const result = await email.send({
         templateKey,
-        locale: event.recipient.locale,
         to: event.recipient.email,
         variables: variablesOf(event),
         // Email deduplicates on its own side too, so a retried routing cannot send twice.

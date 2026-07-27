@@ -29,7 +29,6 @@ import '@maily-to/core/style.css';
 interface Version {
   id: string;
   templateId: string;
-  locale: string;
   version: number;
   status: 'draft' | 'published' | 'archived';
   subject: string;
@@ -111,7 +110,7 @@ export function VersionEditorPage() {
 
   return (
     <AdminPage
-      title={version ? `${version.locale} · v${version.version}` : 'Версия'}
+      title={version ? `Версия ${version.version}` : 'Версия'}
       description={
         version ? (
           <span className="flex items-center gap-2">
@@ -171,7 +170,13 @@ export function VersionEditorPage() {
             </TabsContent>
 
             <TabsContent value="edit">
-          <div className="rounded-lg border p-4">
+          {/*
+                An email is a light document, and the editor's own stylesheet is written for that:
+                dropped into a dark panel its toolbar goes white on white. The canvas is pinned to
+                the light theme instead of being fought with overrides — which is also honest, since
+                this is what the message will look like.
+              */}
+          <div className="maily-canvas rounded-lg border bg-white p-4 text-black" data-theme="light">
             <Editor
               key={version.id}
               contentJson={version.editorDocument as never}

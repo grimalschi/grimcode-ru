@@ -1,13 +1,18 @@
 # email
 
-Template versions, localisation, publishing, delivery, provider statuses and the unchangeable
-history of what was actually sent.
+Template versions, publishing, delivery, provider statuses and the unchangeable history of what was
+actually sent.
 
-## Templates, locales and versions
+## Templates and versions
 
-A template has a stable `key`, a human name and the list of variables it may use. Each template
-has versions, one series per locale, and at most one of them is **published** — a partial unique
-index guarantees it, so runtime delivery is never ambiguous about which content to send.
+A template has a stable `key`, a human name and the list of variables it may use. Each template has
+a series of versions, and at most one of them is **published** — a partial unique index guarantees
+it, so runtime delivery is never ambiguous about which content to send.
+
+There is **one language**. Several are a real feature, but not one a template can guess the shape
+of: which language to send in depends on what a product knows about a person, and a template that
+invented an answer would leave every project unpicking it. A product that needs them adds the column
+back knowing how it chooses.
 
 The editor's own document is stored verbatim in `editor_document`, next to `editor_format`, the
 marker of the format it was written in. A new editor library never rewrites stored documents on
@@ -24,11 +29,6 @@ edits survive a restart.
 | `auth-password-reset` | recovery is requested by the user or by an administrator |
 | `auth-confirm-email-change` | a user asks to change their address |
 | `auth-email-changed` | notice to the previous address |
-
-They are seeded in the template's default language, `DEFAULT_LOCALE` in `contracts/`. The profile
-default and the delivery fallback read the same constant, so a message can never fall back to a
-language nothing was seeded in. A project that speaks another language edits these five documents,
-or adds a version in its own language beside them — that is what the locale on a version is for.
 
 Templates are not created from the admin panel. A template only means something once code sends it,
 and its key and the variables it may use are that code's side of the agreement — inventing them in a
@@ -48,7 +48,7 @@ On publish the server:
    only known per recipient;
 3. sanitizes the produced HTML;
 4. derives the plain text **from that HTML**, so the two versions cannot drift apart;
-5. archives the previously published version of the same locale in the same transaction.
+5. archives the previously published version in the same transaction.
 
 Runtime delivery then sends this stored result and never re-renders. An editor library upgrade can
 therefore not change a message that a human already approved, and the editor is never loaded at

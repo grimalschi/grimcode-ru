@@ -108,7 +108,6 @@ export const adminRouter = os.router({
         recipient: {
           identityId: row.id,
           email: row.email,
-          locale: await context.notifier.localeOf(row.id),
         },
         payload: {
           resetUrl: `${publicSiteUrl()}/app/reset-password?token=${encodeURIComponent(token)}`,
@@ -142,7 +141,6 @@ export const adminRouter = os.router({
         recipient: {
           identityId: row.id,
           email: row.email,
-          locale: await context.notifier.localeOf(row.id),
         },
         payload: {
           verificationUrl: `${publicSiteUrl()}/app/verify-email?token=${encodeURIComponent(token)}`,

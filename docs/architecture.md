@@ -44,7 +44,7 @@ way to replace one of them without replacing both.
 | **site** | Public pages | Anything about a signed-in person |
 | **app** | The interface behind sign-in | Any data; it asks Auth and Users |
 | **auth** | Identity, passwords, sessions, security events | Who is an administrator; product data |
-| **users** | The product profile and preferences | Passwords, sessions, admin rights |
+| **users** | The product profile | Passwords, sessions, admin rights |
 | **admin** | Who may open the panel and what they may reach | How anyone signs in |
 | **notifications** | Typed events and where they go | How a message is written or sent |
 | **email** | Templates, publishing, transports, the delivery log | Why a message was asked for |

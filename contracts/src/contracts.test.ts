@@ -86,14 +86,13 @@ describe('notification events', () => {
     expect(result.success).toBe(false);
   });
 
-  it('accepts a known event and defaults the locale', () => {
+  it('accepts a known event', () => {
     const result = notificationEventSchema.safeParse({
       type: 'auth.password.reset_requested',
       recipient: { identityId: '00000000-0000-4000-8000-000000000000', email: 'a@example.com' },
       payload: { resetUrl: 'https://example.com/app/reset?token=abc' },
     });
     expect(result.success).toBe(true);
-    expect(result.data?.recipient.locale).toBe('en');
   });
 });
 

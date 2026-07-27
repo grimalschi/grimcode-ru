@@ -1,5 +1,3 @@
-import { DEFAULT_LOCALE } from '@template/contracts';
-
 import type { EditorDocument } from './types.js';
 
 /**
@@ -9,9 +7,9 @@ import type { EditorDocument } from './types.js';
  * project opens is a real editable document rather than imported markup. There is no migration
  * from an older editor format in the template.
  *
- * The wording is deliberately plain and belongs to the project that copies this repository. It is
- * in the template's default language; a project that speaks another one edits these five documents
- * or adds a version in its own language, which is what the locale on a version is for.
+ * The wording is deliberately plain and belongs to the project that copies this repository. There
+ * is one language: a product that needs several adds that itself, knowing how it picks between
+ * them, rather than inheriting a guess.
  */
 
 interface SeedTemplate {
@@ -19,7 +17,6 @@ interface SeedTemplate {
   name: string;
   description: string;
   variables: string[];
-  locale: string;
   subject: string;
   document: EditorDocument;
 }
@@ -77,7 +74,6 @@ export const SEED_TEMPLATES: readonly SeedTemplate[] = [
     name: 'Приветствие',
     description: 'Отправляется сразу после регистрации и несёт первую ссылку подтверждения.',
     variables: ['email', 'verificationUrl'],
-    locale: DEFAULT_LOCALE,
     subject: 'Подтвердите адрес почты',
     document: document(
       heading('Добро пожаловать'),
@@ -92,7 +88,6 @@ export const SEED_TEMPLATES: readonly SeedTemplate[] = [
     name: 'Подтверждение адреса',
     description: 'Повторная ссылка подтверждения: по просьбе человека или от администратора.',
     variables: ['email', 'verificationUrl'],
-    locale: DEFAULT_LOCALE,
     subject: 'Подтвердите адрес почты',
     document: document(
       heading('Подтвердите адрес'),
@@ -107,7 +102,6 @@ export const SEED_TEMPLATES: readonly SeedTemplate[] = [
     name: 'Восстановление пароля',
     description: 'Одноразовая ссылка восстановления. Работает один раз и быстро истекает.',
     variables: ['email', 'resetUrl'],
-    locale: DEFAULT_LOCALE,
     subject: 'Восстановление пароля',
     document: document(
       heading('Восстановление пароля'),
@@ -125,7 +119,6 @@ export const SEED_TEMPLATES: readonly SeedTemplate[] = [
     name: 'Подтверждение нового адреса',
     description: 'Отправляется на новый адрес, когда человек меняет почту.',
     variables: ['email', 'confirmUrl'],
-    locale: DEFAULT_LOCALE,
     subject: 'Подтвердите новый адрес почты',
     document: document(
       heading('Подтвердите новый адрес'),
@@ -139,7 +132,6 @@ export const SEED_TEMPLATES: readonly SeedTemplate[] = [
     name: 'Адрес изменён',
     description: 'Уведомление на прежний адрес, чтобы угон аккаунта был заметен.',
     variables: ['email', 'previousEmail'],
-    locale: DEFAULT_LOCALE,
     subject: 'Адрес почты вашего аккаунта изменён',
     document: document(
       heading('Адрес почты изменён'),

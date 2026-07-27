@@ -1,9 +1,7 @@
-import { DEFAULT_LOCALE } from '@template/contracts';
 import type {
   ContractRouterClient,
   NotificationEvent,
   notificationsInternalContract,
-  usersInternalContract,
 } from '@template/contracts';
 import {
   createRpcClient,
@@ -13,14 +11,12 @@ import {
 } from '@template/shared';
 
 type NotificationsClient = ContractRouterClient<typeof notificationsInternalContract>;
-type UsersClient = ContractRouterClient<typeof usersInternalContract>;
 
 /**
  * Auth's outgoing side.
  *
- * Auth owns no templates and no delivery. It only reports typed events; Notifications routes them
- * and Email renders and sends them. The recipient's locale is a product preference, so it is read
- * from Users through its contract — never from its database.
+ * Auth owns no templates and no delivery. It only reports typed events; Notifications routes them,
+ * and Email renders and sends them.
  */
 export class Notifier {
   constructor(
@@ -28,24 +24,13 @@ export class Notifier {
     private readonly requestIdOf: () => string,
   ) {}
 
-  private client<T>(service: 'notifications' | 'users', path: string): T {
+  private client<T>(service: 'notifications', path: string): T {
     return createRpcClient<T>({
       url: `${internalServiceUrl(service)}${path}`,
       headers: { [REQUEST_ID_HEADER]: this.requestIdOf() },
     });
   }
 
-  /** Falls back to the default language when Users has no profile yet or is unreachable. */
-  async localeOf(identityId: string): Promise<string> {
-    try {
-      const users = this.client<UsersClient>('users', '/internal/rpc');
-      const { profile } = await users.getProfileByIdentityId({ identityId });
-      return profile?.locale ?? DEFAULT_LOCALE;
-    } catch (error) {
-      this.logger.warn('could not read recipient locale, falling back to en', { error });
-      return DEFAULT_LOCALE;
-    }
-  }
 
   /**
    * Emitting a notification must never fail a security flow. A password reset the user asked for

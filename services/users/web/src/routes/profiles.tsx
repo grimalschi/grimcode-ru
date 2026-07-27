@@ -25,9 +25,8 @@ const LIMIT = 25;
 /**
  * Product profiles.
  *
- * This is who a person is inside the product — a display name, and the language Email uses to pick
- * a template version. Passwords, sessions and admin rights live in Auth and Admin, and are neither
- * shown nor editable here.
+ * This is who a person is inside the product — a display name. Passwords, sessions and admin
+ * rights live in Auth and Admin, and are neither shown nor editable here.
  *
  * The sign-in address is not stored here either: Users asks Auth for it, in one call for the page.
  */
@@ -162,8 +161,6 @@ function ProfileDialog({ id, onClose }: { id: string; onClose: () => void }) {
           <dd>
             <code className="text-xs break-all">{profile.id}</code>
           </dd>
-          <dt className="text-muted-foreground">Язык</dt>
-          <dd>{profile.locale}</dd>
           <dt className="text-muted-foreground">С</dt>
           <dd>{new Date(profile.createdAt).toLocaleString()}</dd>
         </dl>

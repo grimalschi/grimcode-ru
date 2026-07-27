@@ -1,6 +1,6 @@
 # users
 
-The product profile of a user: display name, time zone and preferences.
+The product profile of a user: a display name, and whatever a product adds to it.
 
 Users stores no passwords, no OAuth identities, no sessions and no administrator rights. It links a
 profile to an Auth identity and nothing more.

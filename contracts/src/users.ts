@@ -5,7 +5,6 @@ import {
   emailSchema,
   idSchema,
   isoDateTimeSchema,
-  localeSchema,
   pageOf,
   paginationInputSchema,
 } from './common.js';
@@ -15,15 +14,11 @@ import {
  *
  * It is deliberately small. A product adds the fields it actually has; a template that guessed at
  * them would leave every project deleting things before adding its own.
- *
- * `locale` is not something a person sets here — one language is the common case — but Email needs
- * it to choose which version of a template to send, so it is stored with a default.
  */
 export const userProfileSchema = z.object({
   id: idSchema,
   identityId: idSchema,
   displayName: z.string().min(1).max(120).nullable(),
-  locale: localeSchema,
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });

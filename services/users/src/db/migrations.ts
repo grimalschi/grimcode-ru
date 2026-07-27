@@ -67,4 +67,14 @@ export const migrations: readonly Migration[] = [
       UPDATE profiles SET locale = 'ru' WHERE locale = 'en';
     `,
   },
+  {
+    version: 6,
+    name: 'drop-locale',
+    sql: `
+      -- Email sends in one language, so nothing reads this any more. A product with several
+      -- languages stores the choice where it can act on it, which is not something a template can
+      -- decide in advance.
+      ALTER TABLE profiles DROP COLUMN locale;
+    `,
+  },
 ];

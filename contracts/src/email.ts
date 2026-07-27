@@ -5,7 +5,6 @@ import {
   emailSchema,
   idSchema,
   isoDateTimeSchema,
-  localeSchema,
   okSchema,
   pageOf,
   paginationInputSchema,
@@ -46,7 +45,6 @@ export const templateVersionStatusSchema = z.enum(['draft', 'published', 'archiv
 export const templateVersionSchema = z.object({
   id: idSchema,
   templateId: idSchema,
-  locale: localeSchema,
   version: z.number().int().min(1),
   status: templateVersionStatusSchema,
   subject: z.string().min(1).max(300),
@@ -67,7 +65,6 @@ export const deliverySchema = z.object({
   id: idSchema,
   templateKey: z.string().max(80),
   templateVersionId: idSchema.nullable(),
-  locale: localeSchema,
   recipientEmail: emailSchema,
   subject: z.string().max(300),
   html: z.string(),
@@ -85,14 +82,13 @@ export const deliveryListItemSchema = deliverySchema.omit({ html: true, text: tr
 
 export const emailInternalContract = {
   /**
-   * Runtime delivery. Renders the published version of the template for the locale, stores the
+   * Runtime delivery. Sends the published version of the template, stores the
    * immutable snapshot of the produced message and hands it to the configured transport.
    */
   send: oc
     .input(
       z.object({
         templateKey: z.string().min(1).max(80),
-        locale: localeSchema.default('en'),
         to: emailSchema,
         variables: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({}),
         dedupeKey: z.string().min(1).max(200),
@@ -137,9 +133,9 @@ export const emailAdminContract = {
     .input(z.object({ id: idSchema }))
     .output(z.object({ version: templateVersionSchema })),
 
-  /** Creates a new draft for a locale, copying the latest version of that locale when it exists. */
+  /** Creates a new draft, copying the latest version when one exists. */
   createDraft: oc
-    .input(z.object({ templateId: idSchema, locale: localeSchema }))
+    .input(z.object({ templateId: idSchema }))
     .output(z.object({ ok: z.literal(true), version: templateVersionSchema })),
 
   saveDraft: oc

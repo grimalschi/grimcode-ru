@@ -96,7 +96,6 @@ export const publicRouter = os.router({
         recipient: {
           identityId: identity.id,
           email: identity.email,
-          locale: await context.notifier.localeOf(identity.id),
         },
         payload: { verificationUrl: appUrl('verify-email', token) },
       },
@@ -194,7 +193,6 @@ export const publicRouter = os.router({
           recipient: {
             identityId: identity.id,
             email: identity.email,
-            locale: await context.notifier.localeOf(identity.id),
           },
           payload: { resetUrl: appUrl('reset-password', token) },
         },
@@ -256,7 +254,6 @@ export const publicRouter = os.router({
         recipient: {
           identityId: row.id,
           email: row.email,
-          locale: await context.notifier.localeOf(row.id),
         },
         payload: { verificationUrl: appUrl('verify-email', token) },
       },
@@ -284,7 +281,6 @@ export const publicRouter = os.router({
         recipient: {
           identityId: row.id,
           email: input.email,
-          locale: await context.notifier.localeOf(row.id),
         },
         payload: { confirmUrl: appUrl('confirm-email-change', token) },
       },
@@ -320,7 +316,6 @@ export const publicRouter = os.router({
         recipient: {
           identityId: consumed.identity_id,
           email: previous.email,
-          locale: await context.notifier.localeOf(consumed.identity_id),
         },
         payload: { previousEmail: previous.email },
       },

@@ -24,7 +24,6 @@ import { useAsync, type Page } from '@/hooks/use-async';
 interface DeliveryRow {
   id: string;
   templateKey: string;
-  locale: string;
   recipientEmail: string;
   subject: string;
   transport: 'log' | 'unisender';
@@ -158,9 +157,7 @@ export function DeliveriesPage() {
             key: 'template',
             header: 'Шаблон',
             cell: (row) => (
-              <code className="text-xs">
-                {row.templateKey} · {row.locale}
-              </code>
+              <code className="text-xs">{row.templateKey}</code>
             ),
           },
           {

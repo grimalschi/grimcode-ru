@@ -6,16 +6,13 @@ const row: ProfileRow = {
   id: '00000000-0000-4000-8000-000000000001',
   identity_id: '00000000-0000-4000-8000-000000000002',
   display_name: 'Ada',
-  locale: 'en',
   created_at: new Date('2026-01-01T00:00:00.000Z'),
   updated_at: new Date('2026-01-02T00:00:00.000Z'),
 };
 
 describe('profile mapping', () => {
-  it('carries the display name and the language Email sends in', () => {
-    const profile = toProfile(row);
-    expect(profile.displayName).toBe('Ada');
-    expect(profile.locale).toBe('en');
+  it('carries the display name', () => {
+    expect(toProfile(row).displayName).toBe('Ada');
   });
 
   /**

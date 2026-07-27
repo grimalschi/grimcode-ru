@@ -5,13 +5,12 @@ export interface ProfileRow {
   id: string;
   identity_id: string;
   display_name: string | null;
-  locale: string;
   created_at: Date;
   updated_at: Date;
 }
 
 const COLUMNS = `
-  id, identity_id, display_name, locale, created_at, updated_at
+  id, identity_id, display_name, created_at, updated_at
 `;
 
 export function toProfile(row: ProfileRow): UserProfile {
@@ -19,7 +18,6 @@ export function toProfile(row: ProfileRow): UserProfile {
     id: row.id,
     identityId: row.identity_id,
     displayName: row.display_name,
-    locale: row.locale,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };

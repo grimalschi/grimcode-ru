@@ -5,7 +5,6 @@ import {
   emailSchema,
   idSchema,
   isoDateTimeSchema,
-  localeSchema,
   pageOf,
   paginationInputSchema,
 } from './common.js';
@@ -28,7 +27,6 @@ export type NotificationEventType = (typeof NOTIFICATION_EVENT_TYPES)[number];
 const recipientSchema = z.object({
   identityId: idSchema,
   email: emailSchema,
-  locale: localeSchema.default('en'),
 });
 
 export const notificationEventSchema = z.discriminatedUnion('type', [

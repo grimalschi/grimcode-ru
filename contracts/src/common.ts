@@ -61,19 +61,6 @@ export type AdminRole = z.infer<typeof adminRoleSchema>;
 
 export const idSchema = z.uuid();
 export const emailSchema = z.email().max(320).toLowerCase().trim();
-export const localeSchema = z
-  .string()
-  .regex(/^[a-z]{2}(-[A-Z]{2})?$/, 'Expected a BCP 47 language tag such as "ru" or "en-US"');
-
-/**
- * The language everything falls back to.
- *
- * It is one constant rather than a literal repeated across services, because the seed templates,
- * the profile default and the delivery fallback have to agree: a message that fell back to a
- * language nothing was seeded in would not be sent at all.
- */
-export const DEFAULT_LOCALE = 'ru';
-
 export const isoDateTimeSchema = z.iso.datetime();
 
 export const paginationInputSchema = z.object({
