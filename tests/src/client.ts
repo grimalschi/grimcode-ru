@@ -7,7 +7,7 @@
  * actually protects anything.
  */
 
-export const BASE_URL = (process.env.ACCEPTANCE_BASE_URL ?? 'http://127.0.0.1:8080').replace(
+export const BASE_URL = (process.env.ACCEPTANCE_BASE_URL ?? 'http://127.0.0.1:63000').replace(
   /\/+$/,
   '',
 );

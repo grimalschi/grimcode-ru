@@ -13,8 +13,8 @@
  *   2. takes the main checkout's `.env` as the starting point and replaces what must differ;
  *   3. clears away what deleted worktrees left on the machine — their networks hold address space
  *      nothing will use again, which is what exhausts Docker's pools;
- *   4. picks free ports inside PORT_RANGE_START..PORT_RANGE_END and, if the pools are exhausted
- *      anyway, a free subnet;
+ *   4. picks free ports inside PORT_RANGE_START..PORT_RANGE_END — never the first one, which
+ *      belongs to the main checkout — and, if the pools are exhausted anyway, a free subnet;
  *   5. copies the main checkout's local databases across with a logical dump and restore.
  *
  * The copy is of local development state, not of production data. A second run does **not** touch
@@ -232,6 +232,19 @@ const orphanedVolumes = orphanedProjectVolumes(live);
 
 const rangeStart = Number(resolved.get('PORT_RANGE_START') || 63000);
 const rangeEnd = Number(resolved.get('PORT_RANGE_END') || 63099);
+
+/*
+ * The first port of the range is the main checkout's, and so are whatever ports its `.env` names.
+ * Held back rather than probed: the main stack is often stopped while a branch is being set up, and
+ * a port that merely happens to be free right now is not a port that is free to take.
+ */
+for (const reserved of [
+  rangeStart,
+  Number(mainEnv.get('GATEWAY_PORT')),
+  Number(mainEnv.get('POSTGRES_PORT')),
+]) {
+  if (Number.isFinite(reserved) && reserved > 0) taken.add(reserved);
+}
 
 const gatewayPort =
   existing.get('GATEWAY_PORT') || String(await findFreePortInRange(rangeStart, rangeEnd, taken));

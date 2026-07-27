@@ -20,7 +20,7 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   reporter: [['list']],
   use: {
-    baseURL: process.env.ACCEPTANCE_BASE_URL ?? 'http://127.0.0.1:8080',
+    baseURL: process.env.ACCEPTANCE_BASE_URL ?? 'http://127.0.0.1:63000',
     // The admin panel is a desktop surface; the sidebar collapses below this.
     viewport: { width: 1280, height: 900 },
     ignoreHTTPSErrors: true,

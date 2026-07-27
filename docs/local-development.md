@@ -11,10 +11,12 @@ pnpm up
 ```
 
 `.env` is the only local configuration and nothing generates it: the values shipped in
-`.env.example` run as they are. Two are worth setting before the first run — `PROJECT_SLUG`, which
-names the Compose project, the cookies and the databases, and `GATEWAY_PORT` if 8080 is taken on
-this machine. `PUBLIC_SITE_URL` has to follow the port: it is what ends up in email links and what
-decides whether the session cookie is marked `Secure`.
+`.env.example` run as they are. `PROJECT_SLUG` is worth setting before the first run — it names the
+Compose project, the cookies and the databases.
+
+Ports come from one range, `PORT_RANGE_START..PORT_RANGE_END`. Its first port is the main checkout's
+and nothing else may take it; `GATEWAY_PORT` names it and `PUBLIC_SITE_URL` follows, which is what
+ends up in email links and what decides whether the session cookie is marked `Secure`.
 
 The stack is then at `PUBLIC_SITE_URL`. `/` is the site, `/app/` the application, `/admin` the
 panel. The first account you register becomes the owner of the panel.
@@ -65,8 +67,11 @@ It finds the main checkout through git rather than a path written down anywhere,
 over, replaces what must differ, and copies the local service databases across with a logical dump
 and restore — so the new branch starts with the data you were already working with.
 
-Ports come out of `PORT_RANGE_START..PORT_RANGE_END`, the range `.env` reserves for worktrees, and
-`PUBLIC_SITE_URL` follows the one it picked.
+Ports come out of `PORT_RANGE_START..PORT_RANGE_END`, never the first one — that belongs to the main
+checkout, along with whatever ports its `.env` names, and both are held back rather than probed: the
+main stack is often stopped while a branch is being set up, and a port that merely happens to be
+free right now is not free to take. `PUBLIC_SITE_URL` follows the picked port and keeps the main
+checkout's host, so a stack reachable from another machine stays reachable from it.
 
 It also clears away what deleted worktrees left on the machine. A checkout that is gone still has its
 Docker network holding address space nothing will ever use again — that is what exhausts Docker's
