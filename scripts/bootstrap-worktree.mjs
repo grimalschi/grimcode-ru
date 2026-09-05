@@ -390,4 +390,4 @@ for (const service of STATEFUL_SERVICES) {
 }
 
 console.log(`\n${copied} database(s) copied, ${skipped} kept as they were.`);
-console.log('Start this worktree with:  pnpm up');
+console.log('Start this worktree with:  pnpm start');

@@ -17,7 +17,7 @@ import {
 import { resolveIdentity } from './auth-client.js';
 import { migrations } from './db/migrations.js';
 import { UsersRepository } from './repository.js';
-import { adminRouter, internalRouter, publicRouter } from './routers.js';
+import { adminRouter, publicRouter } from './routers.js';
 
 const logger = createLogger('users');
 const pool = createPool('users');
@@ -33,7 +33,6 @@ mountRpc(app, '/service/users/rpc', publicRouter, async ({ request, hono }) => (
   identity: await resolveIdentity(request, hono.get('requestId')),
 }));
 
-mountRpc(app, '/internal/rpc', internalRouter, () => ({ repo }));
 
 mountRpc(app, '/admin/embed/service/users/rpc', adminRouter, ({ request }) => ({
   repo,

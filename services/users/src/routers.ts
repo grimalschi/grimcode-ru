@@ -2,7 +2,6 @@ import { ORPCError } from '@orpc/client';
 import { implement } from '@orpc/server';
 import {
   usersAdminContract,
-  usersInternalContract,
   usersPublicContract,
   type AdminContext,
   type authInternalContract,
@@ -51,10 +50,6 @@ export interface PublicContext {
   identity: Identity | null;
 }
 
-export interface InternalContext {
-  repo: UsersRepository;
-}
-
 export interface AdminRpcContext {
   repo: UsersRepository;
   request: Request;
@@ -82,16 +77,6 @@ export const publicRouter = publicOs.router({
     return { ok: true as const, profile: toProfile(row) };
   }),
 
-});
-
-const internalOs = implement(usersInternalContract).$context<InternalContext>();
-
-export const internalRouter = internalOs.router({
-
-  getProfileByIdentityId: internalOs.getProfileByIdentityId.handler(async ({ input, context }) => {
-    const row = await context.repo.findByIdentityId(input.identityId);
-    return { profile: row ? toProfile(row) : null };
-  }),
 });
 
 const adminOs = implement(usersAdminContract).$context<AdminRpcContext>();
