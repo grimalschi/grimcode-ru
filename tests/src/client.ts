@@ -1,10 +1,9 @@
 /**
  * The smallest HTTP client these tests need.
  *
- * They deliberately speak to the stack the way a browser does — over Gateway, with cookies — rather
- * than importing service code. A test that called a router directly would prove the router works
- * while saying nothing about whether Gateway lets the request through, which is the part that
- * actually protects anything.
+ * They speak to the stack the way a browser does — over Gateway, with cookies — rather than
+ * importing service code: a test that called a router directly would prove the router works and say
+ * nothing about whether Gateway lets the request through.
  */
 
 export const BASE_URL = (process.env.ACCEPTANCE_BASE_URL ?? 'http://127.0.0.1:63000').replace(
@@ -16,10 +15,8 @@ export const BASE_URL = (process.env.ACCEPTANCE_BASE_URL ?? 'http://127.0.0.1:63
 export class Session {
   private cookies = new Map<string, string>();
   /**
-   * One token per surface, because each issues its own cookie.
-   *
-   * A single cached token here would send the panel's token to a service admin and be refused —
-   * which is exactly the confusion the per-surface cookies exist to prevent.
+   * One token per surface, because each issues its own cookie: a single cached token would send the
+   * panel's to a service admin and be refused.
    */
   private csrf = new Map<string, string>();
 
@@ -48,34 +45,16 @@ export class Session {
   }
 
   /**
-   * `follow` walks redirects by hand rather than letting fetch do it, so a cookie the first
-   * response set is carried into the next request — which is exactly what Adminer's own redirect
-   * needs.
+   * A redirect is returned as it is. Walking redirects by hand used to live here, for the one page
+   * that answered with one — the third-party database browser — and nothing in this template does.
    */
-  async fetch(
-    path: string,
-    init: RequestInit = {},
-    options: { follow?: boolean } = {},
-  ): Promise<Response> {
-    let target = path;
+  async fetch(path: string, init: RequestInit = {}): Promise<Response> {
+    const headers = new Headers(init.headers);
+    if (this.cookies.size > 0) headers.set('cookie', this.cookieHeader);
 
-    for (let hop = 0; hop < 5; hop += 1) {
-      const headers = new Headers(init.headers);
-      if (this.cookies.size > 0) headers.set('cookie', this.cookieHeader);
-
-      const response = await fetch(`${BASE_URL}${target}`, { ...init, headers, redirect: 'manual' });
-      this.remember(response);
-
-      const location = response.headers.get('location');
-      if (!options.follow || response.status < 300 || response.status >= 400 || !location) {
-        return response;
-      }
-
-      target = new URL(location, `${BASE_URL}${target}`).pathname + new URL(location, `${BASE_URL}${target}`).search;
-      init = { ...init, method: 'GET', body: undefined };
-    }
-
-    throw new Error(`Too many redirects from ${path}`);
+    const response = await fetch(`${BASE_URL}${path}`, { ...init, headers, redirect: 'manual' });
+    this.remember(response);
+    return response;
   }
 
   /** Status of a plain GET, which is what "can this person open that page" means. */
@@ -83,11 +62,7 @@ export class Session {
     return (await this.fetch(path)).status;
   }
 
-  /**
-   * A token from the surface being called.
-   *
-   * Each surface issues its own, so the token is fetched from the same prefix the call goes to.
-   */
+  /** A token from the surface being called, fetched from the same prefix the call goes to. */
   private async csrfToken(prefix: string): Promise<string> {
     const cached = this.csrf.get(prefix);
     if (cached) return cached;
@@ -117,13 +92,16 @@ export class Session {
     const response = await this.fetch(`${prefix}/rpc/${procedure}`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ json: input }),
+      body: JSON.stringify(input),
     });
 
     const text = await response.text();
-    const parsed = text === '' ? null : (JSON.parse(text) as { json?: unknown });
+    const parsed = text === '' ? null : (JSON.parse(text) as Record<string, unknown>);
 
-    return { status: response.status, body: (parsed?.json ?? parsed) as T };
+    // An answer is `{ result: { data } }` on success and `{ error: … }` on refusal. The error
+    // shape is kept whole so that `errorCode` and `errorMessage` can read it.
+    const result = parsed?.result as { data?: unknown } | undefined;
+    return { status: response.status, body: (result ? result.data : parsed) as T };
   }
 
   /** An RPC that is expected to succeed; anything else fails the test where it happened. */
@@ -152,9 +130,21 @@ export function serviceAdmin(service: string): string {
   return `/admin/embed/service/${service}`;
 }
 
-/** oRPC reports a refusal in the body; the code is what these tests assert on. */
+/**
+ * The code of a refusal.
+ *
+ * The string code is at `body.error.data.code`. At `body.error.code` there is a **number** —
+ * `-32003` and friends — and reading that one instead compiles, never throws, and makes every
+ * `expect(errorCode(...)).toBe('FORBIDDEN')` in this suite silently false: the checks would stop
+ * checking without a single red run. Hence the explicit path.
+ */
 export function errorCode(body: unknown): string | undefined {
-  return (body as { code?: string } | null)?.code;
+  return (body as { error?: { data?: { code?: string } } } | null)?.error?.data?.code;
+}
+
+/** The text of a refusal, from the same envelope. */
+export function errorMessage(body: unknown): string {
+  return String((body as { error?: { message?: string } } | null)?.error?.message);
 }
 
 export async function waitForStack(attempts = 30): Promise<void> {
@@ -169,7 +159,7 @@ export async function waitForStack(attempts = 30): Promise<void> {
   }
 
   throw new Error(
-    `The stack did not answer at ${BASE_URL}. Start it with "pnpm start", or point ` +
+    `The stack did not answer at ${BASE_URL}. Start it with "pnpm dev", or point ` +
       'ACCEPTANCE_BASE_URL at a running one.',
   );
 }

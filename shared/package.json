@@ -13,6 +13,10 @@
     "./browser": {
       "types": "./dist/theme.d.ts",
       "import": "./dist/theme.js"
+    },
+    "./vocabulary": {
+      "types": "./dist/vocabulary.d.ts",
+      "import": "./dist/vocabulary.js"
     }
   },
   "files": [
@@ -25,12 +29,10 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@hono/node-server": "2.0.11",
-    "@orpc/client": "1.14.10",
-    "@orpc/server": "1.14.10",
-    "@template/contracts": "workspace:*",
+    "@trpc/server": "11.18.0",
     "hono": "4.12.32",
-    "pg": "8.22.0"
+    "pg": "8.22.0",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/node": "22.20.1",

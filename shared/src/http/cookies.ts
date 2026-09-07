@@ -1,3 +1,5 @@
+import { publicSiteUrl, sessionCookieName } from '../env.js';
+
 export interface CookieOptions {
   maxAge?: number;
   path?: string;
@@ -38,4 +40,41 @@ export function serializeCookie(name: string, value: string, options: CookieOpti
 /** Expired cookie used by server-side logout after the session row is already invalidated. */
 export function clearCookie(name: string, options: CookieOptions = {}): string {
   return serializeCookie(name, '', { ...options, maxAge: 0 });
+}
+
+/**
+ * Whether the session cookie may only travel over HTTPS. Follows the public origin rather than
+ * NODE_ENV: the same build runs locally over plain http, and a `Secure` cookie would then never come
+ * back. Nothing in this project reads NODE_ENV at all.
+ */
+function secureCookies(): boolean {
+  return publicSiteUrl().startsWith('https://');
+}
+
+/**
+ * The session cookie is HttpOnly. The pair lives here rather than in Auth because the admin panel
+ * signs out through a procedure of its own, and a cookie cleared with a different `Secure`, `Path`
+ * or `SameSite` is a cookie the browser keeps.
+ */
+export function sessionCookie(token: string, ttlSeconds: number): string {
+  return serializeCookie(sessionCookieName(), token, {
+    maxAge: ttlSeconds,
+    httpOnly: true,
+    secure: secureCookies(),
+    sameSite: 'Lax',
+    path: '/',
+  });
+}
+
+/**
+ * Cookie that removes the session from the browser. Only ever sent *after* the session row has been
+ * invalidated server-side: deleting the cookie alone would leave a usable session behind.
+ */
+export function expiredSessionCookie(): string {
+  return clearCookie(sessionCookieName(), {
+    httpOnly: true,
+    secure: secureCookies(),
+    sameSite: 'Lax',
+    path: '/',
+  });
 }

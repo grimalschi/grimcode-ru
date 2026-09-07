@@ -39,9 +39,3 @@ export function isCsrfValid(headers: Headers, scope: string): boolean {
   if (!cookieToken || !headerToken) return false;
   return safeEqual(cookieToken, headerToken);
 }
-
-const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-
-export function requiresCsrfCheck(method: string): boolean {
-  return !SAFE_METHODS.has(method.toUpperCase());
-}

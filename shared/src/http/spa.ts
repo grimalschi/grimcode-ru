@@ -4,7 +4,7 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
 
 import { issueCsrfToken } from './csrf.js';
-import type { ServiceApp } from './service-app.js';
+import type { ServiceApp, ServiceEnv } from './service-app.js';
 
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -40,7 +40,10 @@ export interface SpaOptions {
  * `/admin/embed/service/email/templates/123` renders the app instead of a 404. Admin authorization has
  * already happened at Gateway — these assets are behind the very same check as the HTML.
  */
-export function mountSpa(app: ServiceApp, options: SpaOptions): void {
+export function mountSpa<TEnv extends ServiceEnv = object>(
+  app: ServiceApp<TEnv>,
+  options: SpaOptions,
+): void {
   const root = resolve(options.rootDir);
   const base = options.basePath.replace(/\/+$/, '');
 
@@ -72,7 +75,11 @@ export function mountSpa(app: ServiceApp, options: SpaOptions): void {
  * The token is not a secret by itself — its point is that a cross-site page can make the browser
  * send the cookie but cannot read it to produce the matching header.
  */
-export function mountCsrfEndpoint(app: ServiceApp, path: string, scope: string): void {
+export function mountCsrfEndpoint<TEnv extends ServiceEnv = object>(
+  app: ServiceApp<TEnv>,
+  path: string,
+  scope: string,
+): void {
   app.get(path, (c) => {
     const { token, cookie } = issueCsrfToken(scope, { path: '/' });
     c.header('set-cookie', cookie);

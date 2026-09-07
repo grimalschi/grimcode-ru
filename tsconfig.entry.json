@@ -1,0 +1,24 @@
+{
+  // The program's entry, built on its own. Not a workspace package, and not a turbo task either: a
+  // root task named `build` would run the root's `build` script, which is the turbo wrapper, so turbo
+  // would call itself. `pnpm build` runs this compiler after turbo instead.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["index.ts"],
+  "references": [
+    { "path": "pg-interface" },
+    { "path": "shared" },
+    { "path": "modules/admin" },
+    { "path": "modules/app" },
+    { "path": "modules/auth" },
+    { "path": "modules/email" },
+    { "path": "modules/gateway" },
+    { "path": "modules/notifications" },
+    { "path": "modules/users" }
+  ]
+}

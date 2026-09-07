@@ -1,0 +1,216 @@
+import { NOTIFICATION_EVENT_TYPES } from '@template/shared/vocabulary';
+import type { StoredNotificationEvent } from '@template/notifications/contract';
+import * as React from 'react';
+
+import { api } from '@/api';
+import { AdminPage, ErrorState } from '@/components/layout/admin-page';
+import { DataTable, Pagination } from '@/components/layout/data-table';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useAsync, type Page } from '@/hooks/use-async';
+
+type Event = StoredNotificationEvent;
+
+const LIMIT = 50;
+const ANY = 'any';
+
+const STATUSES = ['accepted', 'routed', 'failed'] as const;
+
+/** A dot rather than a filled badge: inside a clickable row a badge reads as a button. */
+const STATUS_DOT: Record<Event['status'], string> = {
+  accepted: 'bg-muted-foreground',
+  routed: 'bg-emerald-500',
+  failed: 'bg-destructive',
+};
+
+/**
+ * Everything the product asked to notify someone about.
+ *
+ * The list is read-only on purpose: an event is a record of something that happened, and being
+ * able to edit it would make the record worthless. What can be seen is which events arrived,
+ * whether each reached Email, and why one did not.
+ */
+export function EventsPage() {
+  const [type, setType] = React.useState<string>(ANY);
+  const [status, setStatus] = React.useState<string>(ANY);
+  const [offset, setOffset] = React.useState(0);
+  const [selected, setSelected] = React.useState<Event | null>(null);
+
+  const list = useAsync<Page<Event>>(
+    () =>
+      api.listEvents.query({
+        type: type === ANY ? undefined : (type as Event['type']),
+        status: status === ANY ? undefined : (status as Event['status']),
+        limit: LIMIT,
+        offset,
+      }),
+    [type, status, offset],
+  );
+
+  const changeFilter = (setter: (value: string) => void) => (value: string) => {
+    setter(value);
+    setOffset(0);
+  };
+
+  if (list.error) {
+    return (
+      <AdminPage title="События">
+        <ErrorState error={list.error} retry={list.reload} />
+      </AdminPage>
+    );
+  }
+
+  return (
+    <AdminPage
+      title="События"
+      description="О чём продукт просил уведомить и дошло ли это до Email."
+      actions={
+        <div className="flex gap-2">
+          <Select value={type} onValueChange={changeFilter(setType)}>
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="Любое событие" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>Любое событие</SelectItem>
+              {NOTIFICATION_EVENT_TYPES.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={status} onValueChange={changeFilter(setStatus)}>
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="Любой статус" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>Любой статус</SelectItem>
+              {STATUSES.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      }
+    >
+      <DataTable
+        loading={list.loading}
+        rows={list.data?.items ?? []}
+        rowKey={(row) => row.id}
+        empty="Событий пока нет."
+        onRowClick={setSelected}
+        columns={[
+          {
+            key: 'createdAt',
+            header: 'Когда',
+            className: 'whitespace-nowrap',
+            cell: (row) => new Date(row.createdAt).toLocaleString(),
+          },
+          { key: 'type', header: 'Событие', cell: (row) => <Badge variant="outline">{row.type}</Badge> },
+          { key: 'recipient', header: 'Кому', cell: (row) => row.recipientEmail },
+          {
+            key: 'status',
+            header: 'Статус',
+            cell: (row) => (
+              <span className="flex items-center gap-2">
+                <span
+                  aria-hidden
+                  className={`size-2 shrink-0 rounded-full ${STATUS_DOT[row.status]}`}
+                />
+                {row.status}
+              </span>
+            ),
+          },
+        ]}
+      />
+
+      <Pagination
+        total={list.data?.total ?? 0}
+        limit={LIMIT}
+        offset={offset}
+        onOffsetChange={setOffset}
+      />
+
+      {selected ? <EventDialog id={selected.id} onClose={() => setSelected(null)} /> : null}
+    </AdminPage>
+  );
+}
+
+/**
+ * One event, read again on open.
+ *
+ * A row in the list may have been fetched while the event was still `accepted`; by the time someone
+ * opens it, it has usually been routed.
+ */
+function EventDialog({ id, onClose }: { id: string; onClose: () => void }) {
+  const state = useAsync<{ event: Event }>(() => api.getEvent.query({ id }), [id]);
+  const event = state.data?.event;
+
+  if (!event) {
+    return (
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Событие</DialogTitle>
+            <DialogDescription>Загружаем.</DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{event.type}</DialogTitle>
+          <DialogDescription>
+            Запись об одном событии. Изменить здесь ничего нельзя.
+          </DialogDescription>
+        </DialogHeader>
+
+        <dl className="grid grid-cols-[9rem_1fr] gap-y-2 text-sm">
+          <dt className="text-muted-foreground">Получатель</dt>
+          <dd>{event.recipientEmail}</dd>
+          <dt className="text-muted-foreground">Статус</dt>
+          <dd>{event.status}</dd>
+          <dt className="text-muted-foreground">Принято</dt>
+          <dd>{new Date(event.createdAt).toLocaleString()}</dd>
+          <dt className="text-muted-foreground">Отправлено</dt>
+          <dd>{event.routedAt ? new Date(event.routedAt).toLocaleString() : 'Ещё нет'}</dd>
+          <dt className="text-muted-foreground">Доставка</dt>
+          <dd>
+            {/* The message itself lives in Email; this is only the link between the two. */}
+            {event.deliveryId ? <code className="text-xs">{event.deliveryId}</code> : '—'}
+          </dd>
+          <dt className="text-muted-foreground">Ключ идемпотентности</dt>
+          <dd className="truncate">
+            <code className="text-xs">{event.dedupeKey}</code>
+          </dd>
+        </dl>
+
+        {event.error ? (
+          <p className="border-destructive/40 bg-destructive/5 rounded-md border p-3 text-sm">
+            {event.error}
+          </p>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -1,5 +1,5 @@
 {
-  "name": "@template/acceptance",
+  "name": "@template/tests",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,10 @@
   },
   "devDependencies": {
     "@playwright/test": "1.62.0",
+    "@template/shared": "workspace:*",
     "@types/node": "22.20.1",
+    "@types/pg": "8.20.0",
+    "pg": "8.22.0",
     "typescript": "5.9.3",
     "vitest": "4.1.10"
   }

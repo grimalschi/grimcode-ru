@@ -1,0 +1,99 @@
+/*
+ * The screen's own frame. Everything else is element-plus, whose variables follow the `dark` class the
+ * theme bridge sets, so light and dark come from the panel rather than from here.
+ */
+
+/*
+ * The header of a table, centred vertically.
+ *
+ * element-plus lays a header cell out for one line of text and pads it from the top, so a header taller
+ * than that line — ours carries the column type beside the name, and a button in two columns — sat with
+ * its contents against the top edge. Nine pixels above, nineteen below, which reads as a mistake rather
+ * than as a choice. Centring the cell itself is what fixes it for every column at once.
+ */
+.el-table__header th.el-table__cell > .cell {
+  display: flex;
+  align-items: center;
+  min-height: 100%;
+}
+
+/*
+ * The cell that holds the plus gives up its padding, so the button can be the whole cell.
+ *
+ * The class comes from `label-class-name` on the column — element-plus puts it on the header cell, which
+ * is the only way to reach one cell of a header from outside the component.
+ */
+/*
+ * The button is laid over the cell rather than stretched inside it: a header cell is a `table-cell`, so
+ * `height: 100%` inside one resolves to the height of the text, not of the cell. Absolute positioning
+ * against the cell is what actually fills it, and it survives the cell changing height.
+ */
+.el-table__header th.add-column-head {
+  padding: 0;
+  position: relative;
+}
+
+/*
+ * The accent is grey, not element-plus's blue.
+ *
+ * The panel this screen is embedded in has no colour of its own: its `--primary` is `oklch(0.205 0 0)`
+ * in light and `oklch(0.922 0 0)` in dark — the same greyscale, inverted. A blue button inside a grey
+ * panel reads as another application in a frame, which is exactly what this section should not look
+ * like. So the primary of element-plus is redefined here, along with the tints it derives from it:
+ * they are separate variables, and a library that never sees the base colour cannot mix them itself.
+ */
+:root {
+  --el-color-primary: oklch(0.205 0 0);
+  --el-color-primary-light-3: oklch(0.35 0 0);
+  --el-color-primary-light-5: oklch(0.48 0 0);
+  --el-color-primary-light-7: oklch(0.62 0 0);
+  --el-color-primary-light-8: oklch(0.78 0 0);
+  --el-color-primary-light-9: oklch(0.95 0 0);
+  --el-color-primary-dark-2: oklch(0.12 0 0);
+}
+
+/* Dark: the same scale the other way up, so the accent stays readable against a dark table. */
+html.dark {
+  --el-color-primary: oklch(0.922 0 0);
+  --el-color-primary-light-3: oklch(0.8 0 0);
+  --el-color-primary-light-5: oklch(0.68 0 0);
+  --el-color-primary-light-7: oklch(0.52 0 0);
+  --el-color-primary-light-8: oklch(0.38 0 0);
+  --el-color-primary-light-9: oklch(0.28 0 0);
+  --el-color-primary-dark-2: oklch(0.98 0 0);
+}
+
+/*
+ * And the text on top of it. element-plus writes white on a primary button, which was right when the
+ * accent was a mid blue and is wrong now: in dark the accent is nearly white, so the label has to be
+ * dark to be read at all. The panel does the same thing — its `--primary-foreground` inverts with it.
+ */
+html.dark .el-button--primary {
+  --el-button-text-color: oklch(0.205 0 0);
+  --el-button-hover-text-color: oklch(0.205 0 0);
+  --el-button-active-text-color: oklch(0.205 0 0);
+  --el-button-disabled-text-color: oklch(0.205 0 0 / 60%);
+}
+
+/*
+ * The same white-on-white, in the other component that paints itself with the accent: the chosen half
+ * of «и / или». element-plus fills it with `--el-color-primary` and writes `--el-color-white` on top,
+ * which in dark is white on near-white — the panel showed which one was chosen only by a faint edge.
+ * Kept beside the button fix because it is the same mistake, and the next component that uses the
+ * accent as a background will need the same line.
+ */
+html.dark .el-radio-button {
+  --el-radio-button-checked-text-color: oklch(0.205 0 0);
+}
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--el-bg-color);
+  color: var(--el-text-color-primary);
+  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}

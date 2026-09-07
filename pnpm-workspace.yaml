@@ -1,5 +1,5 @@
 packages:
-  - contracts
+  - pg-interface
   - shared
-  - services/*
+  - modules/*
   - tests

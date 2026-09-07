@@ -1,6 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { ADMIN, AUTH, BASE_URL, Session, serviceAdmin, waitForStack } from './client.js';
+import {
+  ADMIN,
+  AUTH,
+  BASE_URL,
+  errorMessage,
+  Session,
+  serviceAdmin,
+  USERS,
+  waitForStack,
+} from './client.js';
 import {
   createUser,
   ensureFixtureTemplate,
@@ -201,7 +210,7 @@ describe('email templates', () => {
     );
 
     expect(refused.status).toBe(400);
-    expect(String((refused.body as { message?: string }).message)).toMatch(/notDeclared/);
+    expect(errorMessage(refused.body)).toMatch(/notDeclared/);
   });
 
   it('publishes a correct document and keeps its placeholders for send time', async () => {
@@ -269,6 +278,27 @@ describe('service boundaries', () => {
     }
   });
 
+  /**
+   * Users does not store the sign-in address — the profile list asks Auth for it on every page, in
+   * one call for the whole page. The call is a direct one into Auth now, and a failure inside it is
+   * swallowed so the page still renders without addresses; that is exactly why the column needs a
+   * check of its own rather than being covered by the page answering at all.
+   */
+  it('fills in a profile’s sign-in address from auth', async () => {
+    const user = await createUser('profile-address');
+    // The profile row is created lazily on first access, so ask for it as the user first.
+    await user.session.call(USERS, 'getOwnProfile', {});
+
+    const page = await owner.call<{ items: { identityId: string; email: string | null }[] }>(
+      serviceAdmin('users'),
+      'listProfiles',
+      { limit: 20, offset: 0 },
+    );
+
+    const mine = page.items.find((item) => item.identityId === user.userId);
+    expect(mine?.email).toBe(user.email);
+  });
+
   it('never exposes an internal surface through Gateway', async () => {
     const anonymous = new Session();
 
@@ -280,7 +310,7 @@ describe('service boundaries', () => {
       const response = await anonymous.fetch(path, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ json: {} }),
+        body: JSON.stringify({}),
       });
       expect(response.status).toBe(404);
     }
@@ -320,19 +350,6 @@ describe('the built admin surfaces', () => {
 
     // The editor is a separate chunk, fetched only when its route is opened.
     expect(body).not.toMatch(/@tiptap|ProseMirror/i);
-  });
-
-  it('serves the real Adminer, with its own redirect and cookie', async () => {
-    // Adminer answers the first request with a redirect and a cookie of its own; following it by
-    // hand is what proves the pair survives Gateway.
-    const page = await owner.fetch('/admin/embed/database/', {}, { follow: true });
-    const html = await page.text();
-
-    expect(page.status).toBe(200);
-    // Adminer's own markup, not a look-alike.
-    expect(html).toMatch(/adminer\.css/);
-    // And it found the service databases through the connection it was given.
-    expect(html).toMatch(/_auth|_admin|_email/);
   });
 });
 

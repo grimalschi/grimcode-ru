@@ -1,0 +1,39 @@
+{
+  "name": "@grimcode/pg-interface",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "web/dist"
+  ],
+  "scripts": {
+    "build": "tsc -b tsconfig.json && vite build --config web/vite.config.ts",
+    "typecheck": "tsc -b tsconfig.json && vue-tsc -p web/tsconfig.json --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "pg": "8.22.0"
+  },
+  "devDependencies": {
+    "@element-plus/icons-vue": "2.3.2",
+    "@types/node": "22.20.1",
+    "@types/pg": "8.20.0",
+    "@vitejs/plugin-vue": "6.0.8",
+    "element-plus": "2.14.5",
+    "typescript": "5.9.3",
+    "vite": "8.1.5",
+    "vitest": "4.1.10",
+    "vue": "3.5.41",
+    "vue-tsc": "3.3.11"
+  }
+}

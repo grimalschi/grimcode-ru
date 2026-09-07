@@ -3,4 +3,3 @@ dist
 .turbo
 coverage
 pnpm-lock.yaml
-docker/adminer/adminer.css

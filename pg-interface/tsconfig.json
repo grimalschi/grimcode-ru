@@ -1,0 +1,13 @@
+{
+  // No `references`: this package depends on nothing in the repository, which is what lets it be
+  // published on its own one day. Everything it needs arrives as an argument.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

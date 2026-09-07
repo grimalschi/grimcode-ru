@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 
-import type { Logger } from '../logger.js';
 import { withTransaction, type Pool } from './pool.js';
 
 export interface Migration {
@@ -22,7 +21,6 @@ const MIGRATIONS_TABLE = 'schema_migrations';
 export async function runMigrations(
   pool: Pool,
   migrations: readonly Migration[],
-  logger: Logger,
 ): Promise<{ applied: number[]; alreadyApplied: number[] }> {
   assertOrdered(migrations);
 
@@ -44,7 +42,7 @@ export async function runMigrations(
   const alreadyApplied: number[] = [];
 
   for (const migration of migrations) {
-    const checksum = checksumOf(migration.sql);
+    const checksum = migrationChecksum(migration.sql);
     const existing = known.get(migration.version);
 
     if (existing) {
@@ -76,14 +74,7 @@ export async function runMigrations(
     });
 
     applied.push(migration.version);
-    logger.info('migration applied', { version: migration.version, name: migration.name });
   }
-
-  logger.info('migrations up to date', {
-    applied: applied.length,
-    alreadyApplied: alreadyApplied.length,
-    head: migrations.at(-1)?.version ?? 0,
-  });
 
   return { applied, alreadyApplied };
 }
@@ -107,7 +98,14 @@ function assertOrdered(migrations: readonly Migration[]): void {
   }
 }
 
-function checksumOf(sql: string): string {
+/**
+ * How a version is remembered, and the only place the rule is written.
+ *
+ * Exported because something else now writes migrations too: the database section records the column
+ * it added as a migration of its own, and the row it writes has to match the file it wrote by the same
+ * rule. Two implementations of this would agree until the day one of them changed.
+ */
+export function migrationChecksum(sql: string): string {
   return createHash('sha256').update(sql.trim(), 'utf8').digest('hex');
 }
 

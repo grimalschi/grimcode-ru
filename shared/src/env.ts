@@ -1,10 +1,7 @@
 /**
- * Typed access to the environment.
- *
- * Every value comes from the single root `.env` documented in `.env.example`. A service only ever
- * reads the variables that are declared for it in the Compose file.
+ * Typed access to the environment, for the composer and for `shared` itself while answering a request. A
+ * module reaches for none of it. Which database a module opens is not here — that is the composer's.
  */
-
 export class MissingEnvError extends Error {
   constructor(name: string) {
     super(`Required environment variable ${name} is not set`);
@@ -31,33 +28,21 @@ export function intEnv(name: string, fallback: number): number {
   return parsed;
 }
 
+/**
+ * Required, without a fallback, and both of these used to have one: `template` for the slug and
+ * `http://127.0.0.1:8080` for the origin. A missing value is not a case worth guessing at — measured
+ * on 27 August, a run without `PROJECT_SLUG` answered 200 and created `template_auth`,
+ * `template_email` and `template_notifications`, so the data went where nobody asked for it. A missing
+ * origin is quieter still: the links in verification and recovery mail are built from it, and the
+ * session cookie is marked `Secure` by its scheme, so a forgotten value sends working mail nobody can
+ * follow and drops `Secure` on an https deployment.
+ */
 export function projectSlug(): string {
-  return optionalEnv('PROJECT_SLUG', 'template');
+  return requireEnv('PROJECT_SLUG');
 }
 
 export function publicSiteUrl(): string {
-  return optionalEnv('PUBLIC_SITE_URL', 'http://127.0.0.1:8080').replace(/\/+$/, '');
-}
-
-/**
- * Connection string of one service database.
- *
- * The template uses a single base `DATABASE_URL`; each stateful service owns the database
- * `<PROJECT_SLUG>_<service>` on that server. A deployment that needs different credentials or
- * hosts per service can set `DATABASE_URL_<SERVICE>` instead.
- */
-export function serviceDatabaseUrl(service: string): string {
-  const override = process.env[`DATABASE_URL_${service.toUpperCase()}`];
-  if (override !== undefined && override !== '') return override;
-
-  const base = requireEnv('DATABASE_URL');
-  const url = new URL(base);
-  url.pathname = `/${serviceDatabaseName(service)}`;
-  return url.toString();
-}
-
-export function serviceDatabaseName(service: string): string {
-  return `${projectSlug()}_${service}`;
+  return requireEnv('PUBLIC_SITE_URL').replace(/\/+$/, '');
 }
 
 /** Name of the session cookie. Scoped by project slug so parallel worktrees do not collide. */
@@ -66,11 +51,9 @@ export function sessionCookieName(): string {
 }
 
 /**
- * Name of the CSRF cookie of one admin surface.
- *
- * The panel and each embedded service admin issue their own, because they share an origin: one
- * name for all of them means whichever asked last overwrites the others' cookie, and the surface
- * that asked first is refused on its next change with nothing to explain it.
+ * Name of the CSRF cookie of one admin surface. The panel and each embedded service admin issue
+ * their own, because they share an origin: one name for all of them means whichever asked last
+ * overwrites the others' cookie, and the first is refused on its next change with nothing to say why.
  */
 export function csrfCookieName(scope: string): string {
   return `${projectSlug()}_csrf_${scope}`;

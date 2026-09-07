@@ -2,9 +2,9 @@
  * Small same-origin `postMessage` protocol between the central Admin shell and a service admin
  * iframe.
  *
- * Both sides accept messages only from `window.location.origin`. The theme message type is shared
- * with the Adminer wrapper in `docker/adminer/index.php` and must not be renamed without updating
- * it as well.
+ * Both sides accept messages only from `window.location.origin`. Whatever the panel embeds has to
+ * speak this, React or not: the third-party database browser did it from a PHP wrapper, and the
+ * interface that replaces it will have to do the same.
  */
 export const ADMIN_FRAME_MESSAGES = {
   /** shell → iframe: apply light, dark or system. */
@@ -40,8 +40,7 @@ export interface ThemeTarget {
 /**
  * Applies a theme to a document root.
  *
- * `system` removes the attribute so the stylesheet's `prefers-color-scheme` rules take over —
- * the same behaviour the Adminer wrapper implements.
+ * `system` removes the attribute so the stylesheet's `prefers-color-scheme` rules take over.
  */
 export function applyTheme(root: ThemeTarget, theme: ThemePreference): void {
   if (theme === 'system') root.removeAttribute('data-theme');

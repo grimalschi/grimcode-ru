@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"],
+  "references": [
+    { "path": "../../shared" },
+    // Only for the router type behind `@template/admin/contract`. The `exports` of that package
+    // decide what this can reach; the reference decides only that it is built first.
+    { "path": "../admin" }
+  ]
+}

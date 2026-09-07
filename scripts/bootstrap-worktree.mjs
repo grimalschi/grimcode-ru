@@ -2,20 +2,18 @@
 /**
  * Bootstrap for a git worktree.
  *
- * A worktree is a separate copy of the project working on a different branch, and it gets its own
- * everything: its own Compose project, its own PostgreSQL container, its own volume and its own
- * free ports. Worktrees never share a database — one branch changing a schema would otherwise
- * break the other.
+ * A worktree is a separate copy of the project working on a different branch. It gets its own `.env`,
+ * its own port and its own databases; PostgreSQL itself is one server on this machine, shared by
+ * every copy, and what keeps two branches apart is the slug the database names are built from.
+ * Worktrees never share a database — one branch changing a schema would otherwise break the other.
  *
  * What it does:
  *
  *   1. finds the main checkout through git, never through a path written down somewhere;
  *   2. takes the main checkout's `.env` as the starting point and replaces what must differ;
- *   3. clears away what deleted worktrees left on the machine — their networks hold address space
- *      nothing will use again, which is what exhausts Docker's pools;
- *   4. picks free ports inside PORT_RANGE_START..PORT_RANGE_END — never the first one, which
- *      belongs to the main checkout — and, if the pools are exhausted anyway, a free subnet;
- *   5. copies the main checkout's local databases across with a logical dump and restore.
+ *   3. picks a free port inside PORT_RANGE_START..PORT_RANGE_END — never the first one, which
+ *      belongs to the main checkout;
+ *   4. copies the main checkout's local databases across with a logical dump and restore.
  *
  * The copy is of local development state, not of production data. A second run does **not** touch
  * a database this worktree already has: `--refresh-databases` is how that is asked for, so a day's
@@ -26,15 +24,6 @@ import { createServer } from 'node:net';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-import {
-  defaultPoolsAvailable,
-  findFreeSubnet,
-  orphanedProjectVolumes,
-  readOverride,
-  removeStaleProjectNetworks,
-  writeOverride,
-} from './allocate-network.mjs';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const refreshDatabases = process.argv.includes('--refresh-databases');
@@ -119,19 +108,6 @@ function sameAddressOnPort(address, port) {
   }
 }
 
-/** Every project slug a checkout of this repository still claims. */
-function liveProjectSlugs() {
-  const slugs = new Set();
-  for (const line of git(['worktree', 'list', '--porcelain']).split('\n')) {
-    if (!line.startsWith('worktree ')) continue;
-    const envFile = join(resolve(line.slice('worktree '.length)), '.env');
-    if (!existsSync(envFile)) continue;
-    const slug = parseEnv(readFileSync(envFile, 'utf8')).get('PROJECT_SLUG');
-    if (slug) slugs.add(slug);
-  }
-  return slugs;
-}
-
 function normalizeSlug(value) {
   const slug = value
     .toLowerCase()
@@ -141,45 +117,50 @@ function normalizeSlug(value) {
 }
 
 /**
- * Whether a database exists on that checkout's PostgreSQL.
+ * How to reach the local PostgreSQL, from `DATABASE_URL`.
+ *
+ * The password goes into the child's environment rather than onto its command line, where `ps` would
+ * show it to everyone on the machine.
+ */
+function connection(env) {
+  const url = new URL(env.get('DATABASE_URL') ?? '');
+  return {
+    args: ['-h', url.hostname, '-p', url.port || '5432', '-U', decodeURIComponent(url.username)],
+    env: { ...process.env, PGPASSWORD: decodeURIComponent(url.password) },
+  };
+}
+
+function psql(target, args, options = {}) {
+  return spawnSync('psql', [...target.args, ...args], {
+    env: target.env,
+    stdio: options.capture || options.input ? ['pipe', 'pipe', 'pipe'] : 'inherit',
+    input: options.input,
+    encoding: options.encoding ?? 'utf8',
+    maxBuffer: 512 * 1024 * 1024,
+  });
+}
+
+/**
+ * Whether a database exists on the local server.
  *
  * A failed query is not the same as a missing database, and treating it as one would hand someone
  * an empty worktree while telling them there was nothing to copy. So a failure stops the run.
  */
-function databaseExists(root, dbUser, name) {
-  const result = compose(
-    root,
-    [
-      'exec',
-      '-T',
-      'postgres',
-      'psql',
-      '-U',
-      dbUser,
-      // Without this psql connects to a database named after the user, which does not exist.
-      '-d',
-      'postgres',
-      '-tAc',
-      `SELECT 1 FROM pg_database WHERE datname='${name}'`,
-    ],
+function databaseExists(target, name) {
+  const result = psql(
+    target,
+    // Without `-d postgres` psql connects to a database named after the user, which does not exist.
+    ['-d', 'postgres', '-tAc', `SELECT 1 FROM pg_database WHERE datname='${name}'`],
     { capture: true },
   );
 
   if (result.status !== 0) {
-    console.error(`Could not ask ${root} whether ${name} exists:`);
+    console.error(`Could not ask PostgreSQL whether ${name} exists:`);
     console.error(result.stderr?.toString().trim() || 'psql failed without a message');
     process.exit(1);
   }
 
   return result.stdout?.trim() === '1';
-}
-
-function compose(root, args, options = {}) {
-  return spawnSync('node', [join(root, 'scripts/compose.mjs'), ...args], {
-    cwd: root,
-    stdio: options.capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
-    encoding: 'utf8',
-  });
 }
 
 // --- Find where we are --------------------------------------------------------
@@ -215,44 +196,25 @@ for (const [key, value] of existing) resolved.set(key, value);
 const taken = new Set();
 const slug = existing.get('PROJECT_SLUG') || normalizeSlug(`${basename(repoRoot)}_${git(['rev-parse', '--abbrev-ref', 'HEAD'])}`);
 
-// --- Clear away what deleted worktrees left behind ----------------------------
-
-const live = liveProjectSlugs();
-live.add(slug);
-live.add(mainEnv.get('PROJECT_SLUG') ?? '');
-
-for (const network of removeStaleProjectNetworks(live)) {
-  console.log(`Removed the network of a checkout that is gone: ${network.name} ${network.subnet}`);
-}
-
-const orphanedVolumes = orphanedProjectVolumes(live);
-
-// --- Ports --------------------------------------------------------------------
+// --- The port -----------------------------------------------------------------
 
 const rangeStart = Number(resolved.get('PORT_RANGE_START') || 63000);
 const rangeEnd = Number(resolved.get('PORT_RANGE_END') || 63099);
 
 /*
- * The first port of the range is the main checkout's, and so are whatever ports its `.env` names.
- * Held back rather than probed: the main stack is often stopped while a branch is being set up, and
+ * The first port of the range is the main checkout's, and so is whatever port its `.env` names.
+ * Held back rather than probed: the main copy is often stopped while a branch is being set up, and
  * a port that merely happens to be free right now is not a port that is free to take.
  */
-for (const reserved of [
-  rangeStart,
-  Number(mainEnv.get('GATEWAY_PORT')),
-  Number(mainEnv.get('POSTGRES_PORT')),
-]) {
+for (const reserved of [rangeStart, Number(mainEnv.get('GATEWAY_PORT'))]) {
   if (Number.isFinite(reserved) && reserved > 0) taken.add(reserved);
 }
 
 const gatewayPort =
   existing.get('GATEWAY_PORT') || String(await findFreePortInRange(rangeStart, rangeEnd, taken));
-const postgresPort =
-  existing.get('POSTGRES_PORT') || String(await findFreePortInRange(rangeStart, rangeEnd, taken));
 
 resolved.set('PROJECT_SLUG', slug);
 resolved.set('GATEWAY_PORT', gatewayPort);
-resolved.set('POSTGRES_PORT', postgresPort);
 resolved.set(
   'PUBLIC_SITE_URL',
   existing.get('PUBLIC_SITE_URL') ||
@@ -260,7 +222,6 @@ resolved.set(
 );
 // Carried over from the main checkout, it would point the test suites at the main checkout's port.
 resolved.delete('ACCEPTANCE_BASE_URL');
-
 
 // Everything local lives in the ignored `.env` and nowhere else.
 const template = readFileSync(join(repoRoot, '.env.example'), 'utf8');
@@ -282,90 +243,84 @@ writeFileSync(envPath, lines.join('\n'), { mode: 0o600 });
 console.log(`Wrote ${envPath}`);
 console.log(`  PROJECT_SLUG    ${slug}`);
 console.log(`  GATEWAY_PORT    ${gatewayPort}`);
-console.log(`  POSTGRES_PORT   ${postgresPort}`);
-
-// Docker usually allocates the network itself; a pinned subnet is kept as it is.
-const pinned = readOverride();
-if (pinned) {
-  console.log(`  network         ${pinned} (already pinned for this worktree)`);
-} else if (!defaultPoolsAvailable(`template-worktree-probe-${process.pid}`)) {
-  const subnet = findFreeSubnet();
-  writeOverride(subnet);
-  console.log(`  network         ${subnet} (Docker's default pools are exhausted)`);
-}
-
-if (orphanedVolumes.length > 0) {
-  // Not removed here: a volume is the database of a branch someone may still want back.
-  console.log('');
-  console.log('Volumes of checkouts that no longer exist are still on this machine:');
-  for (const name of orphanedVolumes) console.log(`  ${name}`);
-  console.log(`Remove them with:  docker volume rm ${orphanedVolumes.join(' ')}`);
-}
 
 // --- Copy the local databases across -------------------------------------------
 
 const mainSlug = mainEnv.get('PROJECT_SLUG');
-// Fixed for every local copy, main and worktree alike: this database never leaves the machine.
-const user = 'template';
-const mainUser = user;
 
 if (!mainSlug) {
   console.log('\nThe main checkout has no PROJECT_SLUG, so there is nothing to copy.');
   process.exit(0);
 }
 
-console.log('\nStarting this worktree’s PostgreSQL…');
-compose(repoRoot, ['up', '-d', 'postgres']);
+/*
+ * One server, two sets of databases: the main checkout's and this worktree's. Both connections are
+ * built from their own `.env`, because a worktree may have been given a different account or a
+ * PostgreSQL on another port entirely.
+ */
+const source = connection(mainEnv);
+const target = connection(resolved);
 
-// Wait for it to accept connections rather than guessing at a delay.
-for (let attempt = 0; ; attempt += 1) {
-  const ready = compose(repoRoot, ['exec', '-T', 'postgres', 'pg_isready', '-U', user, '-d', 'postgres'], {
-    capture: true,
-  });
-  if (ready.status === 0) break;
-  if (attempt > 30) {
-    console.error('PostgreSQL did not become ready.');
-    process.exit(1);
-  }
-  await new Promise((done) => setTimeout(done, 1000));
+/*
+ * Both sides are probed, and separately, because a failure on either one has a different fix and the
+ * same symptom. The main checkout's file is the likelier of the two to be stale: it is edited by hand
+ * and is not what a worktree is being set up from.
+ */
+for (const [name, where, hint] of [
+  ['this worktree', target, `.env here (${resolved.get('DATABASE_URL')})`],
+  ['the main checkout', source, `${mainEnvPath} (${mainEnv.get('DATABASE_URL')})`],
+]) {
+  if (psql(where, ['-d', 'postgres', '-tAc', 'SELECT 1'], { capture: true }).status === 0) continue;
+
+  console.error(`\nPostgreSQL did not answer for ${name}. The address comes from ${hint}.`);
+  console.error('Start the server, or fix the address, and run bootstrap again.');
+  process.exit(1);
 }
 
 let copied = 0;
 let skipped = 0;
 
 for (const service of STATEFUL_SERVICES) {
-  const source = `${mainSlug}_${service}`;
-  const target = `${slug}_${service}`;
+  const from = `${mainSlug}_${service}`;
+  const to = `${slug}_${service}`;
 
-  const sourceExists = databaseExists(mainCheckout, mainUser, source);
-  if (!sourceExists) {
+  if (!databaseExists(source, from)) {
     console.log(`  ${service}: nothing to copy from the main checkout`);
     continue;
   }
 
-  const targetPresent = databaseExists(repoRoot, user, target);
+  const present = databaseExists(target, to);
 
   // The whole point of the flag: a database this worktree has already been working in is left
   // exactly as it is unless replacing it was asked for out loud.
-  if (targetPresent && !refreshDatabases) {
+  if (present && !refreshDatabases) {
     console.log(`  ${service}: kept (already here — use --refresh-databases to replace it)`);
     skipped += 1;
     continue;
   }
 
-  if (targetPresent) {
-    compose(repoRoot, ['exec', '-T', 'postgres', 'dropdb', '-U', user, '--force', target]);
+  if (present) {
+    psql(target, ['-d', 'postgres', '-c', `DROP DATABASE "${to}" WITH (FORCE)`], { capture: true });
   }
-  compose(repoRoot, ['exec', '-T', 'postgres', 'createdb', '-U', user, '--maintenance-db', 'postgres', target]);
 
-  // Logical dump and restore, not a copy of the Docker volume: the two servers are separate
-  // containers with their own data directories, and a volume copy would carry the source's
-  // credentials and cluster identity with it.
-  const dump = spawnSync(
-    'node',
-    [join(mainCheckout, 'scripts/compose.mjs'), 'exec', '-T', 'postgres', 'pg_dump', '-U', mainUser, '--no-owner', '--no-acl', source],
-    { cwd: mainCheckout, encoding: 'buffer', maxBuffer: 512 * 1024 * 1024 },
-  );
+  const created = psql(target, ['-d', 'postgres', '-c', `CREATE DATABASE "${to}"`], {
+    capture: true,
+  });
+  if (created.status !== 0) {
+    console.error(`  ${service}: could not create ${to}`);
+    console.error(created.stderr?.toString().trim());
+    process.exit(1);
+  }
+
+  /*
+   * Logical dump and restore rather than `CREATE DATABASE ... TEMPLATE`: a template copy refuses
+   * while anything is connected to the source, and the main copy is usually running.
+   */
+  const dump = spawnSync('pg_dump', [...source.args, '--no-owner', '--no-acl', from], {
+    env: source.env,
+    encoding: 'buffer',
+    maxBuffer: 512 * 1024 * 1024,
+  });
 
   if (dump.status !== 0) {
     console.error(`  ${service}: dump failed`);
@@ -373,11 +328,10 @@ for (const service of STATEFUL_SERVICES) {
     process.exit(1);
   }
 
-  const restore = spawnSync(
-    'node',
-    [join(repoRoot, 'scripts/compose.mjs'), 'exec', '-T', 'postgres', 'psql', '-U', user, '-v', 'ON_ERROR_STOP=1', '-q', '-d', target],
-    { cwd: repoRoot, input: dump.stdout, encoding: 'buffer', maxBuffer: 512 * 1024 * 1024 },
-  );
+  const restore = psql(target, ['-v', 'ON_ERROR_STOP=1', '-q', '-d', to], {
+    input: dump.stdout,
+    encoding: 'buffer',
+  });
 
   if (restore.status !== 0) {
     console.error(`  ${service}: restore failed`);
@@ -390,4 +344,4 @@ for (const service of STATEFUL_SERVICES) {
 }
 
 console.log(`\n${copied} database(s) copied, ${skipped} kept as they were.`);
-console.log('Start this worktree with:  pnpm start');
+console.log('Start this worktree with:  pnpm dev');

@@ -1,0 +1,11 @@
+import type { Migration } from '@template/shared';
+
+import { migration as version1 } from './001-events.js';
+
+/**
+ * Versioned migrations of the Notifications database.
+ *
+ * The template starts at one migration: this is the schema a new project inherits, not a record of
+ * how it was arrived at. Every change after the first clone is a new version.
+ */
+export const migrations: readonly Migration[] = [version1];

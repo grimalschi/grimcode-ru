@@ -1,14 +1,23 @@
+import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { ADMIN, errorCode, Session, serviceAdmin, waitForStack } from './client.js';
+import {
+  ADMIN,
+  AUTH,
+  errorCode,
+  errorMessage,
+  Session,
+  serviceAdmin,
+  USERS,
+  waitForStack,
+} from './client.js';
 import { createUser, RegistryRestore, resolveOwner, type TestUser } from './fixtures.js';
 
 /**
  * Who can open what.
  *
- * Every check goes through Gateway over HTTP, because that is where the decision is actually made.
- * The interface hiding a link is not what these tests are about: they open the protected URL
- * directly, which is what an attacker would do.
+ * Every check goes through Gateway over HTTP, because that is where the decision is made. They open
+ * the protected URL directly, which is what an attacker would do.
  */
 
 let owner: Session;
@@ -142,16 +151,40 @@ describe('grants', () => {
 });
 
 /**
- * The database browser is a section of the panel, not a service admin.
+ * The database area is a section of the panel, not a service admin.
  *
  * That is why it lives at `/admin/database/`, why only the owner reaches it, and why no grant can
  * name it: there is nothing to hand out, so nothing can be handed out by mistake.
+ *
+ * Behind it is this template's own interface — its API today, its screen next — and the owner is the
+ * only one who reaches either. The distinction from the ordinary administrator's 403 below is the
+ * point: the check runs before anything is served.
  */
 describe('the database area', () => {
-  it('is open to the owner', async () => {
-    // Adminer answers a first request with its own redirect and cookie.
-    const status = await owner.status('/admin/embed/database/');
-    expect([200, 302]).toContain(status);
+  it('serves the interface to the owner', async () => {
+    expect(await owner.status('/admin/embed/database/')).toBe(200);
+  });
+
+  it('shows the owner the databases of this installation, and only those', async () => {
+    const response = await owner.fetch('/admin/embed/database/api/databases');
+    const body = (await response.json()) as { databases: { name: string }[] };
+
+    const names = body.databases.map((database) => database.name).sort();
+    expect(names).toEqual(
+      ['admin', 'auth', 'email', 'notifications', 'users']
+        .map((module) => `${process.env.PROJECT_SLUG}_${module}`)
+        .sort(),
+    );
+  });
+
+  it('refuses a changing request that carries no header of ours', async () => {
+    const response = await owner.fetch('/admin/embed/database/api/databases/x/rows/delete', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ schema: 'public', table: 'identities', key: {} }),
+    });
+
+    expect(response.status).toBe(403);
   });
 
   it('is closed to an ordinary administrator, whatever their grants', async () => {
@@ -169,7 +202,7 @@ describe('the database area', () => {
     const result = await owner.rpc(
       ADMIN,
       'updateAdministrator',
-      { userId: grantedAdmin.userId, grants: ['adminer'] },
+      { userId: grantedAdmin.userId, grants: ['database'] },
       { csrf: true },
     );
 
@@ -178,12 +211,12 @@ describe('the database area', () => {
   });
 
   it('is not reachable as a service admin either', async () => {
-    expect(await owner.status('/admin/embed/service/adminer/')).toBe(404);
+    expect(await owner.status('/admin/embed/service/database/')).toBe(404);
   });
 
   it('has no public route', async () => {
     const anonymous = new Session();
-    expect(await anonymous.status('/service/adminer/')).toBe(404);
+    expect(await anonymous.status('/service/database/')).toBe(404);
   });
 });
 
@@ -238,7 +271,7 @@ describe('the owner-only registry', () => {
     });
 
     expect(result.status).toBe(403);
-    expect(String((result.body as { message?: string }).message)).toMatch(/csrf/i);
+    expect(errorMessage(result.body)).toMatch(/csrf/i);
   });
 });
 
@@ -272,12 +305,72 @@ describe('public routing', () => {
         // Gateway builds these itself and strips whatever arrived.
         'x-template-admin-user-id': '00000000-0000-4000-8000-000000000001',
         'x-template-admin-role': 'owner',
-        'x-template-admin-grants': 'auth,users,notifications,email,adminer',
+        'x-template-admin-grants': 'auth,users,notifications,email',
       },
-      body: JSON.stringify({ json: {} }),
+      body: JSON.stringify({}),
     });
 
-    const body = (await response.json()) as { json: { identity: unknown } };
-    expect(body.json.identity).toBeNull();
+    const body = (await response.json()) as { result: { data: { identity: unknown } } };
+    expect(body.result.data.identity).toBeNull();
+  });
+});
+
+/**
+ * Each module still works in a database of its own — and that is now a fact of the wiring rather than
+ * something PostgreSQL enforces.
+ *
+ * What stood here before was the opposite check: a module's own credentials being refused a
+ * neighbour's database, with `permission denied for database` as the proof. It was true while every
+ * module had a role and a password of its own. A module now creates its own database on its first
+ * request, which needs an account allowed to create databases — and such an account opens all of them.
+ * The refusal is gone, so the check that asserted it is gone too rather than being weakened into
+ * something that passes.
+ *
+ * What is left worth checking is that the separation itself is real: the five databases exist, they
+ * are distinct, and each module's data is in its own. The first two are checked here; the third is
+ * what every flow in this suite exercises through Gateway.
+ */
+describe('a database per module', () => {
+  /**
+   * The five databases exist and are distinct — and they come into being on first use, not at
+   * deployment, so this asks each module for something first. One request per module is enough: the
+   * pool opens, the database is created if it was missing, the migrations run.
+   *
+   * Written this way rather than trusting the rest of the suite to have warmed them: the files run in
+   * parallel, and a check that depends on another file's order is a check that goes red on a Tuesday.
+   */
+  it('is five distinct databases, each one where it is expected', async () => {
+    // Auth and Users answer these; Admin is asked by Gateway on any `/admin/**`; Notifications and
+    // Email are woken by the registration in `beforeAll`, which is the only route into them.
+    await owner.call(AUTH, 'currentSession', {});
+    await owner.call(USERS, 'getOwnProfile', {});
+    await owner.rpc(ADMIN, 'listAdministrators', {});
+
+    /*
+     * The names are spelled out here rather than imported from the program that builds them. That is
+     * the point of the check: importing the derivation would compare the code with itself, and what
+     * is being verified is the rule — one database per module, named `<slug>_<module>`.
+     */
+    const slug = process.env.PROJECT_SLUG;
+    if (!slug) throw new Error('PROJECT_SLUG is not set, so the database names cannot be known');
+
+    const pool = new pg.Pool({
+      connectionString: process.env.DATABASE_URL,
+      max: 1,
+    });
+    try {
+      const names = ['admin', 'auth', 'email', 'notifications', 'users'].map(
+        (module) => `${slug}_${module}`,
+      );
+      expect(new Set(names).size).toBe(names.length);
+
+      const { rows } = await pool.query<{ datname: string }>(
+        'SELECT datname FROM pg_database WHERE datname = ANY($1)',
+        [names],
+      );
+      expect(rows.map((row) => row.datname).sort()).toEqual([...names].sort());
+    } finally {
+      await pool.end();
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { adminContextSchema, type AdminContext } from '@template/contracts';
+import { adminContextSchema, type AdminContext } from '../vocabulary.js';
 
 /**
  * Headers carrying the administrator context Gateway verified.
