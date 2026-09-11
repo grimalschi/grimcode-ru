@@ -4,16 +4,7 @@ import { api } from '@/api';
 import { AdminPage, ErrorState } from '@/components/layout/admin-page';
 import { DataTable, Pagination } from '@/components/layout/data-table';
 import { Badge } from '@/components/ui/badge';
-import { useAsync, type Page } from '@/hooks/use-async';
-
-interface AuditEntry {
-  id: string;
-  action: string;
-  actorUserId: string | null;
-  subjectUserId: string | null;
-  details: Record<string, unknown>;
-  createdAt: string;
-}
+import { useAsync } from '@/hooks/use-async';
 
 const LIMIT = 50;
 
@@ -25,7 +16,7 @@ const LIMIT = 50;
  */
 export function AuditPage() {
   const [offset, setOffset] = React.useState(0);
-  const list = useAsync<Page<AuditEntry>>(
+  const list = useAsync(
     () => api.listAudit.query({ limit: LIMIT, offset }),
     [offset],
   );

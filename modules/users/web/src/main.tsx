@@ -19,15 +19,15 @@ import { ProfilesPage } from '@/routes/profiles';
 
 import '@/styles.css';
 
-const BASE = '/admin/embed/service/users';
+const BASE = '/admin/embed/module/users';
 
 const TABS = [{ to: '/', label: 'Профили' }];
 
 /**
- * The Users service admin.
+ * The Users module admin.
  *
  * It normally runs inside the central Admin shell's iframe, but its protected URL also works on
- * its own — Gateway performs the same check either way. Standing alone it shows its own header;
+ * its own — Router performs the same check either way. Standing alone it shows its own header;
  * embedded, the shell already provides one.
  */
 function Shell() {
@@ -44,7 +44,7 @@ function Shell() {
   const { embedded, theme } = useFrameChild({ path, onNavigate });
 
   return (
-    <AdminThemeProvider storageKey="template.users.theme" controlledTheme={theme}>
+    <AdminThemeProvider controlledTheme={theme}>
       <div className="min-h-svh">
         {TABS.length > 1 || !embedded ? (
         <header className="flex h-12 items-center justify-between gap-4 border-b px-4">

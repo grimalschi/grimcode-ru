@@ -1,65 +1,44 @@
 #!/usr/bin/env node
-/**
- * Bootstrap for a git worktree.
- *
- * A worktree is a separate copy of the project working on a different branch. It gets its own `.env`,
- * its own port and its own databases; PostgreSQL itself is one server on this machine, shared by
- * every copy, and what keeps two branches apart is the slug the database names are built from.
- * Worktrees never share a database — one branch changing a schema would otherwise break the other.
- *
- * What it does:
- *
- *   1. finds the main checkout through git, never through a path written down somewhere;
- *   2. takes the main checkout's `.env` as the starting point and replaces what must differ;
- *   3. picks a free port inside PORT_RANGE_START..PORT_RANGE_END — never the first one, which
- *      belongs to the main checkout;
- *   4. copies the main checkout's local databases across with a logical dump and restore.
- *
- * The copy is of local development state, not of production data. A second run does **not** touch
- * a database this worktree already has: `--refresh-databases` is how that is asked for, so a day's
- * work here cannot be wiped by re-running bootstrap out of habit.
- */
+/** Creates a worktree's configuration and copies its database; reruns keep existing data. */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createServer } from 'node:net';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseEnv } from 'node:util';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const refreshDatabases = process.argv.includes('--refresh-databases');
+const refreshDatabase = process.argv.includes('--refresh-database');
 
-const STATEFUL_SERVICES = ['admin', 'auth', 'users', 'notifications', 'email'];
-
-function git(args, cwd = repoRoot) {
-  return execFileSync('git', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
-    .toString()
-    .trim();
+function git(args) {
+  return execFileSync('git', args, { cwd: repoRoot, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
 }
 
-/**
- * The checkout this worktree was created from.
- *
- * `git worktree list` names every checkout of the repository; the first is the main one. Asking git
- * means a worktree can be created anywhere without a path being configured.
- */
-function findMainCheckout() {
-  const lines = git(['worktree', 'list', '--porcelain']).split('\n');
-  const paths = lines
-    .filter((line) => line.startsWith('worktree '))
-    .map((line) => resolve(line.slice('worktree '.length)));
-
-  const main = paths[0];
-  if (!main) throw new Error('git reported no worktrees, which should be impossible');
-  return main;
+function readEnv(file) {
+  return existsSync(file) ? parseEnv(readFileSync(file, 'utf8')) : {};
 }
 
-function parseEnv(text) {
-  const values = new Map();
-  for (const line of text.split('\n')) {
-    const match = /^\s*([A-Z0-9_]+)\s*=(.*)$/.exec(line);
-    if (match) values.set(match[1], match[2]);
+/** Preserve quoted values, comments inside values and multiline strings under Node's .env syntax. */
+function envLine(key, value) {
+  for (const encoded of [value, `'${value}'`, `"${value}"`, `\`${value}\``]) {
+    const line = `${key}=${encoded}`;
+    const parsed = parseEnv(line);
+    if (parsed[key] === value && Object.keys(parsed).length === 1) return line;
   }
-  return values;
+  throw new Error(`Cannot serialize ${key} as a Node .env value.`);
+}
+
+function writeEnv(file, values) {
+  const written = new Set();
+  const lines = readFileSync(join(repoRoot, '.env.example'), 'utf8').split('\n').map((line) => {
+    const key = /^\s*([A-Z0-9_]+)\s*=/.exec(line)?.[1];
+    if (!key || !Object.hasOwn(values, key)) return line;
+    written.add(key);
+    return envLine(key, values[key]);
+  });
+  const extras = Object.entries(values).filter(([key]) => !written.has(key));
+  if (extras.length) lines.push('', ...extras.map(([key, value]) => envLine(key, value)));
+  writeFileSync(file, lines.join('\n'), { mode: 0o600 });
 }
 
 function isPortFree(port) {
@@ -71,277 +50,141 @@ function isPortFree(port) {
   });
 }
 
-/**
- * A free port inside the range the project reserved for worktrees.
- *
- * Worktrees come and go, so their ports are picked rather than chosen — and only from the range
- * `.env` declares, where nothing else on the machine is expected to listen.
- */
-async function findFreePortInRange(start, end, taken) {
+async function findFreePort(start, end, reserved) {
   for (let port = start; port <= end; port += 1) {
-    if (taken.has(port)) continue;
-    if (await isPortFree(port)) {
-      taken.add(port);
-      return port;
-    }
+    if (!reserved.has(port) && await isPortFree(port)) return String(port);
   }
-  throw new Error(
-    `No free port left in ${start}..${end}. Widen PORT_RANGE_START/PORT_RANGE_END or remove a worktree.`,
-  );
+  throw new Error(`No free port left in ${start}..${end}. Widen the port range or remove a worktree.`);
 }
 
-/**
- * The same address on another port.
- *
- * A checkout reachable from another machine has a real host in `PUBLIC_SITE_URL` —
- * `http://192.168.1.5:63006` for a phone on the same network — and a worktree of it needs that host
- * too. Only the port is this worktree's own; replacing the whole address would quietly send it back
- * to loopback and break what was set up deliberately.
- */
-function sameAddressOnPort(address, port) {
+function addressOnPort(address, port) {
   try {
     const url = new URL(address);
     url.port = String(port);
     return url.origin;
-  } catch {
-    return `http://127.0.0.1:${port}`;
-  }
+  } catch { return `http://127.0.0.1:${port}`; }
 }
 
 function normalizeSlug(value) {
-  const slug = value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
+  const slug = value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
   return /^[a-z]/.test(slug) ? slug : `p_${slug}`;
 }
 
-/**
- * How to reach the local PostgreSQL, from `DATABASE_URL`.
- *
- * The password goes into the child's environment rather than onto its command line, where `ps` would
- * show it to everyone on the machine.
- */
-function connection(env) {
-  const url = new URL(env.get('DATABASE_URL') ?? '');
-  return {
-    args: ['-h', url.hostname, '-p', url.port || '5432', '-U', decodeURIComponent(url.username)],
-    env: { ...process.env, PGPASSWORD: decodeURIComponent(url.password) },
-  };
+/** A URI remains intact for libpq, including SSL options; errors never include the URI. */
+function databaseUrl(value, label, name) {
+  let url;
+  try { url = new URL(value); } catch { throw new Error(`Invalid PostgreSQL URL in ${label}.`); }
+  if (!['postgres:', 'postgresql:'].includes(url.protocol)) throw new Error(`Invalid PostgreSQL URL in ${label}.`);
+  if (name !== undefined) {
+    url.pathname = `/${encodeURIComponent(name)}`;
+    if (url.searchParams.has('dbname')) url.searchParams.set('dbname', name);
+  }
+  if (!databaseName(url) || Buffer.byteLength(databaseName(url), 'utf8') > 63) {
+    throw new Error(`The database name in ${label} must contain 1..63 UTF-8 bytes.`);
+  }
+  return url;
 }
 
-function psql(target, args, options = {}) {
-  return spawnSync('psql', [...target.args, ...args], {
-    env: target.env,
-    stdio: options.capture || options.input ? ['pipe', 'pipe', 'pipe'] : 'inherit',
-    input: options.input,
-    encoding: options.encoding ?? 'utf8',
-    maxBuffer: 512 * 1024 * 1024,
+function databaseName(url) {
+  try { return url.searchParams.get('dbname') ?? decodeURIComponent(url.pathname.slice(1)); }
+  catch { throw new Error('A PostgreSQL database name has invalid URL encoding.'); }
+}
+
+/** PostgreSQL commands receive no password on their command line. */
+function run(command, url, args, { maintenance = false, input } = {}) {
+  const address = new URL(url);
+  const password = address.searchParams.get('password') ?? decodeURIComponent(address.password);
+  address.password = '';
+  address.searchParams.delete('password');
+  if (maintenance) {
+    address.pathname = '/postgres';
+    if (address.searchParams.has('dbname')) address.searchParams.set('dbname', 'postgres');
+  }
+  const result = spawnSync(command, ['--dbname', address.toString(), ...args], {
+    env: { ...process.env, PGPASSWORD: password }, input, maxBuffer: 512 * 1024 * 1024,
   });
-}
-
-/**
- * Whether a database exists on the local server.
- *
- * A failed query is not the same as a missing database, and treating it as one would hand someone
- * an empty worktree while telling them there was nothing to copy. So a failure stops the run.
- */
-function databaseExists(target, name) {
-  const result = psql(
-    target,
-    // Without `-d postgres` psql connects to a database named after the user, which does not exist.
-    ['-d', 'postgres', '-tAc', `SELECT 1 FROM pg_database WHERE datname='${name}'`],
-    { capture: true },
-  );
-
   if (result.status !== 0) {
-    console.error(`Could not ask PostgreSQL whether ${name} exists:`);
-    console.error(result.stderr?.toString().trim() || 'psql failed without a message');
-    process.exit(1);
+    const detail = result.stderr?.toString().trim().slice(0, 500) || result.error?.code || 'no error details';
+    // Native clients normally omit passwords; still redact one if a diagnostic includes it.
+    throw new Error(`${command} failed: ${password ? detail.split(password).join('[redacted]') : detail}`);
   }
-
-  return result.stdout?.trim() === '1';
+  return result.stdout;
 }
 
-// --- Find where we are --------------------------------------------------------
-
-const mainCheckout = findMainCheckout();
-
-if (resolve(mainCheckout) === resolve(repoRoot)) {
-  console.error('This is the main checkout, not a worktree. Copy .env.example to .env here instead.');
-  process.exit(1);
+function databaseExists(url) {
+  const name = databaseName(url).replaceAll("'", "''");
+  return run('psql', url, ['-tAc', `SELECT 1 FROM pg_database WHERE datname='${name}'`], { maintenance: true })
+    .toString().trim() === '1';
 }
 
-const mainEnvPath = join(mainCheckout, '.env');
-if (!existsSync(mainEnvPath)) {
-  console.error(
-    `The main checkout at ${mainCheckout} has no .env yet. Copy .env.example to .env there first.`,
-  );
-  process.exit(1);
+async function bootstrap() {
+  if (process.argv.slice(2).some((arg) => arg !== '--refresh-database')) {
+    throw new Error('Usage: pnpm bootstrap:worktree [--refresh-database]');
+  }
+  const checkouts = git(['worktree', 'list', '--porcelain']).split('\n')
+    .filter((line) => line.startsWith('worktree ')).map((line) => line.slice('worktree '.length));
+  const mainCheckout = checkouts[0];
+  if (!mainCheckout) throw new Error('git reported no main checkout.');
+  if (resolve(mainCheckout) === resolve(repoRoot)) {
+    throw new Error('This is the main checkout, not a worktree. Copy .env.example to .env here instead.');
+  }
+  const mainEnvPath = join(mainCheckout, '.env');
+  if (!existsSync(mainEnvPath)) throw new Error(`The main checkout at ${mainCheckout} has no .env.`);
+  const main = readEnv(mainEnvPath);
+  const envPath = join(repoRoot, '.env');
+  const existing = readEnv(envPath);
+  const values = { ...main, ...existing };
+  const slug = existing.PROJECT_SLUG || normalizeSlug(`${basename(repoRoot)}_${git(['rev-parse', '--abbrev-ref', 'HEAD'])}`);
+  if (!main.PROJECT_SLUG || !/^[a-z][a-z0-9_]{0,62}$/.test(slug)) throw new Error('Both checkouts need a valid PROJECT_SLUG.');
+  if (slug === main.PROJECT_SLUG) throw new Error('The worktree PROJECT_SLUG must differ from the main checkout.');
+
+  const source = databaseUrl(main.DATABASE_URL, 'DATABASE_URL in the main checkout');
+  const target = databaseUrl(existing.DATABASE_URL || main.DATABASE_URL, 'DATABASE_URL in this worktree',
+    existing.DATABASE_URL ? undefined : slug);
+  // Different hostnames and libpq options can still address the same server.
+  if (databaseName(target) === databaseName(source)) {
+    throw new Error('The worktree database name must differ from the main checkout database name.');
+  }
+  values.DATABASE_URL = existing.DATABASE_URL || target.toString();
+  for (const key of Object.keys(values)) if (key.startsWith('DATABASE_URL_')) delete values[key];
+
+  const start = Number(values.PORT_RANGE_START || 63000);
+  const end = Number(values.PORT_RANGE_END || 63099);
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end > 65535 || start > end) {
+    throw new Error('PORT_RANGE_START..PORT_RANGE_END must be within 1..65535.');
+  }
+  const reserved = new Set([start, ...checkouts
+    .filter((checkout) => resolve(checkout) !== resolve(repoRoot))
+    .map((checkout) => Number(readEnv(join(checkout, '.env')).PORT))]);
+  if (existing.PORT && (!Number.isInteger(Number(existing.PORT)) || Number(existing.PORT) < start ||
+    Number(existing.PORT) > end || reserved.has(Number(existing.PORT)))) {
+    throw new Error('The saved PORT is outside the range or assigned to another worktree; remove PORT and retry.');
+  }
+  const port = existing.PORT || await findFreePort(start, end, reserved);
+  values.PROJECT_SLUG = slug;
+  values.PORT = port;
+  values.PUBLIC_SITE_URL = existing.PUBLIC_SITE_URL || addressOnPort(main.PUBLIC_SITE_URL, port);
+  delete values.ACCEPTANCE_BASE_URL;
+  writeEnv(envPath, values);
+  console.log(`Main checkout: ${mainCheckout}\nWrote ${envPath}\n  PROJECT_SLUG ${slug}\n  PORT ${port}`);
+
+  const present = databaseExists(target);
+  if (present && !refreshDatabase) {
+    console.log('Database kept (use --refresh-database to replace it).');
+  } else {
+    if (!databaseExists(source)) throw new Error('The main checkout database does not exist. Create it before bootstrapping a worktree.');
+    // Obtain the source first: a dump failure must leave an existing worktree database intact.
+    const dump = run('pg_dump', source, ['--no-owner', '--no-acl']);
+    const name = databaseName(target).replaceAll('"', '""');
+    if (present) run('psql', target, ['-v', 'ON_ERROR_STOP=1', '-c', `DROP DATABASE "${name}" WITH (FORCE)`], { maintenance: true });
+    run('psql', target, ['-v', 'ON_ERROR_STOP=1', '-c', `CREATE DATABASE "${name}"`], { maintenance: true });
+    run('psql', target, ['-v', 'ON_ERROR_STOP=1', '--single-transaction', '-q'], { input: dump });
+    console.log('Database copied with all module schemas.');
+  }
+  console.log('\nStart this worktree with: pnpm dev');
 }
 
-console.log(`Main checkout: ${mainCheckout}`);
-
-// --- Build this worktree's own configuration ----------------------------------
-
-const envPath = join(repoRoot, '.env');
-const mainEnv = parseEnv(readFileSync(mainEnvPath, 'utf8'));
-const existing = existsSync(envPath) ? parseEnv(readFileSync(envPath, 'utf8')) : new Map();
-
-// The main checkout's file is the starting point: everything a human tuned there — the email
-// transport, session lifetime, credentials — carries over, and only what must differ is replaced.
-const resolved = new Map(mainEnv);
-for (const [key, value] of existing) resolved.set(key, value);
-
-const taken = new Set();
-const slug = existing.get('PROJECT_SLUG') || normalizeSlug(`${basename(repoRoot)}_${git(['rev-parse', '--abbrev-ref', 'HEAD'])}`);
-
-// --- The port -----------------------------------------------------------------
-
-const rangeStart = Number(resolved.get('PORT_RANGE_START') || 63000);
-const rangeEnd = Number(resolved.get('PORT_RANGE_END') || 63099);
-
-/*
- * The first port of the range is the main checkout's, and so is whatever port its `.env` names.
- * Held back rather than probed: the main copy is often stopped while a branch is being set up, and
- * a port that merely happens to be free right now is not a port that is free to take.
- */
-for (const reserved of [rangeStart, Number(mainEnv.get('GATEWAY_PORT'))]) {
-  if (Number.isFinite(reserved) && reserved > 0) taken.add(reserved);
-}
-
-const gatewayPort =
-  existing.get('GATEWAY_PORT') || String(await findFreePortInRange(rangeStart, rangeEnd, taken));
-
-resolved.set('PROJECT_SLUG', slug);
-resolved.set('GATEWAY_PORT', gatewayPort);
-resolved.set(
-  'PUBLIC_SITE_URL',
-  existing.get('PUBLIC_SITE_URL') ||
-    sameAddressOnPort(mainEnv.get('PUBLIC_SITE_URL') ?? 'http://127.0.0.1', gatewayPort),
-);
-// Carried over from the main checkout, it would point the test suites at the main checkout's port.
-resolved.delete('ACCEPTANCE_BASE_URL');
-
-// Everything local lives in the ignored `.env` and nowhere else.
-const template = readFileSync(join(repoRoot, '.env.example'), 'utf8');
-const written = new Set();
-const lines = template.split('\n').map((line) => {
-  const match = /^\s*([A-Z0-9_]+)\s*=/.exec(line);
-  if (!match || !resolved.has(match[1])) return line;
-  written.add(match[1]);
-  return `${match[1]}=${resolved.get(match[1])}`;
+await bootstrap().catch((error) => {
+  console.error(error.message);
+  process.exitCode = 1;
 });
-
-const extras = [...resolved.entries()].filter(([key]) => !written.has(key));
-if (extras.length > 0) {
-  lines.push('', '# Carried over from the main checkout.', ...extras.map(([k, v]) => `${k}=${v}`));
-}
-
-writeFileSync(envPath, lines.join('\n'), { mode: 0o600 });
-
-console.log(`Wrote ${envPath}`);
-console.log(`  PROJECT_SLUG    ${slug}`);
-console.log(`  GATEWAY_PORT    ${gatewayPort}`);
-
-// --- Copy the local databases across -------------------------------------------
-
-const mainSlug = mainEnv.get('PROJECT_SLUG');
-
-if (!mainSlug) {
-  console.log('\nThe main checkout has no PROJECT_SLUG, so there is nothing to copy.');
-  process.exit(0);
-}
-
-/*
- * One server, two sets of databases: the main checkout's and this worktree's. Both connections are
- * built from their own `.env`, because a worktree may have been given a different account or a
- * PostgreSQL on another port entirely.
- */
-const source = connection(mainEnv);
-const target = connection(resolved);
-
-/*
- * Both sides are probed, and separately, because a failure on either one has a different fix and the
- * same symptom. The main checkout's file is the likelier of the two to be stale: it is edited by hand
- * and is not what a worktree is being set up from.
- */
-for (const [name, where, hint] of [
-  ['this worktree', target, `.env here (${resolved.get('DATABASE_URL')})`],
-  ['the main checkout', source, `${mainEnvPath} (${mainEnv.get('DATABASE_URL')})`],
-]) {
-  if (psql(where, ['-d', 'postgres', '-tAc', 'SELECT 1'], { capture: true }).status === 0) continue;
-
-  console.error(`\nPostgreSQL did not answer for ${name}. The address comes from ${hint}.`);
-  console.error('Start the server, or fix the address, and run bootstrap again.');
-  process.exit(1);
-}
-
-let copied = 0;
-let skipped = 0;
-
-for (const service of STATEFUL_SERVICES) {
-  const from = `${mainSlug}_${service}`;
-  const to = `${slug}_${service}`;
-
-  if (!databaseExists(source, from)) {
-    console.log(`  ${service}: nothing to copy from the main checkout`);
-    continue;
-  }
-
-  const present = databaseExists(target, to);
-
-  // The whole point of the flag: a database this worktree has already been working in is left
-  // exactly as it is unless replacing it was asked for out loud.
-  if (present && !refreshDatabases) {
-    console.log(`  ${service}: kept (already here — use --refresh-databases to replace it)`);
-    skipped += 1;
-    continue;
-  }
-
-  if (present) {
-    psql(target, ['-d', 'postgres', '-c', `DROP DATABASE "${to}" WITH (FORCE)`], { capture: true });
-  }
-
-  const created = psql(target, ['-d', 'postgres', '-c', `CREATE DATABASE "${to}"`], {
-    capture: true,
-  });
-  if (created.status !== 0) {
-    console.error(`  ${service}: could not create ${to}`);
-    console.error(created.stderr?.toString().trim());
-    process.exit(1);
-  }
-
-  /*
-   * Logical dump and restore rather than `CREATE DATABASE ... TEMPLATE`: a template copy refuses
-   * while anything is connected to the source, and the main copy is usually running.
-   */
-  const dump = spawnSync('pg_dump', [...source.args, '--no-owner', '--no-acl', from], {
-    env: source.env,
-    encoding: 'buffer',
-    maxBuffer: 512 * 1024 * 1024,
-  });
-
-  if (dump.status !== 0) {
-    console.error(`  ${service}: dump failed`);
-    console.error(dump.stderr?.toString().slice(0, 500));
-    process.exit(1);
-  }
-
-  const restore = psql(target, ['-v', 'ON_ERROR_STOP=1', '-q', '-d', to], {
-    input: dump.stdout,
-    encoding: 'buffer',
-  });
-
-  if (restore.status !== 0) {
-    console.error(`  ${service}: restore failed`);
-    console.error(restore.stderr?.toString().slice(0, 500));
-    process.exit(1);
-  }
-
-  console.log(`  ${service}: copied`);
-  copied += 1;
-}
-
-console.log(`\n${copied} database(s) copied, ${skipped} kept as they were.`);
-console.log('Start this worktree with:  pnpm dev');

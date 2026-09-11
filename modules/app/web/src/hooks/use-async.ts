@@ -1,20 +1,13 @@
 import * as React from 'react';
 
-export interface AsyncState<T> {
-  data: T | null;
-  error: unknown;
-  loading: boolean;
-  reload: () => void;
-}
-
 /**
  * Runs a request and keeps its loading and failure state.
  *
- * Deliberately small: the admin screens read a handful of endpoints, and a data-fetching library
+ * Deliberately small: the application screens read a handful of endpoints, and a data-fetching library
  * would be a dependency the template does not otherwise need. A result that arrives after the
  * inputs changed is discarded rather than shown.
  */
-export function useAsync<T>(run: () => Promise<T>, deps: React.DependencyList): AsyncState<T> {
+export function useAsync<T>(run: () => Promise<T>, deps: React.DependencyList) {
   const [state, setState] = React.useState<{ data: T | null; error: unknown; loading: boolean }>({
     data: null,
     error: null,
@@ -45,12 +38,4 @@ export function useAsync<T>(run: () => Promise<T>, deps: React.DependencyList): 
   const reload = React.useCallback(() => setNonce((value) => value + 1), []);
 
   return { ...state, reload };
-}
-
-/** Shape every paginated admin endpoint returns. */
-export interface Page<T> {
-  items: T[];
-  total: number;
-  limit: number;
-  offset: number;
 }

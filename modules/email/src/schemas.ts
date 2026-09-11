@@ -1,24 +1,6 @@
 import { z } from 'zod';
 
-import { emailSchema, idSchema, isoDateTimeSchema } from '@template/shared/vocabulary';
-
-/**
- * Editor document marker stored next to every template version.
- *
- * A new editor library never rewrites stored documents on start: moving the marker forward is a
- * separate Email migration.
- */
-export const EDITOR_FORMAT = 'maily@1' as const;
-export const editorFormatSchema = z.literal(EDITOR_FORMAT);
-
-/** Maily saves a TipTap-style document. Email keeps it verbatim and compiles it on publish. */
-export const editorDocumentSchema = z.object({
-  type: z.literal('doc'),
-  content: z.array(z.record(z.string(), z.unknown())).default([]),
-});
-
-/** The stored editor document, as the version editor in the browser reads it. */
-export type EditorDocument = z.infer<typeof editorDocumentSchema>;
+import { emailSchema, idSchema, isoDateTimeSchema } from './primitives.js';
 
 export const templateSchema = z.object({
   id: idSchema,
@@ -43,8 +25,7 @@ export const templateVersionSchema = z.object({
   version: z.number().int().min(1),
   status: templateVersionStatusSchema,
   subject: z.string().min(1).max(300),
-  editorFormat: editorFormatSchema,
-  editorDocument: editorDocumentSchema,
+  source: z.string().max(1_000_000),
   /** Filled by the server on publish; runtime delivery only ever uses these. */
   compiledHtml: z.string().nullable(),
   compiledText: z.string().nullable(),

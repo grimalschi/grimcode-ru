@@ -1,48 +1,31 @@
-import { isThemePreference, type ThemePreference } from "@template/shared/browser"
+import { isThemePreference, type ThemePreference } from "@/theme"
 import * as React from "react"
 
 /**
- * Owns the theme for one admin surface.
+ * Owns the application's theme.
  *
  * `system` is resolved here rather than left to CSS: Tailwind's `dark:` needs a concrete state on the
- * document. The result goes to `data-theme` — what the non-React admin kit and every embedded frame
- * read — and to the `dark` class the shadcn components expect. A service admin inside the shell's
- * frame owns nothing: it applies what the shell sends and hides its switch, which is `controlled`.
+ * document. The result goes to `data-theme`, the `dark` class the components expect, and React
+ * context so the theme switch and notifications stay in sync.
  */
 interface ThemeContextValue {
   /** What the person picked, `system` included — unlike `applied`, which is what is on screen. */
   preference: ThemePreference
   applied: "light" | "dark"
   setPreference: (preference: ThemePreference) => void
-  /** An outer surface owns the theme, so this one must not offer a switch. */
-  controlled: boolean
 }
 
 const ThemeContext = React.createContext<ThemeContextValue | null>(null)
+const STORAGE_KEY = "template.app.theme"
 
 export function useTheme(): ThemeContextValue {
   const value = React.useContext(ThemeContext)
-  if (!value) throw new Error("useTheme must be used inside an AdminThemeProvider")
+  if (!value) throw new Error("useTheme must be used inside a ThemeProvider")
   return value
 }
 
-export interface AdminThemeProviderProps {
-  children: React.ReactNode
-  /** Each admin surface remembers its choice under its own key. */
-  storageKey?: string
-  /** Set by an outer surface: the provider then applies it as given and remembers nothing. */
-  controlledTheme?: ThemePreference | null
-}
-
-export function AdminThemeProvider({
-  children,
-  storageKey = "template.admin.theme",
-  controlledTheme = null,
-}: AdminThemeProviderProps) {
-  const controlled = controlledTheme !== null
-
-  const [stored, setStored] = React.useState<ThemePreference>(() => readStored(storageKey))
-  const preference = controlled ? controlledTheme : stored
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [preference, setStored] = React.useState<ThemePreference>(readStored)
 
   const [systemIsDark, setSystemIsDark] = React.useState(prefersDark)
 
@@ -69,28 +52,27 @@ export function AdminThemeProvider({
 
   const setPreference = React.useCallback(
     (next: ThemePreference) => {
-      if (controlled) return
       setStored(next)
       try {
-        window.localStorage.setItem(storageKey, next)
+        window.localStorage.setItem(STORAGE_KEY, next)
       } catch {
         // A browser with storage disabled still gets a working theme for this session.
       }
     },
-    [controlled, storageKey],
+    [],
   )
 
   const value = React.useMemo(
-    () => ({ preference, applied, setPreference, controlled }),
-    [preference, applied, setPreference, controlled],
+    () => ({ preference, applied, setPreference }),
+    [preference, applied, setPreference],
   )
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }
 
-function readStored(storageKey: string): ThemePreference {
+function readStored(): ThemePreference {
   try {
-    const value = window.localStorage.getItem(storageKey)
+    const value = window.localStorage.getItem(STORAGE_KEY)
     if (isThemePreference(value)) return value
   } catch {
     // Fall through to the default.

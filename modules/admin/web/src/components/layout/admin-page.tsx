@@ -3,7 +3,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /**
- * The page frame every admin screen uses — central Admin and service admins alike, so an
+ * The page frame every admin screen uses — central Admin and module admins alike, so an
  * administrator moving between them meets the same layout rather than four dialects.
  */
 export function AdminPage({

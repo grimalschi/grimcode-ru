@@ -1,5 +1,4 @@
 import { Link } from '@tanstack/react-router';
-import type { UserProfile } from '@template/users/contract';
 import * as React from 'react';
 
 import { messageOf, users } from '@/api';
@@ -20,7 +19,7 @@ import { useSession } from '@/session';
  */
 export function DashboardScreen() {
   const { identity } = useSession();
-  const profile = useAsync<{ profile: UserProfile }>(() => users.getOwnProfile.query({}), []);
+  const profile = useAsync(() => users.getOwnProfile.query({}), []);
 
 
   return (

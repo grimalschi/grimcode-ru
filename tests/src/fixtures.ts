@@ -12,7 +12,7 @@ import { ADMIN, AUTH, Session } from './client.js';
 
 export const RUN_ID = randomUUID().slice(0, 8);
 
-/** A password that satisfies the service's own rule without being interesting. */
+/** A password that satisfies the module's own rule without being interesting. */
 export const PASSWORD = `acceptance-${RUN_ID}-passphrase`;
 
 export interface TestUser {
@@ -90,7 +90,7 @@ export async function ensureFixtureTemplate(
   variables: string[],
 ): Promise<string> {
   const page = await owner.call<{ items: { id: string; key: string }[] }>(
-    '/admin/embed/service/email',
+    '/admin/embed/module/email',
     'listTemplates',
     { query: key, limit: 50, offset: 0 },
   );
@@ -99,7 +99,7 @@ export async function ensureFixtureTemplate(
   if (existing) return existing.id;
 
   const created = await owner.call<{ template: { id: string } }>(
-    '/admin/embed/service/email',
+    '/admin/embed/module/email',
     'createTemplate',
     {
       key,

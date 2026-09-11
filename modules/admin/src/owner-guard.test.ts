@@ -1,8 +1,7 @@
-import type { Identity } from '@template/auth/contract';
+import type { AuthApi, Identity } from '@template/contracts/modules/auth';
 import { describe, expect, it } from 'vitest';
 
-import type { AuthCaller } from './authorization.js';
-import { lastOwnerGuard, ownersAbleToSignIn } from './routers.js';
+import { lastOwnerGuard, ownersAbleToSignIn } from './admin/router.js';
 
 function identity(id: string, blockedAt: string | null): Identity {
   return {
@@ -18,7 +17,7 @@ function identity(id: string, blockedAt: string | null): Identity {
  * Auth answering from memory, and counting what it was asked: the question must not be asked when
  * there is nobody to ask about.
  */
-function fakeAuth(identities: Identity[]): { auth: AuthCaller; asked: string[][] } {
+function fakeAuth(identities: Identity[]): { auth: AuthApi; asked: string[][] } {
   const asked: string[][] = [];
 
   const auth = {
@@ -26,7 +25,7 @@ function fakeAuth(identities: Identity[]): { auth: AuthCaller; asked: string[][]
       asked.push([...ids]);
       return { identities: identities.filter((one) => ids.includes(one.id)) };
     },
-  } as unknown as AuthCaller;
+  } as unknown as AuthApi;
 
   return { auth, asked };
 }
@@ -44,6 +43,13 @@ describe('who is left able to enter the panel', () => {
 
     await expect(ownersAbleToSignIn([BLOCKED.id], auth)).resolves.toEqual([]);
     await expect(ownersAbleToSignIn([ACTIVE.id, BLOCKED.id], auth)).resolves.toEqual([ACTIVE.id]);
+  });
+
+  it('counts an accessible owner after the first two hundred candidates', async () => {
+    const identities = Array.from({ length: 201 }, (_, index) => identity(`owner-${index}`, index === 200 ? null : BLOCKED.blockedAt));
+    const { auth, asked } = fakeAuth(identities);
+    await expect(ownersAbleToSignIn(identities.map((one) => one.id), auth)).resolves.toEqual(['owner-200']);
+    expect(asked.map((ids) => ids.length)).toEqual([200, 1]);
   });
 
   it('asks Auth nothing when the registry lists no other owner', async () => {

@@ -3,20 +3,19 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   ADMIN,
-  AUTH,
+  BASE_URL,
   errorCode,
   errorMessage,
   Session,
-  serviceAdmin,
-  USERS,
+  moduleAdmin,
   waitForStack,
 } from './client.js';
-import { createUser, RegistryRestore, resolveOwner, type TestUser } from './fixtures.js';
+import { createUser, ensureFixtureTemplate, RegistryRestore, resolveOwner, type TestUser } from './fixtures.js';
 
 /**
  * Who can open what.
  *
- * Every check goes through Gateway over HTTP, because that is where the decision is made. They open
+ * Every check goes through Router over HTTP, because that is where the decision is made. They open
  * the protected URL directly, which is what an attacker would do.
  */
 
@@ -24,6 +23,10 @@ let owner: Session;
 let restore: RegistryRestore;
 let plainUser: TestUser;
 let grantedAdmin: TestUser;
+let emptyAdmin: TestUser;
+let emailAdmin: TestUser;
+let disabledAdmin: TestUser;
+let templateId: string;
 
 beforeAll(async () => {
   await waitForStack();
@@ -40,10 +43,149 @@ beforeAll(async () => {
     { email: grantedAdmin.email, role: 'admin', grants: ['users'] },
     { csrf: true },
   );
+  emptyAdmin = await createUser('no-grants');
+  emailAdmin = await createUser('email-only');
+  disabledAdmin = await createUser('disabled');
+  for (const [user, grants] of [[emptyAdmin, []], [emailAdmin, ['email']], [disabledAdmin, ['users', 'email']]] as const) {
+    await restore.remember(user.userId);
+    await owner.call(ADMIN, 'addAdministrator', { email: user.email, role: 'admin', grants }, { csrf: true });
+  }
+  await owner.call(ADMIN, 'updateAdministrator', { userId: disabledAdmin.userId, enabled: false }, { csrf: true });
+  templateId = await ensureFixtureTemplate(owner, 'acceptance-access-guards', []);
 });
 
 afterAll(async () => {
-  await restore.restoreAll();
+  await restore?.restoreAll();
+});
+
+const moduleQueries = { email: 'listTemplates', notifications: 'listEvents', auth: 'listIdentities', users: 'listProfiles' };
+
+function actor(name: string): Session {
+  return ({ owner, plain: plainUser.session, users: grantedAdmin.session, email: emailAdmin.session,
+    empty: emptyAdmin.session, disabled: disabledAdmin.session })[name] ?? new Session();
+}
+
+describe('administrator access matrix', () => {
+  it.each([
+    { role: 'owner', panel: true, modules: ['email', 'notifications', 'auth', 'users'] },
+    { role: 'users', panel: true, modules: ['users'] },
+    { role: 'email', panel: true, modules: ['email'] },
+    { role: 'empty', panel: true, modules: [] },
+    { role: 'disabled', panel: false, modules: [] },
+    { role: 'plain', panel: false, modules: [] },
+    { role: 'anonymous', panel: false, modules: [] },
+  ])('$role receives only its permitted panel and module entrypoints', async ({ role, panel, modules }) => {
+    const session = actor(role);
+    expect(await session.status('/admin/')).toBe(panel ? 200 : 403);
+    const state = await session.rpc<{ modules: string[] }>(ADMIN, 'session');
+    expect(state.status).toBe(panel ? 200 : 403);
+    if (panel) expect(state.body.modules).toEqual(modules);
+    for (const [module, procedure] of Object.entries(moduleQueries)) {
+      const expected = modules.includes(module) ? 200 : 403;
+      expect(await session.status(`${moduleAdmin(module)}/`), `${role}: ${module} page`).toBe(expected);
+      expect((await session.rpc(moduleAdmin(module), procedure)).status, `${role}: ${module} RPC`).toBe(expected);
+    }
+  });
+
+  it.each(['empty', 'email', 'users'])('keeps owner procedures unavailable to %s administrators', async (role) => {
+    const session = actor(role);
+    for (const [procedure, input, mutation] of [
+      ['listAdministrators', {}, false], ['listAudit', {}, false],
+      ['searchUsers', { query: plainUser.email }, false],
+      ['addAdministrator', { email: plainUser.email, role: 'owner', grants: [] }, true],
+      ['setIdentityBlocked', { userId: plainUser.userId, blocked: true }, true],
+      ['database.schemas', {}, false], ['database.tables', { schema: 'admin' }, false],
+      ['database.rows', { schema: 'admin', table: 'administrators' }, false],
+      ...['insert', 'update', 'delete'].map((action) => [`database.${action}`, databaseProbe(action), true] as const),
+    ] as const) {
+      const result = await session.rpc(ADMIN, procedure, input, { csrf: mutation });
+      expect(result.status, `${role}: ${procedure}`).toBe(403);
+      expect(errorCode(result.body), `${role}: ${procedure}`).toBe('FORBIDDEN');
+    }
+  });
+
+  it.each(['empty', 'email', 'users'])('rejects self-escalation by a %s administrator', async (role) => {
+    const session = actor(role);
+    const before = await session.call<{ userId: string; role: string; modules: string[] }>(ADMIN, 'session');
+    for (const patch of [{ role: 'owner' }, { grants: ['auth', 'users', 'notifications', 'email'] }]) {
+      const result = await session.rpc(ADMIN, 'updateAdministrator', { userId: before.userId, ...patch }, { csrf: true });
+      expect(result.status).toBe(403);
+    }
+    expect(await session.call(ADMIN, 'session')).toMatchObject(before);
+  });
+
+  it('invalidates a granted mutation immediately when the grant is revoked', async () => {
+    const prefix = moduleAdmin('email');
+    await emailAdmin.session.call(prefix, 'updateTemplate', { id: templateId, name: 'Access guard fixture' }, { csrf: true });
+    try {
+      await owner.call(ADMIN, 'updateAdministrator', { userId: emailAdmin.userId, grants: [] }, { csrf: true });
+      const denied = await emailAdmin.session.rpc(prefix, 'updateTemplate', { id: templateId, name: 'Forbidden edit' }, { csrf: true });
+      expect(denied.status).toBe(403);
+      expect((await emailAdmin.session.fetch(`${prefix}/csrf`)).status).toBe(403);
+      const state = await emailAdmin.session.call<{ modules: string[] }>(ADMIN, 'session');
+      expect(state.modules).toEqual([]);
+      const result = await owner.call<{ template: { name: string } }>(prefix, 'getTemplate', { id: templateId });
+      expect(result.template.name).toBe('Access guard fixture');
+    } finally {
+      await owner.call(ADMIN, 'updateAdministrator', { userId: emailAdmin.userId, grants: ['email'] }, { csrf: true });
+    }
+    await emailAdmin.session.call(prefix, 'updateTemplate', { id: templateId, name: 'Access guard fixture' }, { csrf: true });
+  });
+});
+
+async function tokenFor(session: Session, prefix: string): Promise<string> {
+  const response = await session.fetch(`${prefix}/csrf`);
+  expect(response.status).toBe(200);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  return ((await response.json()) as { token: string }).token;
+}
+
+describe('administrative CSRF boundaries', () => {
+  it('refuses missing, mismatched and another surface’s token without changing data', async () => {
+    const prefix = moduleAdmin('email');
+    const before = await owner.call<{ template: { name: string } }>(prefix, 'getTemplate', { id: templateId });
+    const panelToken = await tokenFor(owner, ADMIN);
+    const emailToken = await tokenFor(owner, prefix);
+    const authToken = await tokenFor(owner, moduleAdmin('auth'));
+    for (const token of [undefined, 'wrong-token', panelToken, authToken]) {
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+      if (token !== undefined) headers['x-csrf-token'] = token;
+      const response = await owner.fetch(`${prefix}/rpc/updateTemplate`, {
+        method: 'POST', headers, body: JSON.stringify({ id: templateId, name: 'Forbidden CSRF edit' }),
+      });
+      expect(response.status).toBe(403);
+      expect(errorMessage(await response.json())).toMatch(/csrf/i);
+    }
+    const response = await owner.fetch(`${ADMIN}/rpc/updateAdministrator`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf-token': emailToken },
+      body: JSON.stringify({ userId: emptyAdmin.userId, role: 'owner' }),
+    });
+    expect(response.status).toBe(403);
+    expect(errorMessage(await response.json())).toMatch(/csrf/i);
+    expect((await owner.call<{ template: { name: string } }>(prefix, 'getTemplate', { id: templateId })).template.name).toBe(before.template.name);
+    expect((await emptyAdmin.session.call<{ role: string }>(ADMIN, 'session')).role).toBe('admin');
+  });
+
+  it('requires the cookie as well as the correct header token', async () => {
+    const token = await tokenFor(owner, ADMIN);
+    const cookie = owner.cookieHeader.split('; ').filter((part) => !part.endsWith(`=${token}`)).join('; ');
+    const response = await fetch(`${BASE_URL}/admin/rpc/updateAdministrator`, {
+      method: 'POST', headers: { cookie, 'content-type': 'application/json', 'x-csrf-token': token },
+      body: JSON.stringify({ userId: emptyAdmin.userId, role: 'owner' }),
+    });
+    expect(response.status).toBe(403);
+    expect(errorMessage(await response.json())).toMatch(/csrf/i);
+  });
+
+  it('keeps one tab’s token usable after a second tab requests it', async () => {
+    const token = await tokenFor(emailAdmin.session, moduleAdmin('email'));
+    expect(await tokenFor(emailAdmin.session, moduleAdmin('email'))).toBe(token);
+    const response = await emailAdmin.session.fetch(`${moduleAdmin('email')}/rpc/updateTemplate`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf-token': token },
+      body: JSON.stringify({ id: templateId, name: 'Access guard fixture' }),
+    });
+    expect(response.status).toBe(200);
+  });
 });
 
 describe('the admin panel itself', () => {
@@ -60,13 +202,12 @@ describe('the admin panel itself', () => {
     expect(result.status).toBe(403);
   });
 
-  it('lets the owner in and reports every service', async () => {
-    const state = await owner.call<{ role: string; services: string[] }>(ADMIN, 'session');
+  it('lets the owner in and reports modules in catalogue order', async () => {
+    const state = await owner.call<{ role: string; modules: string[]; catalogue: { id: string }[] }>(ADMIN, 'session');
 
     expect(state.role).toBe('owner');
-    // The database is a section of the panel, reported separately from the services.
-    expect((state as unknown as { database: boolean }).database).toBe(true);
-    expect(new Set(state.services)).toEqual(new Set(['auth', 'users', 'notifications', 'email']));
+    expect(state.modules).toEqual(['email', 'notifications', 'auth', 'users']);
+    expect(state.catalogue.map(({ id }) => id)).toEqual(state.modules);
   });
 
   /**
@@ -76,34 +217,34 @@ describe('the admin panel itself', () => {
   it('protects the admin assets, not only its pages', async () => {
     const anonymous = new Session();
     expect(await anonymous.status('/admin/assets/index.js')).toBe(403);
-    expect(await anonymous.status('/admin/embed/service/email/assets/index.js')).toBe(403);
+    expect(await anonymous.status('/admin/embed/module/email/assets/index.js')).toBe(403);
   });
 });
 
 describe('grants', () => {
-  it('opens a service the administrator was granted', async () => {
-    const status = await grantedAdmin.session.status(`${serviceAdmin('users')}/`);
+  it('opens a module the administrator was granted', async () => {
+    const status = await grantedAdmin.session.status(`${moduleAdmin('users')}/`);
     expect(status).toBe(200);
   });
 
-  it('refuses a service the administrator was not granted', async () => {
-    expect(await grantedAdmin.session.status(`${serviceAdmin('auth')}/`)).toBe(403);
-    expect(await grantedAdmin.session.status(`${serviceAdmin('email')}/`)).toBe(403);
+  it('refuses a module the administrator was not granted', async () => {
+    expect(await grantedAdmin.session.status(`${moduleAdmin('auth')}/`)).toBe(403);
+    expect(await grantedAdmin.session.status(`${moduleAdmin('email')}/`)).toBe(403);
   });
 
-  it('refuses the RPC of an ungranted service, not just its pages', async () => {
-    const result = await grantedAdmin.session.rpc(serviceAdmin('auth'), 'listIdentities');
+  it('refuses the RPC of an ungranted module, not just its pages', async () => {
+    const result = await grantedAdmin.session.rpc(moduleAdmin('auth'), 'listIdentities');
     expect(result.status).toBe(403);
   });
 
-  it('lists only the granted services for that administrator', async () => {
-    const state = await grantedAdmin.session.call<{ role: string; services: string[] }>(
+  it('lists only the granted modules for that administrator', async () => {
+    const state = await grantedAdmin.session.call<{ role: string; modules: string[] }>(
       ADMIN,
       'session',
     );
 
     expect(state.role).toBe('admin');
-    expect(state.services).toEqual(['users']);
+    expect(state.modules).toEqual(['users']);
   });
 
   /**
@@ -111,7 +252,7 @@ describe('grants', () => {
    * server has to refuse the same request anyway.
    */
   it('takes effect on the next request after a change', async () => {
-    expect(await grantedAdmin.session.status(`${serviceAdmin('users')}/`)).toBe(200);
+    expect(await grantedAdmin.session.status(`${moduleAdmin('users')}/`)).toBe(200);
 
     await owner.call(
       ADMIN,
@@ -119,7 +260,7 @@ describe('grants', () => {
       { userId: grantedAdmin.userId, grants: [] },
       { csrf: true },
     );
-    expect(await grantedAdmin.session.status(`${serviceAdmin('users')}/`)).toBe(403);
+    expect(await grantedAdmin.session.status(`${moduleAdmin('users')}/`)).toBe(403);
 
     await owner.call(
       ADMIN,
@@ -127,7 +268,7 @@ describe('grants', () => {
       { userId: grantedAdmin.userId, grants: ['users'] },
       { csrf: true },
     );
-    expect(await grantedAdmin.session.status(`${serviceAdmin('users')}/`)).toBe(200);
+    expect(await grantedAdmin.session.status(`${moduleAdmin('users')}/`)).toBe(200);
   });
 
   it('closes everything when the administrator is disabled', async () => {
@@ -138,7 +279,7 @@ describe('grants', () => {
       { csrf: true },
     );
     expect(await grantedAdmin.session.status('/admin/')).toBe(403);
-    expect(await grantedAdmin.session.status(`${serviceAdmin('users')}/`)).toBe(403);
+    expect(await grantedAdmin.session.status(`${moduleAdmin('users')}/`)).toBe(403);
 
     await owner.call(
       ADMIN,
@@ -150,73 +291,129 @@ describe('grants', () => {
   });
 });
 
-/**
- * The database area is a section of the panel, not a service admin.
- *
- * That is why it lives at `/admin/database/`, why only the owner reaches it, and why no grant can
- * name it: there is nothing to hand out, so nothing can be handed out by mistake.
- *
- * Behind it is this template's own interface — its API today, its screen next — and the owner is the
- * only one who reaches either. The distinction from the ordinary administrator's 403 below is the
- * point: the check runs before anything is served.
- */
+/** Valid input shapes with nonexistent keys and incomplete inserts keep refusal probes harmless. */
+function databaseProbe(action: string, table = 'auth_audit') {
+  return {
+    schema: 'auth', table,
+    ...(['update', 'delete'].includes(action) ? {
+      key: table === 'schema_migrations'
+        ? { version: -1 }
+        : { id: '00000000-0000-4000-8000-000000000000' },
+    } : {}),
+    ...(['insert', 'update'].includes(action) ? {
+      values: table === 'schema_migrations' ? { name: '__probe__' } : { action: '__probe__' },
+    } : {}),
+  };
+}
+
+/** The database is a native owner-only Admin section; its data API uses Admin's tRPC and CSRF. */
 describe('the database area', () => {
-  it('serves the interface to the owner', async () => {
-    expect(await owner.status('/admin/embed/database/')).toBe(200);
+  it('serves the native page to the owner', async () => {
+    expect(await owner.status('/admin/database')).toBe(200);
   });
 
-  it('shows the owner the databases of this installation, and only those', async () => {
-    const response = await owner.fetch('/admin/embed/database/api/databases');
-    const body = (await response.json()) as { databases: { name: string }[] };
+  it('shows the owner the module schemas, and only those', async () => {
+    const body = await owner.call<{ schemas: { name: string }[] }>(ADMIN, 'database.schemas');
+    expect(body.schemas.map((schema) => schema.name).sort()).toEqual([
+      'admin', 'auth', 'email', 'notifications', 'users',
+    ]);
+  });
 
-    const names = body.databases.map((database) => database.name).sort();
-    expect(names).toEqual(
-      ['admin', 'auth', 'email', 'notifications', 'users']
-        .map((module) => `${process.env.PROJECT_SLUG}_${module}`)
-        .sort(),
+  it('looks up tables only inside the requested module schema', async () => {
+    const { tables } = await owner.call<{ tables: { schema: string; name: string }[] }>(
+      ADMIN, 'database.tables', { schema: 'auth' },
     );
+    expect(tables.length).toBeGreaterThan(0);
+    expect(tables.every((table) => table.schema === 'auth')).toBe(true);
+    expect(tables.some((table) => table.name === 'identities')).toBe(true);
+
+    for (const input of [
+      { schema: 'auth', table: 'profiles' },
+      { schema: 'auth', table: 'users.profiles' },
+      { schema: 'public', table: 'identities' },
+    ]) {
+      const result = await owner.rpc(ADMIN, 'database.rows', input);
+      expect(result.status).toBe(404);
+      expect(errorCode(result.body)).toBe('NOT_FOUND');
+    }
   });
 
-  it('refuses a changing request that carries no header of ours', async () => {
-    const response = await owner.fetch('/admin/embed/database/api/databases/x/rows/delete', {
+  it.each(['insert', 'update', 'delete'])('requires Admin CSRF for database.%s', async (action) => {
+    owner.forgetCsrf();
+    const result = await owner.rpc(ADMIN, `database.${action}`, databaseProbe(action));
+    expect(result.status).toBe(403);
+    expect(errorMessage(result.body)).toMatch(/csrf/i);
+  });
+
+  it('omits migration tables from every schema catalogue', async () => {
+    for (const schema of ['admin', 'auth', 'email', 'notifications', 'users']) {
+      const { tables } = await owner.call<{ tables: { name: string }[] }>(ADMIN, 'database.tables', { schema });
+      expect(tables.length).toBeGreaterThan(0);
+      expect(tables.some((table) => table.name === 'schema_migrations')).toBe(false);
+    }
+  });
+
+  it.each(['rows', 'insert', 'update', 'delete'])('does not expose migration records through database.%s', async (action) => {
+    const result = await owner.rpc(ADMIN, `database.${action}`, databaseProbe(action, 'schema_migrations'), { csrf: action !== 'rows' });
+    expect(result.status).toBe(404);
+    expect(errorCode(result.body)).toBe('NOT_FOUND');
+  });
+
+  it.each(['addColumn', 'renameColumn', 'dropColumn', 'migrate'])('has no database.%s procedure', async (action) => {
+    const result = await owner.rpc(ADMIN, `database.${action}`, {}, { csrf: true });
+    expect(result.status).toBe(404);
+    expect(errorCode(result.body)).toBe('NOT_FOUND');
+  });
+
+  it('denies every database operation to an ordinary administrator, whatever their grants', async () => {
+    await owner.call(ADMIN, 'updateAdministrator', {
+      userId: grantedAdmin.userId, grants: ['users', 'auth', 'notifications', 'email'],
+    }, { csrf: true });
+    for (const action of ['schemas', 'tables', 'rows', 'insert', 'update', 'delete']) {
+      const input = action === 'schemas' ? {} : action === 'tables' ? { schema: 'auth' } : databaseProbe(action);
+      const result = await grantedAdmin.session.rpc(ADMIN, `database.${action}`, input, {
+        csrf: ['insert', 'update', 'delete'].includes(action),
+      });
+      expect(result.status, action).toBe(403);
+      expect(errorCode(result.body), action).toBe('FORBIDDEN');
+    }
+  });
+
+  it('does not accept a forged owner context for the database API', async () => {
+    const response = await grantedAdmin.session.fetch('/admin/rpc/database.schemas', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ schema: 'public', table: 'identities', key: {} }),
+      headers: {
+        'content-type': 'application/json',
+        'x-template-admin-user-id': plainUser.userId,
+        'x-template-admin-role': 'owner',
+        'x-template-admin-grants': 'database',
+      },
+      body: JSON.stringify({}),
     });
-
     expect(response.status).toBe(403);
+    expect(errorCode(await response.json())).toBe('FORBIDDEN');
   });
 
-  it('is closed to an ordinary administrator, whatever their grants', async () => {
-    await owner.call(
-      ADMIN,
-      'updateAdministrator',
-      { userId: grantedAdmin.userId, grants: ['users', 'auth', 'notifications', 'email'] },
-      { csrf: true },
-    );
-
-    expect(await grantedAdmin.session.status('/admin/embed/database/')).toBe(403);
+  it('does not publish the database API to anonymous or ordinary users', async () => {
+    for (const session of [new Session(), plainUser.session]) {
+      expect((await session.rpc(ADMIN, 'database.schemas')).status).toBe(403);
+    }
   });
 
-  it('is not a service, so nothing can grant it', async () => {
-    const result = await owner.rpc(
-      ADMIN,
-      'updateAdministrator',
-      { userId: grantedAdmin.userId, grants: ['database'] },
-      { csrf: true },
-    );
-
-    // Rejected by the contract itself, before any handler could interpret it.
+  it('does not list the database page among assignable modules', async () => {
+    const result = await owner.rpc(ADMIN, 'updateAdministrator', {
+      userId: grantedAdmin.userId, grants: ['database'],
+    }, { csrf: true });
     expect(result.status).toBe(400);
   });
 
-  it('is not reachable as a service admin either', async () => {
-    expect(await owner.status('/admin/embed/service/database/')).toBe(404);
-  });
-
-  it('has no public route', async () => {
-    const anonymous = new Session();
-    expect(await anonymous.status('/service/database/')).toBe(404);
+  it('has no embedded or public database endpoint', async () => {
+    for (const path of [
+      '/admin/embed/database/', '/admin/embed/database/api/schemas',
+      '/admin/embed/module/database/', '/module/database/',
+    ]) {
+      expect(await owner.status(path), path).toBe(404);
+    }
   });
 });
 
@@ -276,33 +473,39 @@ describe('the owner-only registry', () => {
 });
 
 describe('public routing', () => {
-  it('does not expose a service that is not on the public allowlist', async () => {
+  it('refuses unavailable modules, special destinations and prototype names', async () => {
     const anonymous = new Session();
-
-    for (const service of ['admin', 'email', 'notifications', 'billing']) {
-      expect(await anonymous.status(`/service/${service}/rpc/anything`)).toBe(404);
+    const unavailable = ['billing', 'site', 'app', 'admin', 'router', '__proto__', 'constructor', 'toString', 'hasOwnProperty'];
+    for (const module of ['email', 'notifications', ...unavailable]) {
+      const path = `/module/${module}/rpc/anything`;
+      expect(await anonymous.status(path), path).toBe(404);
+    }
+    for (const module of unavailable) {
+      const path = `${moduleAdmin(module)}/`;
+      expect(await owner.status(path), path).toBe(404);
+      expect(await anonymous.status(path), path).toBe(404);
     }
   });
 
-  it('exposes the two services that are on it', async () => {
+  it('exposes the two catalogue modules with public handlers', async () => {
     const anonymous = new Session();
 
-    // Reached the service: it answers, even if the answer is "no session".
-    const auth = await anonymous.rpc('/service/auth', 'currentSession');
+    // Reached the module: it answers, even if the answer is "no session".
+    const auth = await anonymous.rpc('/module/auth', 'currentSession');
     expect(auth.status).toBe(200);
 
-    const users = await anonymous.rpc('/service/users', 'getOwnProfile');
+    const users = await anonymous.rpc('/module/users', 'getOwnProfile');
     expect(users.status).toBe(401);
   });
 
   it('never lets a client supply its own admin context', async () => {
     const forged = new Session();
 
-    const response = await forged.fetch('/service/auth/rpc/currentSession', {
+    const response = await forged.fetch('/module/auth/rpc/currentSession', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        // Gateway builds these itself and strips whatever arrived.
+        // Router builds these itself and strips whatever arrived.
         'x-template-admin-user-id': '00000000-0000-4000-8000-000000000001',
         'x-template-admin-role': 'owner',
         'x-template-admin-grants': 'auth,users,notifications,email',
@@ -315,60 +518,28 @@ describe('public routing', () => {
   });
 });
 
-/**
- * Each module still works in a database of its own — and that is now a fact of the wiring rather than
- * something PostgreSQL enforces.
- *
- * What stood here before was the opposite check: a module's own credentials being refused a
- * neighbour's database, with `permission denied for database` as the proof. It was true while every
- * module had a role and a password of its own. A module now creates its own database on its first
- * request, which needs an account allowed to create databases — and such an account opens all of them.
- * The refusal is gone, so the check that asserted it is gone too rather than being weakened into
- * something that passes.
- *
- * What is left worth checking is that the separation itself is real: the five databases exist, they
- * are distinct, and each module's data is in its own. The first two are checked here; the third is
- * what every flow in this suite exercises through Gateway.
- */
-describe('a database per module', () => {
-  /**
-   * The five databases exist and are distinct — and they come into being on first use, not at
-   * deployment, so this asks each module for something first. One request per module is enough: the
-   * pool opens, the database is created if it was missing, the migrations run.
-   *
-   * Written this way rather than trusting the rest of the suite to have warmed them: the files run in
-   * parallel, and a check that depends on another file's order is a check that goes red on a Tuesday.
-   */
-  it('is five distinct databases, each one where it is expected', async () => {
-    // Auth and Users answer these; Admin is asked by Gateway on any `/admin/**`; Notifications and
-    // Email are woken by the registration in `beforeAll`, which is the only route into them.
-    await owner.call(AUTH, 'currentSession', {});
-    await owner.call(USERS, 'getOwnProfile', {});
-    await owner.rpc(ADMIN, 'listAdministrators', {});
-
-    /*
-     * The names are spelled out here rather than imported from the program that builds them. That is
-     * the point of the check: importing the derivation would compare the code with itself, and what
-     * is being verified is the rule — one database per module, named `<slug>_<module>`.
-     */
-    const slug = process.env.PROJECT_SLUG;
-    if (!slug) throw new Error('PROJECT_SLUG is not set, so the database names cannot be known');
-
-    const pool = new pg.Pool({
-      connectionString: process.env.DATABASE_URL,
-      max: 1,
-    });
+/** Shared credentials do not enforce this boundary: the test verifies storage ownership. */
+describe('a schema per module', () => {
+  it('prepares all five schemas and separate migration histories before serving HTTP', async () => {
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
     try {
-      const names = ['admin', 'auth', 'email', 'notifications', 'users'].map(
-        (module) => `${slug}_${module}`,
+      const schemas = ['admin', 'auth', 'email', 'notifications', 'users'];
+      const { rows } = await pool.query<{ table_schema: string }>(
+        `SELECT table_schema FROM information_schema.tables
+          WHERE table_schema = ANY($1) AND table_name = 'schema_migrations'`,
+        [schemas],
       );
-      expect(new Set(names).size).toBe(names.length);
-
-      const { rows } = await pool.query<{ datname: string }>(
-        'SELECT datname FROM pg_database WHERE datname = ANY($1)',
-        [names],
+      expect(rows.map((row) => row.table_schema).sort()).toEqual(schemas);
+      const { rows: publicTables } = await pool.query(
+        `SELECT table_name FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = ANY($1)`,
+        [['schema_migrations', 'identities', 'administrators', 'templates', 'profiles']],
       );
-      expect(rows.map((row) => row.datname).sort()).toEqual([...names].sort());
+      expect(publicTables).toEqual([]);
+      for (const schema of schemas) {
+        const { rows: history } = await pool.query(`SELECT version FROM "${schema}".schema_migrations`);
+        expect(history.length).toBeGreaterThan(0);
+      }
     } finally {
       await pool.end();
     }

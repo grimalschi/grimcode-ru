@@ -12,7 +12,7 @@ import { createRoot } from 'react-dom/client';
 import { toast } from 'sonner';
 
 import { auth, messageOf } from '@/api';
-import { AdminThemeProvider } from '@/components/theme-provider';
+import { ThemeProvider } from '@/components/theme-provider';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -44,7 +44,7 @@ function Root() {
 /**
  * Everything a signed-in user sees sits inside this frame.
  *
- * The guard exists for the flow, not for safety: Auth, Users and every other service check the
+ * The guard exists for the flow, not for safety: Auth, Users and every other module check the
  * session again on each protected endpoint, so a revoked session fails there no matter what this
  * component still believes.
  */
@@ -183,8 +183,8 @@ declare module '@tanstack/react-router' {
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <AdminThemeProvider storageKey="template.app.theme">
+    <ThemeProvider>
       <RouterProvider router={router} />
-    </AdminThemeProvider>
+    </ThemeProvider>
   </React.StrictMode>,
 );

@@ -1,4 +1,5 @@
-import { newId, type Pool } from '@template/shared';
+import { randomUUID } from 'node:crypto';
+import { type Pool } from './db/database.js';
 
 export interface EventRow {
   id: string;
@@ -37,7 +38,7 @@ export class NotificationsRepository {
        VALUES ($1, $2, $3, $4, $5::jsonb)
        ON CONFLICT (dedupe_key) DO NOTHING
        RETURNING ${COLUMNS}`,
-      [newId(), type, dedupeKey, recipientEmail, JSON.stringify(payload)],
+      [randomUUID(), type, dedupeKey, recipientEmail, JSON.stringify(payload)],
     );
 
     const inserted = rows[0];
@@ -70,7 +71,6 @@ export class NotificationsRepository {
       [id, deliveryId],
     );
   }
-
 
   async markFailed(id: string, error: string): Promise<void> {
     await this.pool.query(`UPDATE events SET status = 'failed', error = $2 WHERE id = $1`, [

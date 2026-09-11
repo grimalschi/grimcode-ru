@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { emailSchema, idSchema, isoDateTimeSchema } from '@template/shared/vocabulary';
+import { emailSchema, idSchema, isoDateTimeSchema } from './primitives.js';
 
 /** Minimal identity Auth owns. It is never a product profile — Users owns that. */
 export const identitySchema = z.object({
@@ -11,8 +11,6 @@ export const identitySchema = z.object({
   createdAt: isoDateTimeSchema,
 });
 
-export type Identity = z.infer<typeof identitySchema>;
-
 export const sessionSummarySchema = z.object({
   id: idSchema,
   createdAt: isoDateTimeSchema,
@@ -22,15 +20,10 @@ export const sessionSummarySchema = z.object({
   current: z.boolean(),
 });
 
-export type SessionSummary = z.infer<typeof sessionSummarySchema>;
-
 export const adminIdentitySchema = identitySchema.extend({
   activeSessionCount: z.number().int().min(0),
   lastLoginAt: isoDateTimeSchema.nullable(),
 });
-
-/** Identity as an administrator sees it, with the counters the admin list shows. */
-export type AdminIdentity = z.infer<typeof adminIdentitySchema>;
 
 export const authAuditEntrySchema = z.object({
   id: idSchema,
@@ -43,6 +36,3 @@ export const authAuditEntrySchema = z.object({
 });
 
 export const passwordSchema = z.string().min(12, 'Password must contain at least 12 characters').max(200);
-
-/** One line of the audit log, as this module's own panel renders it. */
-export type AuthAuditEntry = z.infer<typeof authAuditEntrySchema>;

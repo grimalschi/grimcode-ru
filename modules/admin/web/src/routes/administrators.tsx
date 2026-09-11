@@ -1,4 +1,3 @@
-import { ASSIGNABLE_SERVICE_IDS, type AssignableServiceId } from '@template/shared/vocabulary';
 import * as React from 'react';
 import { toast } from 'sonner';
 
@@ -27,23 +26,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { useAsync, type Page } from '@/hooks/use-async';
-import { ADMIN_SERVICES } from '@/services';
+import { useAsync } from '@/hooks/use-async';
+import { adminModules, assignableGrants } from '@/modules';
 import { useSession } from '@/session';
 
-interface Administrator {
-  id: string;
-  userId: string;
-  email: string;
-  role: 'owner' | 'admin';
-  enabled: boolean;
-  grants: AssignableServiceId[];
-  createdAt: string;
-}
+type Administrator = Awaited<ReturnType<typeof api.listAdministrators.query>>['items'][number];
 
 const LIMIT = 25;
-
-const SERVICE_LABELS = new Map(ADMIN_SERVICES.map((service) => [service.id, service.label]));
 
 /**
  * Owner-only registry of administrators.
@@ -53,9 +42,10 @@ const SERVICE_LABELS = new Map(ADMIN_SERVICES.map((service) => [service.id, serv
  */
 export function AdministratorsPage() {
   const session = useSession();
+  const moduleLabels = new Map(adminModules(session.catalogue).map(({ id, label }) => [id, label]));
   const [offset, setOffset] = React.useState(0);
 
-  const list = useAsync<Page<Administrator>>(
+  const list = useAsync(
     () => api.listAdministrators.query({ limit: LIMIT, offset }),
     [offset],
   );
@@ -73,8 +63,8 @@ export function AdministratorsPage() {
   return (
     <AdminPage
       title="Администраторы"
-      description="Кто может открыть админку и до каких сервисов доходит."
-      actions={<AddAdministrator onAdded={onChanged} />}
+      description="Кто может открыть админку и до каких модулей доходит."
+      actions={<><IdentityAccess /><AddAdministrator onAdded={onChanged} /></>}
     >
       <DataTable
         loading={list.loading}
@@ -103,7 +93,7 @@ export function AdministratorsPage() {
           },
           {
             key: 'grants',
-            header: 'Сервисы',
+            header: 'Модули',
             cell: (row) =>
               row.role === 'owner' ? (
                 <span className="text-muted-foreground text-sm">Всё, включая базу данных</span>
@@ -113,7 +103,7 @@ export function AdministratorsPage() {
                 <div className="flex flex-wrap gap-1">
                   {row.grants.map((grant) => (
                     <Badge key={grant} variant="outline">
-                      {SERVICE_LABELS.get(grant) ?? grant}
+                      {moduleLabels.get(grant) ?? grant}
                     </Badge>
                   ))}
                 </div>
@@ -143,6 +133,56 @@ export function AdministratorsPage() {
       />
     </AdminPage>
   );
+}
+
+function IdentityAccess() {
+  const session = useSession();
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState('');
+  const [search, setSearch] = React.useState('');
+  const [busy, setBusy] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    const timer = setTimeout(() => setSearch(query.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [query]);
+  const candidates = useAsync(
+    () => open && search ? api.searchUsers.query({ query: search }) : Promise.resolve({ users: [] }),
+    [open, search],
+  );
+  async function change(userId: string, blocked: boolean) {
+    setBusy(userId);
+    try {
+      await api.setIdentityBlocked.mutate({ userId, blocked });
+      candidates.reload();
+      toast.success(blocked ? 'Аккаунт заблокирован' : 'Аккаунт разблокирован');
+    } catch (error) {
+      toast.error(messageOf(error));
+    } finally {
+      setBusy(null);
+    }
+  }
+  return <Dialog open={open} onOpenChange={setOpen}>
+    <DialogTrigger asChild><Button variant="outline">Блокировка аккаунтов</Button></DialogTrigger>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Блокировка аккаунтов</DialogTitle>
+        <DialogDescription>Блокировка запрещает вход и завершает сессии пользователя.</DialogDescription>
+      </DialogHeader>
+      <Input aria-label="Поиск аккаунта" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Адрес электронной почты" />
+      {candidates.error ? <ErrorState error={candidates.error} retry={candidates.reload} />
+        : candidates.loading ? <p>Ищем…</p>
+        : <ul className="space-y-3">
+          {candidates.data?.users.map((user) => <li key={user.userId} className="flex items-center justify-between gap-3">
+            <span className="truncate text-sm">{user.email}</span>
+            <Button variant="outline" size="sm" disabled={busy !== null || user.userId === session.userId}
+              onClick={() => void change(user.userId, user.blockedAt === null)}>
+              {user.blockedAt ? 'Разблокировать' : 'Заблокировать'}
+            </Button>
+          </li>)}
+          {search && candidates.data?.users.length === 0 && <li className="text-sm text-muted-foreground">Аккаунты не найдены.</li>}
+        </ul>}
+    </DialogContent>
+  </Dialog>;
 }
 
 function EnabledSwitch({
@@ -175,12 +215,6 @@ function EnabledSwitch({
   );
 }
 
-interface Candidate {
-  userId: string;
-  email: string;
-  isAdministrator: boolean;
-}
-
 /**
  * Adding an administrator starts from an account that already exists.
  *
@@ -194,7 +228,7 @@ function AddAdministrator({ onAdded }: { onAdded: () => void }) {
   const [search, setSearch] = React.useState('');
   const [email, setEmail] = React.useState('');
   const [role, setRole] = React.useState<'owner' | 'admin'>('admin');
-  const [grants, setGrants] = React.useState<AssignableServiceId[]>([]);
+  const [grants, setGrants] = React.useState<string[]>([]);
   const [busy, setBusy] = React.useState(false);
 
   React.useEffect(() => {
@@ -202,7 +236,7 @@ function AddAdministrator({ onAdded }: { onAdded: () => void }) {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const candidates = useAsync<{ users: Candidate[] }>(
+  const candidates = useAsync(
     () => (search === '' ? Promise.resolve({ users: [] }) : api.searchUsers.query({ query: search })),
     [search],
   );
@@ -266,6 +300,8 @@ function AddAdministrator({ onAdded }: { onAdded: () => void }) {
               <p className="text-muted-foreground text-xs">
                 Добавить можно только того, у кого уже есть аккаунт — здесь он не создаётся.
               </p>
+            ) : candidates.error ? (
+              <ErrorState error={candidates.error} retry={candidates.reload} />
             ) : candidates.loading ? (
               <p className="text-muted-foreground text-xs">Ищем…</p>
             ) : (candidates.data?.users.length ?? 0) === 0 ? (
@@ -300,7 +336,7 @@ function AddAdministrator({ onAdded }: { onAdded: () => void }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="admin">Админ — только выданные сервисы</SelectItem>
+                <SelectItem value="admin">Админ — только выданные модули</SelectItem>
                 <SelectItem value="owner">Владелец — всё, включая базу данных</SelectItem>
               </SelectContent>
             </Select>
@@ -329,22 +365,29 @@ function EditAdministrator({
   administrator: Administrator;
   onChanged: () => void;
 }) {
+  const { catalogue } = useSession();
   const [open, setOpen] = React.useState(false);
   const [role, setRole] = React.useState(administrator.role);
-  const [grants, setGrants] = React.useState<AssignableServiceId[]>(administrator.grants);
+  const [grants, setGrants] = React.useState<string[]>(
+    () => assignableGrants(administrator.grants, catalogue),
+  );
   const [busy, setBusy] = React.useState(false);
 
   React.useEffect(() => {
     if (open) {
       setRole(administrator.role);
-      setGrants(administrator.grants);
+      setGrants(assignableGrants(administrator.grants, catalogue));
     }
-  }, [administrator.grants, administrator.role, open]);
+  }, [administrator.grants, administrator.role, catalogue, open]);
 
   const submit = () => {
     setBusy(true);
     api
-      .updateAdministrator.mutate({ userId: administrator.userId, role, grants })
+      .updateAdministrator.mutate({
+        userId: administrator.userId,
+        role,
+        grants: assignableGrants(grants, catalogue),
+      })
       .then(() => {
         toast.success('Доступ обновлён');
         setOpen(false);
@@ -400,22 +443,23 @@ function EditAdministrator({
 }
 
 /**
- * Which services an admin may open.
+ * Which modules an admin may open.
  *
  * The database is absent on purpose: that area is owner-only and cannot be granted to anyone, which
- * is why `ASSIGNABLE_SERVICE_IDS` is a shorter list than the sidebar.
+ * is why the picker uses only descriptors marked assignable.
  */
 function GrantPicker({
   grants,
   onChange,
 }: {
-  grants: AssignableServiceId[];
-  onChange: (grants: AssignableServiceId[]) => void;
+  grants: string[];
+  onChange: (grants: string[]) => void;
 }) {
+  const catalogue = adminModules(useSession().catalogue).filter(({ assignable }) => assignable);
   return (
     <fieldset className="space-y-2">
-      <legend className="text-sm font-medium">Сервисы</legend>
-      {ASSIGNABLE_SERVICE_IDS.map((id) => (
+      <legend className="text-sm font-medium">Модули</legend>
+      {catalogue.map(({ id, label }) => (
         <label key={id} className="flex items-center gap-2 text-sm">
           <Checkbox
             checked={grants.includes(id)}
@@ -423,7 +467,7 @@ function GrantPicker({
               onChange(checked ? [...grants, id] : grants.filter((grant) => grant !== id))
             }
           />
-          {SERVICE_LABELS.get(id) ?? id}
+          {label}
         </label>
       ))}
       <p className="text-muted-foreground text-xs">

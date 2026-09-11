@@ -1,4 +1,4 @@
-import { isThemePreference, type ThemePreference } from "@template/shared/browser"
+import { isThemePreference, type ThemePreference } from "@/theme"
 import * as React from "react"
 
 /**
@@ -6,7 +6,7 @@ import * as React from "react"
  *
  * `system` is resolved here rather than left to CSS: Tailwind's `dark:` needs a concrete state on the
  * document. The result goes to `data-theme` — what the non-React admin kit and every embedded frame
- * read — and to the `dark` class the shadcn components expect. A service admin inside the shell's
+ * read — and to the `dark` class the shadcn components expect. A module admin inside the shell's
  * frame owns nothing: it applies what the shell sends and hides its switch, which is `controlled`.
  */
 interface ThemeContextValue {
@@ -26,19 +26,16 @@ export function useTheme(): ThemeContextValue {
   return value
 }
 
-export interface AdminThemeProviderProps {
-  children: React.ReactNode
-  /** Each admin surface remembers its choice under its own key. */
-  storageKey?: string
-  /** Set by an outer surface: the provider then applies it as given and remembers nothing. */
-  controlledTheme?: ThemePreference | null
-}
-
 export function AdminThemeProvider({
   children,
   storageKey = "template.admin.theme",
   controlledTheme = null,
-}: AdminThemeProviderProps) {
+}: {
+  children: React.ReactNode
+  storageKey?: string
+  /** Set by an outer surface: the provider then applies it as given and remembers nothing. */
+  controlledTheme?: ThemePreference | null
+}) {
   const controlled = controlledTheme !== null
 
   const [stored, setStored] = React.useState<ThemePreference>(() => readStored(storageKey))

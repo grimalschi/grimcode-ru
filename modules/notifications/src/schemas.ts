@@ -1,12 +1,8 @@
 import { z } from 'zod';
 
-import {
-  emailSchema,
-  idSchema,
-  isoDateTimeSchema,
-  NOTIFICATION_EVENT_TYPES,
-  type NotificationEventType,
-} from '@template/shared/vocabulary';
+import { emailSchema, idSchema, isoDateTimeSchema } from './primitives.js';
+import { NOTIFICATION_EVENT_TYPES } from './vocabulary.js';
+import type { NotificationEventType } from '@template/contracts/modules/notifications';
 
 const recipientSchema = z.object({
   identityId: idSchema,
@@ -41,8 +37,6 @@ export const notificationEventSchema = z.discriminatedUnion('type', [
   }),
 ]);
 
-export type NotificationEvent = z.infer<typeof notificationEventSchema>;
-
 /** Template key each event is routed to in Email. */
 export const EVENT_TEMPLATE_KEYS: Record<NotificationEventType, string> = {
   'auth.user.registered': 'auth-welcome',
@@ -63,6 +57,3 @@ export const storedNotificationEventSchema = z.object({
   createdAt: isoDateTimeSchema,
   routedAt: isoDateTimeSchema.nullable(),
 });
-
-/** One event as the admin screen lists it: what arrived, where it went, and whether it got there. */
-export type StoredNotificationEvent = z.infer<typeof storedNotificationEventSchema>;

@@ -1,20 +1,13 @@
+import type { Identity } from '@template/contracts/modules/auth';
 import * as React from 'react';
 
 import { auth } from '@/api';
-
-export interface Identity {
-  id: string;
-  email: string;
-  emailVerifiedAt: string | null;
-  blockedAt: string | null;
-  createdAt: string;
-}
 
 interface SessionValue {
   identity: Identity | null;
   /** False once Auth has answered, so a guard never acts on an unknown state. */
   loading: boolean;
-  /** Re-reads the session from Auth; used after login, logout and email changes. */
+  /** Re-reads the session from Auth after email changes or on request from settings. */
   refresh: () => Promise<Identity | null>;
 }
 
@@ -30,7 +23,7 @@ export function useSession(): SessionValue {
  * Asks Auth who the current user is.
  *
  * This is the application's own copy of the answer, kept so the interface can be correct while
- * navigating. It is not a security boundary: Auth, Users and every other service check the session
+ * navigating. It is not a security boundary: Auth, Users and every other module check the session
  * again on each protected endpoint, and a revoked session fails there regardless of what this
  * value still says.
  */
@@ -41,7 +34,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const refresh = React.useCallback(async () => {
     try {
       const result = await auth.currentSession.query({});
-      const next = (result.identity ?? null) as Identity | null;
+      const next = result.identity ?? null;
       setIdentity(next);
       return next;
     } catch {

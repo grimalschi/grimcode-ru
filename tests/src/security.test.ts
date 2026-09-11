@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Pool } from 'pg';
 
 import {
   ADMIN,
@@ -6,7 +7,7 @@ import {
   BASE_URL,
   errorMessage,
   Session,
-  serviceAdmin,
+  moduleAdmin,
   USERS,
   waitForStack,
 } from './client.js';
@@ -30,10 +31,28 @@ import {
 let owner: Session;
 let restore: RegistryRestore;
 let authAdmin: TestUser;
+let forgedOwnerHeaders: Record<string, string>;
+const database = new Pool({ connectionString: process.env.DATABASE_URL });
+
+async function notificationToken(email: string, type: string, field: string): Promise<string> {
+  const { rows } = await database.query<{ payload: Record<string, string> }>(
+    'SELECT payload FROM notifications.events WHERE recipient_email = $1 AND type = $2', [email, type],
+  );
+  expect(rows).toHaveLength(1);
+  const token = new URL(rows[0]!.payload[field]!).searchParams.get('token');
+  if (!token) throw new Error('The notification has no confirmation token');
+  return token;
+}
 
 beforeAll(async () => {
   await waitForStack();
   owner = await resolveOwner();
+  const state = await owner.call<{ userId: string; email: string }>(ADMIN, 'session');
+  forgedOwnerHeaders = {
+    'x-template-admin-user-id': state.userId,
+    'x-template-admin-email': state.email,
+    'x-template-admin-role': 'owner',
+  };
   restore = new RegistryRestore(owner);
 
   authAdmin = await createUser('authadmin');
@@ -47,7 +66,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await restore.restoreAll();
+  try { await restore?.restoreAll(); } finally { await database.end(); }
 });
 
 describe('sessions', () => {
@@ -88,7 +107,7 @@ describe('sessions', () => {
     const cookie = user.session.cookieHeader;
     await user.session.call(AUTH, 'logout');
 
-    const response = await fetch(`${BASE_URL}/service/auth/rpc/currentSession`, {
+    const response = await fetch(`${BASE_URL}/module/auth/rpc/currentSession`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie },
       body: JSON.stringify({}),
@@ -129,7 +148,7 @@ describe('sessions', () => {
     expect(admin.session.hasSession).toBe(false);
 
     // And so is the session behind it: a copy of the cookie taken beforehand is refused as well.
-    const response = await fetch(`${BASE_URL}/service/auth/rpc/currentSession`, {
+    const response = await fetch(`${BASE_URL}/module/auth/rpc/currentSession`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie },
       body: JSON.stringify({}),
@@ -220,7 +239,7 @@ describe('recovery', () => {
     const user = await createUser('adminrecovery');
 
     const result = await authAdmin.session.call<Record<string, unknown>>(
-      serviceAdmin('auth'),
+      moduleAdmin('auth'),
       'sendRecovery',
       { id: user.userId },
       { csrf: true },
@@ -242,12 +261,31 @@ describe('recovery', () => {
 });
 
 describe('an administrator acting on an identity', () => {
+  it('serializes concurrent owner blocks and rechecks the acting session', async () => {
+    const pair = await Promise.all([createUser('owner-race-a'), createUser('owner-race-b')]);
+    for (const user of pair) {
+      await restore.remember(user.userId);
+      await owner.call(ADMIN, 'addAdministrator', { email: user.email, role: 'owner', grants: [] }, { csrf: true });
+    }
+    try {
+      const results = await Promise.all(pair.map((user, index) => user.session.rpc(
+        ADMIN, 'setIdentityBlocked', { userId: pair[1 - index]!.userId, blocked: true }, { csrf: true },
+      )));
+      expect(results.filter(({ status }) => status === 200)).toHaveLength(1);
+      expect(results.filter(({ status }) => [401, 403, 409].includes(status))).toHaveLength(1);
+    } finally {
+      for (const user of pair) {
+        await owner.call(ADMIN, 'setIdentityBlocked', { userId: user.userId, blocked: false }, { csrf: true });
+        await owner.call(ADMIN, 'updateAdministrator', { userId: user.userId, role: 'admin', enabled: false, grants: [] }, { csrf: true });
+      }
+    }
+  });
   it('can sign every session of that person out', async () => {
     const user = await createUser('kicked');
     await user.session.call(USERS, 'getOwnProfile');
 
     await authAdmin.session.call(
-      serviceAdmin('auth'),
+      moduleAdmin('auth'),
       'revokeSessions',
       { id: user.userId },
       { csrf: true },
@@ -261,9 +299,9 @@ describe('an administrator acting on an identity', () => {
     const user = await createUser('blocktarget');
 
     const refused = await authAdmin.session.rpc(
-      serviceAdmin('auth'),
-      'setBlocked',
-      { id: user.userId, blocked: true },
+      ADMIN,
+      'setIdentityBlocked',
+      { userId: user.userId, blocked: true },
       { csrf: true },
     );
     expect(refused.status).toBe(403);
@@ -273,9 +311,9 @@ describe('an administrator acting on an identity', () => {
     const user = await createUser('blocked');
 
     await owner.call(
-      serviceAdmin('auth'),
-      'setBlocked',
-      { id: user.userId, blocked: true },
+      ADMIN,
+      'setIdentityBlocked',
+      { userId: user.userId, blocked: true },
       { csrf: true },
     );
 
@@ -287,23 +325,19 @@ describe('an administrator acting on an identity', () => {
 
     // And it is reversible.
     await owner.call(
-      serviceAdmin('auth'),
-      'setBlocked',
-      { id: user.userId, blocked: false },
+      ADMIN,
+      'setIdentityBlocked',
+      { userId: user.userId, blocked: false },
       { csrf: true },
     );
     const allowed = await signIn(user.email);
     expect(allowed.hasSession).toBe(true);
   });
 
-  /**
-   * Blocking an owner is allowed, and asks Admin nothing: only an owner may block and nobody may
-   * block themselves, so whoever blocks can still sign in afterwards. The panel is kept from being
-   * left empty on the other side — a blocked owner does not count as one who could take over, so the
-   * rights cannot come off the last owner who can still enter.
-   */
-  it('counts a blocked owner as unable to enter when rights are taken away', async () => {
+  it('counts a blocked owner as unable to enter when rights are taken away', async ({ skip }) => {
     const acting = await owner.call<{ userId: string }>(ADMIN, 'session');
+    const { items } = await owner.call<{ items: { userId: string; role: string; enabled: boolean }[] }>(ADMIN, 'listAdministrators', { limit: 100, offset: 0 });
+    if (items.some((row) => row.userId !== acting.userId && row.role === 'owner' && row.enabled)) skip();
     const second = await createUser('secondowner');
     await restore.remember(second.userId);
     await owner.call(
@@ -314,9 +348,9 @@ describe('an administrator acting on an identity', () => {
     );
 
     const blocked = await owner.rpc(
-      serviceAdmin('auth'),
-      'setBlocked',
-      { id: second.userId, blocked: true },
+      ADMIN,
+      'setIdentityBlocked',
+      { userId: second.userId, blocked: true },
       { csrf: true },
     );
     expect(blocked.status).toBe(200);
@@ -332,9 +366,9 @@ describe('an administrator acting on an identity', () => {
 
     // Unblocked, that owner counts again, and the ordinary last-owner path still allows the change.
     await owner.call(
-      serviceAdmin('auth'),
-      'setBlocked',
-      { id: second.userId, blocked: false },
+      ADMIN,
+      'setIdentityBlocked',
+      { userId: second.userId, blocked: false },
       { csrf: true },
     );
     const allowed = await owner.rpc(
@@ -350,9 +384,9 @@ describe('an administrator acting on an identity', () => {
     const state = await owner.call<{ userId: string }>(ADMIN, 'session');
 
     const result = await owner.rpc(
-      serviceAdmin('auth'),
-      'setBlocked',
-      { id: state.userId, blocked: true },
+      ADMIN,
+      'setIdentityBlocked',
+      { userId: state.userId, blocked: true },
       { csrf: true },
     );
 
@@ -361,6 +395,159 @@ describe('an administrator acting on an identity', () => {
     // Still able to work afterwards.
     const after = await owner.call<{ role: string }>(ADMIN, 'session');
     expect(after.role).toBe('owner');
+  });
+});
+
+describe('recovery token lifecycle across modules', () => {
+  it('keeps the delivered link usable after concurrent reset requests', async () => {
+    const user = await createUser('reset-repeat');
+    await Promise.all([0, 1].map(() => new Session().call(AUTH, 'requestPasswordReset', { email: user.email })));
+    const token = await notificationToken(user.email, 'auth.password.reset_requested', 'resetUrl');
+    await new Session().call(AUTH, 'resetPassword', { token, password: `${PASSWORD}-new` });
+    expect((await signIn(user.email, `${PASSWORD}-new`)).hasSession).toBe(true);
+  });
+
+  it('revokes old reset links when the password changes', async () => {
+    const user = await createUser('reset-password-changed');
+    await new Session().call(AUTH, 'requestPasswordReset', { email: user.email });
+    const token = await notificationToken(user.email, 'auth.password.reset_requested', 'resetUrl');
+    await user.session.call(AUTH, 'changePassword', { currentPassword: PASSWORD, password: `${PASSWORD}-new` });
+    const stale = await new Session().rpc(AUTH, 'resetPassword', { token, password: `${PASSWORD}-stale` });
+    expect(stale.status).toBe(400);
+    expect((await signIn(user.email, `${PASSWORD}-new`)).hasSession).toBe(true);
+  });
+
+  it('revokes links sent to the old mailbox when the email changes', async () => {
+    const user = await createUser('reset-email-changed');
+    const email = testEmail('new-mailbox');
+    await new Session().call(AUTH, 'requestPasswordReset', { email: user.email });
+    const oldToken = await notificationToken(user.email, 'auth.password.reset_requested', 'resetUrl');
+    await user.session.call(AUTH, 'requestEmailChange', { email });
+    const token = await notificationToken(email, 'auth.email.change_requested', 'confirmUrl');
+    await user.session.call(AUTH, 'confirmEmailChange', { token });
+    const stale = await new Session().rpc(AUTH, 'resetPassword', { token: oldToken, password: `${PASSWORD}-stale` });
+    expect(stale.status).toBe(400);
+    expect((await signIn(email)).hasSession).toBe(true);
+  });
+});
+
+async function batch(session: Session, prefix: string, calls: [string, unknown][], headers: HeadersInit = {}) {
+  return session.fetch(`${prefix}/rpc/${calls.map(([procedure]) => procedure).join(',')}?batch=1`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...Object.fromEntries(new Headers(headers)) },
+    body: JSON.stringify(Object.fromEntries(calls.map(([, input], index) => [index, input]))),
+  });
+}
+
+interface BatchReply {
+  result?: { data: unknown };
+  error?: { data: { code: string } };
+}
+
+describe('module HTTP boundaries', () => {
+  it.each([
+    ['/admin/embed/module/auth/../email/rpc/listTemplates', 403],
+    ['/admin/embed/module/auth/%2e%2e/email/rpc/listTemplates', 403],
+    ['/admin//embed/module/email/rpc/listTemplates', 403],
+    ['/admin/embed/module/auth%2f..%2femail/rpc/listTemplates', 404],
+    ['/admin/embed/module/%65mail/rpc/listTemplates', 404],
+  ])('does not inherit Auth access through %s', async (path, status) => {
+    const response = await authAdmin.session.fetch(path, { headers: {
+      ...forgedOwnerHeaders,
+      'x-original-url': '/admin/embed/module/auth/',
+      'x-rewrite-url': '/admin/embed/module/auth/',
+    } });
+    expect(response.status).toBe(status);
+  });
+
+  it('keeps internal and administrative procedures out of the public Auth batch', async () => {
+    const response = await batch(authAdmin.session, AUTH, [
+      ['currentSession', {}], ['getFirstIdentity', {}], ['getIdentity', { id: authAdmin.userId }],
+    ], forgedOwnerHeaders);
+    const replies = await response.json() as BatchReply[];
+    expect(replies).toHaveLength(3);
+    expect(replies[0]?.result?.data).toMatchObject({ identity: { id: authAdmin.userId } });
+    for (const reply of replies.slice(1)) {
+      expect(reply.result).toBeUndefined();
+      expect(reply.error?.data.code).toBe('NOT_FOUND');
+    }
+  });
+
+  it('denies a private batch to anonymous and non-administrator sessions despite supplied owner headers', async () => {
+    const plain = await createUser('batch-plain');
+    for (const session of [new Session(), plain.session]) {
+      const response = await batch(session, moduleAdmin('auth'), [
+        ['listIdentities', {}], ['listAudit', {}],
+      ], forgedOwnerHeaders);
+      expect(response.status).toBe(403);
+    }
+  });
+
+  it('rechecks batch access after a grant, administrator or session is revoked', async () => {
+    const admin = await createUser('batch-access');
+    await restore.remember(admin.userId);
+    await owner.call(ADMIN, 'addAdministrator', { email: admin.email, role: 'admin', grants: ['auth'] }, { csrf: true });
+    const read = () => batch(admin.session, moduleAdmin('auth'), [['listIdentities', {}], ['listAudit', {}]]);
+    expect((await read()).status).toBe(200);
+    await owner.call(ADMIN, 'updateAdministrator', { userId: admin.userId, grants: [] }, { csrf: true });
+    expect((await read()).status).toBe(403);
+    await owner.call(ADMIN, 'updateAdministrator', { userId: admin.userId, grants: ['auth'], enabled: false }, { csrf: true });
+    expect((await read()).status).toBe(403);
+    await owner.call(ADMIN, 'updateAdministrator', { userId: admin.userId, enabled: true }, { csrf: true });
+    expect((await read()).status).toBe(200);
+    await authAdmin.session.call(moduleAdmin('auth'), 'revokeSessions', { id: admin.userId }, { csrf: true });
+    expect((await read()).status).toBe(403);
+    expect(await admin.session.call(AUTH, 'currentSession')).toEqual({ identity: null });
+  });
+
+  it('does not execute administrative mutations via GET or a plain-text body', async () => {
+    const user = await createUser('mutation-transport');
+    const prefix = moduleAdmin('auth');
+    const csrf = await authAdmin.session.fetch(`${prefix}/csrf`);
+    const token = (await csrf.json() as { token: string }).token;
+    const input = JSON.stringify({ id: user.userId });
+    const requests = [
+      [`${prefix}/rpc/revokeSessions?input=${encodeURIComponent(input)}`, {
+        method: 'GET', headers: { 'x-csrf-token': token },
+      }],
+      [`${prefix}/rpc/revokeSessions`, {
+        method: 'POST', headers: { 'x-csrf-token': token, 'content-type': 'text/plain' }, body: input,
+      }],
+    ] satisfies [string, RequestInit][];
+    for (const [path, init] of requests) {
+      const response = await authAdmin.session.fetch(path, init);
+      expect(response.status).toBeGreaterThanOrEqual(400);
+      expect(await user.session.call(AUTH, 'currentSession')).toMatchObject({ identity: { id: user.userId } });
+    }
+  });
+
+  it('checks CSRF for every mutation in a batch and rejects a different surface token', async () => {
+    const user = await createUser('batch-csrf');
+    const prefix = moduleAdmin('auth');
+    const calls: [string, unknown][] = [['revokeSessions', { id: user.userId }], ['sendRecovery', { id: user.userId }]];
+    const authResponse = await authAdmin.session.fetch(`${prefix}/csrf`);
+    const authToken = (await authResponse.json() as { token: string }).token;
+    const panelResponse = await authAdmin.session.fetch(`${ADMIN}/csrf`);
+    const panelToken = (await panelResponse.json() as { token: string }).token;
+
+    for (const token of [null, panelToken]) {
+      const headers = new Headers();
+      if (token) headers.set('x-csrf-token', token);
+      const response = await batch(authAdmin.session, prefix, calls, headers);
+      const replies = await response.json() as BatchReply[];
+      expect(replies).toHaveLength(calls.length);
+      expect(replies.every((reply) => !reply.result && reply.error?.data.code === 'FORBIDDEN')).toBe(true);
+      expect(await user.session.call(AUTH, 'currentSession')).toMatchObject({ identity: { id: user.userId } });
+      const { rows } = await database.query<{ count: string }>(
+        "SELECT count(*) FROM notifications.events WHERE recipient_email = $1 AND type = 'auth.password.reset_requested'", [user.email],
+      );
+      expect(rows[0]?.count).toBe('0');
+    }
+
+    const response = await batch(authAdmin.session, prefix, calls, { 'x-csrf-token': authToken });
+    expect(response.status).toBe(200);
+    expect((await response.json() as BatchReply[]).every((reply) => !!reply.result && !reply.error)).toBe(true);
+    expect(await user.session.call(AUTH, 'currentSession')).toEqual({ identity: null });
   });
 });
 

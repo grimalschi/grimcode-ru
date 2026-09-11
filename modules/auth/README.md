@@ -1,166 +1,102 @@
-# auth
+# Auth
 
-Minimal user identity, sign-in methods, sessions, email verification, account recovery and the
-security flows around them.
+Auth owns user identities, sign-in, sessions, email verification, account recovery and the security audit.
 
-Auth does **not** own the product profile (that is Users) or administrator rights (that is Admin).
-Even though its main table is called `identities`, these are identity users, not product profiles.
+## Integration
 
-## Data
+```ts
+const auth = createModule({ env, modules: { notifications: notifications.internalCaller } });
+```
 
-Auth owns the database `<PROJECT_SLUG>_auth` and no other: it creates that one, opens that one, and
-names no other anywhere in its code. Versioned migrations live in
-[`src/db/migrations/`](src/db/migrations) and are applied by this module itself, on the first
-request that opens its pool — as is creating the database if it is missing.
+The instance exposes public and administrative HTTP handlers, `internalCaller`, `admin` metadata
+and `migrate`. [`@template/contracts/modules/auth`](../../contracts/src/modules/auth.ts) defines
+`AuthApi` for internal callers and `AuthPublicRouter` for other modules' browser clients.
+
+| Entry | Purpose |
+| --- | --- |
+| `/module/auth/rpc` | Registration, sign-in, sessions, verification and account recovery |
+| `/admin/embed/module/auth/` | Identity management interface and its RPC API |
+| `internalCaller` | Session validation and revocation, identity lookup and registration order |
+
+`resolveSession` returns an identity only for an active session and unblocked account.
+`revokeSessionByToken` invalidates a session for callers such as Admin logout. `getFirstIdentity`
+supplies the identity for Admin's first owner; batch and search methods supply identity details
+to Admin and Users. The batch lookup accepts up to 200 IDs.
+
+## Authentication behavior
+
+Registration opens a session and sends a verification link. Registering an existing email returns
+a conflict. Recovery and requests to change to an occupied email return `ok` without revealing
+whether the address exists. Login uses one rejection message for invalid credentials and verifies
+a dummy password hash when the identity is missing.
+
+Sign-in permits ten attempts per email within fifteen minutes; success clears the counter.
+The counter belongs to the process, so multiple application processes each have that allowance.
+Configure client-address rate limits at the edge proxy.
+
+Verification links last 24 hours; recovery and email-change links last one hour. Tokens are
+consumed in the same transaction as the account change. Credential operations serialize on the
+identity row; login rechecks the verified password hash and email before creating a session.
+Issuing a replacement invalidates earlier tokens for the same purpose.
+Password and email changes revoke all sessions and outstanding account links. A password change
+opens a fresh session on the current device; an email change requires signing in again. Users can
+also list and revoke their own sessions.
+The public API accepts JSON RPC requests; cookies use `SameSite=Lax`.
+
+### Session cookies
+
+Auth issues `sessionCookieName` with `Path=/`, `HttpOnly`, `SameSite=Lax` and `Max-Age` equal to
+the session lifetime. `Secure` follows an HTTPS `publicOrigin`.
+
+Logout revokes the stored session before sending an expired cookie with the same attributes and
+`Max-Age=0`. Failed revocation leaves the cookie unchanged, allowing logout to be retried.
+Admin follows the same sequence through `revokeSessionByToken` and receives the same cookie name
+and origin. See [`src/http/cookies.ts`](src/http/cookies.ts).
+
+## Administrative operations
+
+Administrators granted Auth access can search identities, inspect verification and blocking state,
+send recovery or verification links, revoke sessions and read the security audit.
+[Admin](../admin/README.md#managing-access-and-preserving-an-owner) manages blocking together
+with administrator rights to preserve an enabled owner. Its internal `setIdentityBlocked` call
+changes Auth state and revokes sessions and account links atomically. The call waits for the
+transaction to finish so Admin keeps its owner-preservation lock until the change completes.
+Administrative reads validate [Router context](../router/README.md#trusted-administrator-headers);
+mutations require Auth's own [CSRF token](../admin/README.md#csrf) and are audited.
+The embedded interface follows the [Admin frame protocol](../admin/README.md#frame-protocol).
+
+## Account messages
+
+Auth sends events through `modules.notifications.emit`; [Notifications](../notifications/README.md)
+routes them to Email. Auth logs hand-off failures without including event payloads; notification
+failure leaves the authentication operation successful. Notifications and Email keep processing
+and delivery logs.
+
+Public recovery permits one new link per identity every fifteen minutes while a previous link is
+active. The issuance transaction checks that interval before replacing a token, so repeated or
+concurrent requests keep the previously sent link usable. Each issued link has its own notification
+key.
+
+## Configuration and data
+
+[`AuthEnv`](src/env.ts) receives `databaseUrl`, `publicOrigin`, `sessionCookieName`, `csrfCookieName`
+and optional `sessionTtlSeconds`. The origin builds account links and determines cookie security.
+Session lifetime defaults to 30 days and must be a positive safe integer; it controls both stored
+expiry and cookie lifetime. Composition maps `AUTH_SESSION_TTL_SECONDS` to this setting.
+
+Auth owns schema `auth`:
 
 | Table | Contents |
 | --- | --- |
-| `identities` | email, password hash, verification and blocking state, registration `sequence` |
-| `sessions` | one row per session, storing only the **hash** of the session token |
-| `auth_tokens` | single-use time-limited tokens for verification, recovery and email change |
-| `auth_audit` | every security-relevant action, including who performed it |
+| `identities` | Email, password hash, verification and blocking state, registration sequence |
+| `sessions` | Session token hashes, expiry and revocation |
+| `auth_tokens` | Single-use token hashes, purpose and expiry |
+| `auth_audit` | Security actions and actors |
 
-Secret tokens are never stored in readable form. Nobody — including an owner — can read a
-recovery token out of the database.
+The identity sequence defines registration order. Password hashing is in
+[`src/crypto.ts`](src/crypto.ts); session and one-time tokens are stored as hashes in Auth.
+Schema changes belong in [`src/db/migrations/`](src/db/migrations), following the
+[migration instructions](../../docs/development.md#migrations).
 
-`identities.sequence` gives registration a deterministic order. Admin relies on it to decide who
-the very first registered user is when it bootstraps the first owner.
-
-## Surfaces
-
-| Mount | Reachable as | Who may call it |
-| --- | --- | --- |
-| `/service/auth/rpc` | through Gateway, no admin check | anyone — Auth secures these itself |
-| `/admin/embed/service/auth/rpc` | through Gateway's admin route | administrators with a grant on Auth |
-| *not mounted* | the internal procedures are called directly, in-process | Admin and Users |
-
-### What a neighbour may see of this module
-
-The browser bundles are typed from this module's routers, and its neighbours from the caller it
-hands out; either way a type has to cross the module boundary. It crosses through one named door:
-`@template/auth/contract` resolves to [`src/contract.ts`](src/contract.ts), which re-exports the
-public and admin router types, that caller type, and the four shapes neighbours and browsers name
-by hand — `Identity`, `AdminIdentity`, `SessionSummary`, `AuthAuditEntry` — and nothing else, while
-the bare `@template/auth` resolves to `createModule` and the `AuthEnv` type and nothing besides.
-
-Auth has more callers than any other module — Admin, Users in two separate places, and the
-application's own browser bundle — and holds the password hashes, the session rows and the one-time
-tokens. All three live behind `repository.ts`, which no specifier reaches; what crosses the boundary
-is the shape of the questions and nothing else.
-
-That door is not an agreement about behaviour: it decides which files are visible, not what ends up
-in the type. What keeps the type honest is the `.output()` schema every procedure declares and the
-`satisfies` line beside each router, which refuses to compile when the router holds a name the
-surface is not allowed to hold — see [shared/README.md](../../shared/README.md) for how a procedure is added.
-
-The admin **mutations** here check the CSRF token under the scope `'auth'`, not `'panel'`: every admin
-surface issues its own cookie, so a token minted for the shell is refused here on purpose. The reads —
-`listIdentities`, `getIdentity`, `listAudit` — are built on the other builder and check the verified
-administrator context alone.
-The public surface has no CSRF token at all and is not meant to — it is the application's own
-surface, and the session cookie's `SameSite=Lax` is what guards it.
-
-### Public flows
-
-`register`, `login`, `logout`, `currentSession`, `listOwnSessions`, `revokeOwnSessions`,
-`requestPasswordReset`, `resetPassword`, `changePassword`, `verifyEmail`, `resendOwnVerification`,
-`requestEmailChange`, `confirmEmailChange`.
-
-Security properties worth keeping when the template is extended:
-
-- **Recovery does not reveal whether an address exists.** `requestPasswordReset` always answers
-  `ok`, and `requestEmailChange` answers `ok` for an address already taken.
-- **`register` is the deliberate exception.** It does say that an address is taken, because a form
-  that silently pretends to succeed leaves someone who forgot they had an account with no idea what
-  happened. Sign-in and recovery are the flows that must not disclose, and they do not; a project
-  that needs registration not to either answers `ok` and mails the existing account a "someone tried
-  to register" message instead of answering the form.
-- **Login is not an existence oracle.** When no identity matches, a fixed dummy hash is still
-  verified so both branches take comparable time.
-- **Guessing one password is not free.** Failed sign-ins are counted per address — ten in fifteen
-  minutes, constants in this module rather than settings, because a defence that can be configured can
-  be weakened — and a successful sign-in clears the count. Refusal carries the same message everyone
-  else gets. Per address rather than per client on purpose: the real client address is known only to
-  the proxy in front of Gateway, so volumetric limits belong there and this counter is the last line
-  for one account under attack.
-
-  The counter lives in the process's own memory. Exact for one process, and one full allowance per
-  extra copy of the application — so it stops being exact the moment a deployment runs more than one.
-  Recovery mail does not have that property: its bucketed key goes to Notifications, which stores it
-  under a unique index, so a second copy and a restart both change nothing. Buckets are wall-clock,
-  not a window since the last request, so two requests either side of a boundary are two messages —
-  the price of not keeping state for it.
-- **Links work exactly once.** Tokens are consumed in a single atomic statement, so a double click
-  cannot use one twice, and issuing a new token of the same purpose invalidates the previous one.
-- **Changing a password ends every session**, including one an attacker may be holding.
-- **Logout is a server-side operation.** The session row is invalidated first and the HttpOnly
-  cookie is cleared afterwards. Deleting the cookie alone would leave a usable session behind.
-- Public procedures are JSON-only RPC calls on a `SameSite=Lax` cookie, so a cross-site form
-  cannot invoke them.
-
-### Internal surface
-
-`resolveSession`, `revokeSessionByToken`, `getFirstIdentity`, `getIdentitiesByIds`,
-`searchIdentities`, `getIdentityByEmail`. Admin depends on these to resolve the current user, to
-sign one out of the panel and to bootstrap the first owner; Users reads a page of addresses through
-`getIdentitiesByIds`. A blocked identity resolves to no session at all, even if its session row has
-not expired.
-
-`revokeSessionByToken` ends one session and answers with nothing but an acknowledgement: the caller
-owns the response the browser sees, so the caller clears the cookie — with `expiredSessionCookie`
-from `shared`, which is the same cookie the public `logout` sends.
-
-### Service admin
-
-Search and list identities with verification state, blocking state and active session count, plus:
-
-- send the ordinary one-time recovery link;
-- resend the verification link of an unverified address;
-- revoke all sessions of a user;
-- **owner only** — block or unblock sign-in;
-- read this module's own audit log, on a screen of its own.
-
-An administrator never sets or sees a password or a recovery token: recovery uses exactly the same
-time-limited flow through Notifications and Email as a user-initiated request. Blocking
-immediately revokes sessions and outstanding auth tokens. An owner cannot block their own
-identity, so the action can never remove the last working owner session.
-
-Blocking another owner is allowed and asks Admin nothing. Only an owner may block, and nobody may
-block themselves, so whoever blocks is an owner still able to sign in afterwards — blocking alone
-cannot leave the panel without one. The other half of the rule lives where the registry is: Admin
-refuses to take the rights off the last owner who can still enter, counting only owners this service
-reports as unblocked. Ownership is Admin's fact and this service never reaches for it.
-
-Every admin mutation requires both the Gateway-verified administrator context and a valid CSRF
-token, is written to the Auth audit, and takes effect from the next request. Identity operations
-are never moved into Users.
-
-## Outgoing calls
-
-Auth owns no email templates and no delivery. It reports typed events to Notifications, which
-routes them to Email. It sends no locale with them: the recipient's language is a product preference
-this template does not have, and mail ships in one language. A product that adds preferences reads the
-language here and puts it in the event.
-
-A failed hand-off to Notifications never fails a security flow; it is logged instead.
-
-## Environment
-
-Nothing in this module reads it: the composer reads these and hands over what belongs to this
-module on `c.env`. What follows is what a deployment sets on its behalf.
-
-| Variable | Purpose |
-| --- | --- |
-| `DATABASE_URL` | Base connection; Auth uses `<PROJECT_SLUG>_auth` on that server |
-| `PROJECT_SLUG` | Database and cookie naming |
-| `PUBLIC_SITE_URL` | Origin of verification and recovery links, and what decides `Secure` on the session cookie |
-| `AUTH_SESSION_TTL_SECONDS` | Session lifetime, 30 days by default |
-
-`Secure` follows that origin and **not** `NODE_ENV`, which this module never reads: the same build runs
-locally over plain http, and a `Secure` cookie would never come back from it.
-
-## Commands
-
-```bash
-pnpm --filter @template/auth test
-```
+Run `pnpm --filter @template/auth test` for module checks. See
+[development guide](../../docs/development.md#checks) for application and browser checks.

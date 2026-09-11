@@ -118,6 +118,25 @@ test.describe('a signed-in person', () => {
  * not be completed at all — and the acceptance test of the day matched the broken address.
  */
 test.describe('the recovery link', () => {
+  test('keeps recovery retryable after a network failure', async ({ page }) => {
+    const uncaught: string[] = [];
+    page.on('pageerror', (error) => uncaught.push(error.message));
+    const endpoint = '**/module/auth/rpc/requestPasswordReset';
+    await page.route(endpoint, (route) => route.abort('failed'));
+    await page.goto('/app/reset-password');
+    await page.getByLabel('Почта').fill('recovery-browser@example.test');
+    await page.getByRole('button', { name: 'Отправить ссылку' }).click();
+
+    await expect(page.getByText('Failed to fetch', { exact: true })).toBeVisible();
+    await expect(page.getByText('Проверьте почту', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Отправить ссылку' })).toBeEnabled();
+
+    await page.unroute(endpoint);
+    await page.getByRole('button', { name: 'Отправить ссылку' }).click();
+    await expect(page.getByText('Проверьте почту', { exact: true })).toBeVisible();
+    expect(uncaught).toEqual([]);
+  });
+
   test('opens the screen that sets a new password', async ({ page }) => {
     await page.goto('/app/reset-password/confirm?token=' + 'x'.repeat(40));
 

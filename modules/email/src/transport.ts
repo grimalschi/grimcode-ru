@@ -1,14 +1,7 @@
-import { RPC_TIMEOUT_MS } from '@template/shared';
+import { createHash } from 'node:crypto';
+import { RPC_TIMEOUT_MS } from './rpc.js';
 
-/**
- * Deadline on the one outbound call this module makes.
- *
- * Derived rather than written out, because what matters is that it stays **below** the budget the
- * caller waits with: Notifications gives up at `RPC_TIMEOUT_MS`, and a provider answering after that
- * would leave the delivery recorded as sent while the event that asked for it is recorded as failed —
- * with nothing able to reconcile the two afterwards. The margin covers the rest of the request:
- * filling the values in, two queries and the log write.
- */
+// Leave time to record the provider response before the internal caller deadline.
 export const PROVIDER_TIMEOUT_MS = RPC_TIMEOUT_MS - 2_000;
 
 export type TransportName = 'log' | 'unisender';
@@ -16,30 +9,19 @@ export type TransportName = 'log' | 'unisender';
 /** Where UniSender Go answers when a deployment does not name another address. */
 const UNISENDER_API_URL = 'https://go1.unisender.ru/ru/transactional/api/v1';
 
-/**
- * Everything the mail transport needs, handed over by the composer.
- *
- * The module does not read the environment: the composer does, and hands these over on `c.env`. That is
- * the rule for every module, and the lint rules enforce it.
- *
- * The values arrive as they were written, unset ones as empty strings, and what empty means is
- * decided here — one per field, and each on purpose. `provider` is not narrowed to `TransportName`
- * for the same reason: it comes from a person editing a file, and anything that is not `unisender`
- * is the log transport, so a misspelt provider records messages instead of mailing them.
- */
 export interface MailSettings {
-  /** Anything but `unisender`, empty included, selects the log transport. */
-  provider: string;
-  apiKey: string;
-  /** Empty means the provider's own address above. */
-  apiUrl: string;
-  /** Empty is not a default but a refusal: UniSender Go will not send without a sender. */
-  fromAddress: string;
-  fromName: string;
+  /** Defaults to log when empty or unset. */
+  provider?: string;
+  apiKey?: string;
+  /** Empty or unset means the provider's own address above. */
+  apiUrl?: string;
+  /** UniSender Go will not send without a sender. */
+  fromAddress?: string;
+  fromName?: string;
 }
 
 export interface OutboundMessage {
-  /** Reused as the provider's idempotency key, so a retry cannot send twice. */
+  /** Stable delivery identity; the transport maps it to a provider-compatible key. */
   dedupeKey: string;
   to: string;
   subject: string;
@@ -57,13 +39,7 @@ export interface Transport {
   send(message: OutboundMessage): Promise<TransportResult>;
 }
 
-/**
- * Local transport: the message goes nowhere and never leaves the machine.
- *
- * It does not need to do anything, and that is the point — the caller has already stored the full
- * HTML and text as an immutable snapshot in the delivery journal, which is where a local message is
- * read from. The name stays `log` because the journal is what `EMAIL_PROVIDER=log` selects.
- */
+/** Local delivery is recorded in the journal by the caller. */
 export function createLogTransport(): Transport {
   return {
     name: 'log',
@@ -80,31 +56,24 @@ export class TransportConfigurationError extends Error {
   }
 }
 
-/**
- * UniSender Go — the single ready production transport of the template.
- *
- * A concrete project adds another provider by implementing this small interface, which is an
- * ordinary code change rather than a configuration matrix.
- */
 export function createUniSenderTransport(
   settings: MailSettings,
   fetchFn: typeof fetch = fetch,
 ): Transport {
-  const { apiKey, fromAddress: fromEmail, fromName } = settings;
-  const apiUrl = (settings.apiUrl === '' ? UNISENDER_API_URL : settings.apiUrl).replace(/\/+$/, '');
+  const { apiKey = '', fromAddress: fromEmail = '', fromName } = settings;
+  const apiUrl = (settings.apiUrl || UNISENDER_API_URL).replace(/\/+$/, '');
 
-  // The message names the variables rather than the fields, though this module reads neither: what
-  // it is asking for is an edit to a deployment's environment, and that is where the names are.
   const missing = [
-    ...(apiKey === '' ? ['UNISENDER_GO_API_KEY'] : []),
-    ...(fromEmail === '' ? ['EMAIL_FROM_ADDRESS'] : []),
+    ...(apiKey.trim() === '' ? ['UNISENDER_GO_API_KEY'] : []),
+    ...(fromEmail.trim() === '' ? ['EMAIL_FROM_ADDRESS'] : []),
   ];
+  if (missing.length > 0) throw new TransportConfigurationError(missing);
+  if (!/^https?:$/.test(new URL(apiUrl).protocol)) throw new Error('Invalid UniSender Go API URL');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fromEmail)) throw new Error('Invalid EMAIL_FROM_ADDRESS');
 
   return {
     name: 'unisender',
     async send(message) {
-      if (missing.length > 0) throw new TransportConfigurationError(missing);
-
       const response = await fetchFn(`${apiUrl}/email/send.json`, {
         method: 'POST',
         signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
@@ -119,10 +88,10 @@ export function createUniSenderTransport(
             body: { html: message.html, plaintext: message.text },
             subject: message.subject,
             from_email: fromEmail,
-            ...(fromName === '' ? {} : { from_name: fromName }),
+            ...(fromName ? { from_name: fromName } : {}),
             track_links: 0,
             track_read: 0,
-            idempotence_key: message.dedupeKey,
+            idempotence_key: createHash('sha256').update(message.dedupeKey).digest('hex'),
           },
         }),
       });
@@ -141,8 +110,13 @@ export function createUniSenderTransport(
         throw new Error(`UniSender Go rejected the recipient: ${JSON.stringify(failed)}`);
       }
 
+      const messageId = field(payload, 'job_id') ?? field(payload, 'message_id');
+      if (field(payload, 'status') !== 'success' || !messageId) {
+        throw new Error('UniSender Go returned an invalid acceptance response');
+      }
+
       return {
-        providerMessageId: field(payload, 'job_id') ?? field(payload, 'message_id'),
+        providerMessageId: messageId,
         providerStatus: 'accepted',
       };
     },
@@ -151,9 +125,11 @@ export function createUniSenderTransport(
 
 /** Which transport the settings ask for. The choice stays here; the values come from outside. */
 export function createTransport(settings: MailSettings, fetchFn: typeof fetch = fetch): Transport {
-  return settings.provider === 'unisender'
-    ? createUniSenderTransport(settings, fetchFn)
-    : createLogTransport();
+  switch (settings.provider || 'log') {
+    case 'unisender': return createUniSenderTransport(settings, fetchFn);
+    case 'log': return createLogTransport();
+    default: throw new Error(`Unknown EMAIL_PROVIDER: ${settings.provider}`);
+  }
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {

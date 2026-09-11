@@ -1,17 +1,12 @@
-import type { AdminServiceId } from '@template/shared/vocabulary';
 import { Link, useMatchRoute } from '@tanstack/react-router';
+import { DynamicIcon } from 'lucide-react/dynamic';
 import {
   AppWindowIcon,
-  BellIcon,
   DatabaseIcon,
   ExternalLinkIcon,
-  GlobeIcon,
-  KeyRoundIcon,
   LogOutIcon,
-  MailIcon,
   ScrollTextIcon,
   ShieldIcon,
-  UsersIcon,
 } from 'lucide-react';
 
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -29,50 +24,34 @@ import {
   SidebarMenuItem,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
-import { ADMIN_SERVICES, DATABASE_AREA } from '@/services';
+import { adminModules } from '@/modules';
 import type { AdminSession } from '@/session';
 
-const ICONS: Record<AdminServiceId, typeof ShieldIcon> = {
-  auth: KeyRoundIcon,
-  users: UsersIcon,
-  notifications: BellIcon,
-  email: MailIcon,
-};
-
-/** The two public surfaces, opened in a new tab: they are the product, not part of the panel. */
+/** Opens the public site and app in separate tabs. */
 const PRODUCT = [
-  { href: '/', label: 'Открыть сайт', icon: GlobeIcon },
-  { href: '/app/', label: 'Открыть приложение', icon: AppWindowIcon },
+  { href: '/', label: 'Открыть сайт' },
+  { href: '/app/', label: 'Открыть приложение' },
 ];
 
 /**
- * Sidebar of the panel: the product, the service admins, and the panel's own sections.
+ * Sidebar of the panel: the product, the module admins, and the panel's own sections.
  *
- * Only the services the server returned are listed. That is presentation, not protection: the
- * protected URL of a hidden service passes the very same Gateway check.
+ * Only the modules the server returned are listed. That is presentation, not protection: the
+ * protected URL of a hidden module passes the very same Router check.
  */
 export function AppSidebar({ session, onLogout }: { session: AdminSession; onLogout: () => void }) {
-  const allowed = new Set(session.services);
+  const catalogue = adminModules(session.catalogue);
   // Which section is open, so the sidebar keeps saying where you are. Asked of the router rather
   // than compared against the address by hand: the panel is mounted under a base path, and the
-  // service pages carry the service-relative route in the hash.
+  // module pages carry the module-relative route in the hash.
   const matchRoute = useMatchRoute();
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader>
-        {/*
-          The collapse control lives here rather than in a bar above the page. Every screen brings
-          its own heading, so that bar was empty on all of them.
-        */}
-        {/*
-          The controls line up with the icons in the rows below, not the other way round. A row's
-          icon ends 16px inside the row; a 28px control centres a 16px icon, so its box has to end
-          2px earlier — hence `pr-0.5`.
-        */}
-        <div className="flex items-center gap-2 py-1.5 pr-0.5 pl-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+      <SidebarHeader className="p-0">
+        <div className="flex h-14 shrink-0 items-center gap-2 px-2">
+          <SidebarTrigger aria-label="Переключить меню" className="size-10 md:size-8" />
           <span className="truncate font-semibold group-data-[collapsible=icon]:hidden">Admin</span>
-          <SidebarTrigger className="ml-auto group-data-[collapsible=icon]:ml-0" />
         </div>
       </SidebarHeader>
 
@@ -82,17 +61,12 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
             <SidebarMenu>
               {PRODUCT.map((item) => (
                 <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton asChild tooltip={item.label}>
-                    {/*
-                      An ordinary link, not a frame: the site and the application are the product,
-                      and an administrator opening them wants the real thing in its own tab.
-                    */}
+                  <SidebarMenuButton asChild tooltip={item.label} className="text-muted-foreground">
                     <a href={item.href} target="_blank" rel="noreferrer">
-                      <item.icon />
+                      <ExternalLinkIcon />
                       {/* Truncates rather than wraps: the width animates, and a second line
                           appears for the length of the animation otherwise. */}
                       <span className="flex-1 truncate">{item.label}</span>
-                      <ExternalLinkIcon className="text-muted-foreground size-3" />
                     </a>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -102,25 +76,24 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Сервисы</SidebarGroupLabel>
+          <SidebarGroupLabel>Модули</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {ADMIN_SERVICES.filter((service) => allowed.has(service.id)).map((service) => {
-                const Icon = ICONS[service.id];
+              {catalogue.map((module) => {
                 return (
-                  <SidebarMenuItem key={service.id}>
+                  <SidebarMenuItem key={module.id}>
                     <SidebarMenuButton
                       asChild
-                      tooltip={service.label}
+                      tooltip={module.label}
                       isActive={Boolean(
-                        matchRoute({ to: '/service/$service', params: { service: service.id } }),
+                        matchRoute({ to: '/module/$module', params: { module: module.id } }),
                       )}
                     >
-                      {/* The hash carries the service-relative path, so a deep link survives a
+                      {/* The hash carries the module-relative path, so a deep link survives a
                           reload and the browser's back button. */}
-                      <Link to="/service/$service" params={{ service: service.id }} hash="/">
-                        <Icon />
-                        <span>{service.label}</span>
+                      <Link to="/module/$module" params={{ module: module.id }} hash="/">
+                        <DynamicIcon name={module.icon} fallback={() => <AppWindowIcon />} />
+                        <span>{module.label}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -160,23 +133,21 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 {/*
-                  A section of the panel, not a service: it reads every service's data at once,
+                  A section of the panel, not a module: it reads every module's data at once,
                   which is why it lives here with the owner's other tools.
                 */}
-                {session.database ? (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      asChild
-                      tooltip={DATABASE_AREA.label}
-                      isActive={Boolean(matchRoute({ to: '/database' }))}
-                    >
-                      <Link to="/database">
-                        <DatabaseIcon />
-                        <span>{DATABASE_AREA.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ) : null}
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip="База данных"
+                    isActive={Boolean(matchRoute({ to: '/database' }))}
+                  >
+                    <Link to="/database">
+                      <DatabaseIcon />
+                      <span>База данных</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

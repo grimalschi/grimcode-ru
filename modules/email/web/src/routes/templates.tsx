@@ -6,16 +6,7 @@ import { AdminPage, ErrorState } from '@/components/layout/admin-page';
 import { DataTable, Pagination } from '@/components/layout/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { useAsync, type Page } from '@/hooks/use-async';
-
-interface Template {
-  id: string;
-  key: string;
-  name: string;
-  description: string | null;
-  variables: string[];
-  updatedAt: string;
-}
+import { useAsync } from '@/hooks/use-async';
 
 const LIMIT = 25;
 
@@ -44,7 +35,7 @@ export function TemplatesPage() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const list = useAsync<Page<Template>>(
+  const list = useAsync(
     () => api.listTemplates.query({ query: search === '' ? undefined : search, limit: LIMIT, offset }),
     [search, offset],
   );
@@ -60,7 +51,7 @@ export function TemplatesPage() {
   return (
     <AdminPage
       title="Шаблоны"
-      description="Все письма, которые может отправить продукт. Содержимое живёт в версиях, по одной на язык."
+      description="Все письма, которые может отправить продукт. Содержимое живёт в версиях."
       actions={
         <Input
           value={query}
@@ -125,4 +116,3 @@ export function TemplatesPage() {
     </AdminPage>
   );
 }
-

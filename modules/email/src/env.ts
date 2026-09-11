@@ -1,11 +1,8 @@
 import type { MailSettings } from './transport.js';
 
-/** What this module is given: its database, and the mail settings — one road for both. */
+/** What this module is given: its database, mail settings and admin CSRF cookie name. */
 export interface EmailEnv {
   databaseUrl: string;
-  /** The database `databaseUrl` must land on; the pool refuses anything else. */
-  databaseName: string;
-  /** The server itself, for the one `CREATE DATABASE`. */
-  maintenanceUrl: string;
+  csrfCookieName: string;
   mail: MailSettings;
 }

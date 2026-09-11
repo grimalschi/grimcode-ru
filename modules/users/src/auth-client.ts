@@ -1,5 +1,5 @@
-import type { AuthInternalCaller, Identity } from '@template/auth/contract';
-import { parseCookies, sessionCookieName } from '@template/shared';
+import type { AuthApi, Identity } from '@template/contracts/modules/auth';
+import { parseCookies } from './http/cookies.js';
 
 /**
  * Users owns no sessions and does not know the cookie's internal format. It asks Auth over the
@@ -10,9 +10,10 @@ import { parseCookies, sessionCookieName } from '@template/shared';
  */
 export async function resolveIdentity(
   request: Request,
-  auth: AuthInternalCaller,
+  auth: AuthApi,
+  sessionCookieName: string,
 ): Promise<Identity | null> {
-  const token = parseCookies(request.headers.get('cookie'))[sessionCookieName()];
+  const token = parseCookies(request.headers.get('cookie'))[sessionCookieName];
   if (!token) return null;
 
   const { identity } = await auth.resolveSession({ sessionToken: token });

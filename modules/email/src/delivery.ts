@@ -1,4 +1,3 @@
-
 import type { EmailRepository } from './repository.js';
 import {
   fillHtml,
@@ -29,13 +28,7 @@ export interface SendResult {
   status: 'queued' | 'sent' | 'failed';
 }
 
-/**
- * Runtime delivery.
- *
- * It sends the **published** version of a template and nothing else: the HTML and text were
- * produced and checked when a human pressed publish, so an editor library upgrade can never change
- * a message that was already approved. The editor itself is never loaded here.
- */
+/** Sends the published HTML and text with recipient variables filled in. */
 export async function sendTemplate(
   input: SendInput,
   deps: { repo: EmailRepository; transport: Transport },
@@ -67,7 +60,7 @@ export async function sendTemplate(
     templateKey: input.templateKey,
     templateVersionId: published.id,
     recipientEmail: input.to,
-    subject: message.subject,
+    subject: redactOneTimeTokens(message.subject),
     html: redactOneTimeTokens(message.html),
     text: redactOneTimeTokens(message.text),
     transport: deps.transport.name,
@@ -75,19 +68,21 @@ export async function sendTemplate(
 
   if (!created) return { deliveryId: row.id, deduplicated: true, status: row.status };
 
+  let result;
   try {
-    const result = await deps.transport.send({
+    result = await deps.transport.send({
       dedupeKey: input.dedupeKey,
       to: input.to,
       subject: message.subject,
       html: message.html,
       text: message.text,
     });
-    await deps.repo.markSent(row.id, result);
-    return { deliveryId: row.id, deduplicated: false, status: 'sent' };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     await deps.repo.markFailed(row.id, reason);
     return { deliveryId: row.id, deduplicated: false, status: 'failed' };
   }
+  // If recording acceptance fails, retain queued: the provider may already have sent the message.
+  await deps.repo.markSent(row.id, result);
+  return { deliveryId: row.id, deduplicated: false, status: 'sent' };
 }

@@ -9,31 +9,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAsync } from '@/hooks/use-async';
 
-interface VersionSummary {
-  id: string;
-  version: number;
-  status: 'draft' | 'published' | 'archived';
-  subject: string;
-  publishedAt: string | null;
-  updatedAt: string;
-}
-
-interface TemplateDetail {
-  template: {
-    id: string;
-    key: string;
-    name: string;
-    description: string | null;
-    variables: string[];
-  };
-  versions: VersionSummary[];
-}
-
-const STATUS_VARIANT: Record<VersionSummary['status'], 'default' | 'outline' | 'secondary'> = {
+const STATUS_VARIANT = {
   published: 'default',
   draft: 'secondary',
   archived: 'outline',
-};
+} as const;
 
 /**
  * One template and its versions.
@@ -46,7 +26,7 @@ export function TemplateDetailPage() {
   const { templateId } = useParams({ from: '/templates/$templateId' });
   const [busy, setBusy] = React.useState(false);
 
-  const detail = useAsync<TemplateDetail>(
+  const detail = useAsync(
     () => api.getTemplate.query({ id: templateId }),
     [templateId],
   );

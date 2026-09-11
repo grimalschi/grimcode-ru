@@ -15,20 +15,20 @@ import { AppSidebar } from '@/components/app-sidebar';
 import { AdminPage, EmptyState, ErrorState } from '@/components/layout/admin-page';
 import { AdminThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AdministratorsPage } from '@/routes/administrators';
 import { AuditPage } from '@/routes/audit';
-import { DatabaseFrame } from '@/routes/database-frame';
-import { ServiceFrame } from '@/routes/service-frame';
-import { loadSession, SessionProvider, useSession, type AdminSession } from '@/session';
+import { DatabasePage } from '@/routes/database';
+import { ModuleFrame } from '@/routes/module-frame';
+import { SessionProvider, useSession, type AdminSession } from '@/session';
 
 import '@/styles.css';
 
 /**
  * The central Admin shell.
  *
- * It owns the sidebar, the theme and the URL; service admins are composed in as same-origin
+ * It owns the sidebar, the theme and the URL; module admins are composed in as same-origin
  * iframes. The shell never imports their code.
  */
 function Shell() {
@@ -36,7 +36,7 @@ function Shell() {
   const [error, setError] = React.useState<unknown>(null);
 
   React.useEffect(() => {
-    loadSession().then(setSession, setError);
+    api.session.query({}).then(setSession, setError);
   }, []);
 
   const logout = React.useCallback(() => {
@@ -59,7 +59,7 @@ function Shell() {
   }
 
   // Nothing is rendered before the server has said who this is, so no screen can briefly assume a
-  // role or a set of services the server would not grant.
+  // role or a set of modules the server would not grant.
   if (!session) {
     return (
       <div className="space-y-4 p-6">
@@ -74,6 +74,12 @@ function Shell() {
       <SidebarProvider>
         <AppSidebar session={session} onLogout={logout} />
         <SidebarInset className="flex h-svh flex-col overflow-hidden">
+          <header className="shrink-0 border-b md:hidden">
+            <div className="flex h-14 items-center gap-2 px-2">
+              <SidebarTrigger aria-label="Открыть меню" className="size-10" />
+              <span className="font-semibold">Admin</span>
+            </div>
+          </header>
           <div className="min-h-0 flex-1 overflow-auto">
             <Outlet />
           </div>
@@ -100,28 +106,28 @@ function Home() {
 }
 
 /**
- * Every page of the panel is a path, and the hash carries the service-relative route inside an
- * embedded admin: `/admin/service/email#/templates/123`.
+ * Every page of the panel is a path. Module pages use the hash for their embedded route:
+ * `/admin/module/email#/templates/123`. Native pages keep their own view state.
  *
  * Nothing collides with the applications the panel embeds, because those live under
- * `/admin/embed/` and Gateway proxies them there.
+ * `/admin/embed/` and Router proxies them there.
  */
-const serviceRoute = createRoute({
+const moduleRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/service/$service',
-  // Keyed by the service, so switching to another one builds a new frame. Without it React reuses
+  path: '/module/$module',
+  // Keyed by the module, so switching to another one builds a new frame. Without it React reuses
   // the component, and the iframe keeps the src it was first given — the sidebar changes and the
   // page does not.
-  component: function ServiceRoute() {
-    const { service } = serviceRoute.useParams();
-    return <ServiceFrame key={service} />;
+  component: function ModuleRoute() {
+    const { module } = moduleRoute.useParams();
+    return <ModuleFrame key={module} />;
   },
 });
 
 const databaseRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/database',
-  component: OwnerOnly(DatabaseFrame),
+  component: OwnerOnly(DatabasePage),
 });
 
 const administratorsRoute = createRoute({
@@ -159,7 +165,7 @@ function OwnerOnly(Component: React.ComponentType) {
 const router = createRouter({
   routeTree: rootRoute.addChildren([
     indexRoute,
-    serviceRoute,
+    moduleRoute,
     databaseRoute,
     administratorsRoute,
     auditRoute,

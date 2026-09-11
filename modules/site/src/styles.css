@@ -11,10 +11,7 @@
 @source "./";
 
 /*
- * Dark mode is a resolved state on the document, not a media query: the Admin shell owns the
- * choice and can hand it to an embedded service admin, which has no say in it. `data-theme`
- * carries it for the non-React kit and for anything else the panel embeds; the class is what
- * Tailwind's `dark:` variant and the shadcn components read.
+ * Tailwind's `dark:` variant follows the document's `dark` class. The site owns these styles.
  */
 @custom-variant dark (&:is(.dark *));
 

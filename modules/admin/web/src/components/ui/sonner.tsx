@@ -7,13 +7,10 @@ import {
 } from "lucide-react"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
-// The upstream component reads the theme from `next-themes`. This template is not a Next.js
-// application: the theme is owned by the Admin shell and applied to the document, so the toaster
-// reads that instead of pulling in a second theme system.
-import { useAppliedTheme } from "@/hooks/use-applied-theme"
+import { useTheme } from "@/components/theme-provider"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const theme = useAppliedTheme()
+  const { applied: theme } = useTheme()
 
   return (
     <Sonner

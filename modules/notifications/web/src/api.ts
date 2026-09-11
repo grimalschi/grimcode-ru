@@ -1,9 +1,9 @@
-import { createTRPCClient, httpLink } from '@trpc/client';
+import { createTRPCClient, httpLink, type TRPCClient } from '@trpc/client';
 
-import type { NotificationsAdminRouter } from '@template/notifications/contract';
+import type { NotificationsAdminRouter } from '../../src/admin/router.js';
 
 /**
- * Client for this module's own admin API. Gateway has already checked the session, the role and the
+ * Client for this module's own admin API. Router has already checked the session, the role and the
  * grant on Notifications.
  *
  * No CSRF token here and no code to fetch one, because this surface changes nothing: an event is a
@@ -11,7 +11,7 @@ import type { NotificationsAdminRouter } from '@template/notifications/contract'
  * adding both halves by hand — `requireCsrf` on the procedure and a `headers` option here;
  * `modules/email/web/src/api.ts` is the working pattern.
  */
-const BASE = '/admin/embed/service/notifications';
+const BASE = '/admin/embed/module/notifications';
 
 const link = httpLink({
   url: `${window.location.origin}${BASE}/rpc`,
@@ -20,7 +20,7 @@ const link = httpLink({
   fetch: (input, init) => fetch(input, { ...init, credentials: 'same-origin' }),
 });
 
-export const api = createTRPCClient<NotificationsAdminRouter>({ links: [link] });
+export const api: TRPCClient<NotificationsAdminRouter> = createTRPCClient<NotificationsAdminRouter>({ links: [link] });
 
 export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

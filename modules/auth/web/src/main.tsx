@@ -20,7 +20,7 @@ import { IdentitiesPage } from '@/routes/identities';
 
 import '@/styles.css';
 
-const BASE = '/admin/embed/service/auth';
+const BASE = '/admin/embed/module/auth';
 
 const TABS = [
   { to: '/', label: 'Пользователи' },
@@ -28,10 +28,10 @@ const TABS = [
 ];
 
 /**
- * The Auth service admin.
+ * The Auth module admin.
  *
  * It normally runs inside the central Admin shell's iframe, but its protected URL also works on
- * its own — Gateway performs the same check either way. Standing alone it shows its own header;
+ * its own — Router performs the same check either way. Standing alone it shows its own header;
  * embedded, the shell already provides one.
  */
 function Shell() {
@@ -48,7 +48,7 @@ function Shell() {
   const { embedded, theme } = useFrameChild({ path, onNavigate });
 
   return (
-    <AdminThemeProvider storageKey="template.auth.theme" controlledTheme={theme}>
+    <AdminThemeProvider controlledTheme={theme}>
       <div className="min-h-svh">
         {TABS.length > 1 || !embedded ? (
         <header className="flex h-12 items-center justify-between gap-4 border-b px-4">

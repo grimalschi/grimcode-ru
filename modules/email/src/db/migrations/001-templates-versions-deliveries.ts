@@ -1,13 +1,4 @@
-import type { Migration } from '@template/shared';
-
-/**
- * The schema this module starts from.
- *
- * The statement is stored as it was applied, indentation included: the migrator remembers a version by
- * the checksum of this text, so re-indenting it — by one space — makes the module refuse to start
- * against a database that has already run it. Nothing here is reformatted, ever.
- */
-export const migration: Migration = {
+export const migration = {
   version: 1,
   name: 'templates-versions-deliveries',
   sql: `
@@ -16,15 +7,11 @@ export const migration: Migration = {
         key         text NOT NULL UNIQUE,
         name        text NOT NULL,
         description text,
-        -- Variables the editor may reference and the publish step validates against.
         variables   jsonb NOT NULL DEFAULT '[]'::jsonb,
         created_at  timestamptz NOT NULL DEFAULT now(),
         updated_at  timestamptz NOT NULL DEFAULT now()
       );
 
-      -- One series of versions per template. Several languages are a real feature, but not one a
-      -- template can guess the shape of: a product that needs them adds the column knowing how it
-      -- chooses between them.
       CREATE TABLE template_versions (
         id              uuid PRIMARY KEY,
         template_id     uuid NOT NULL REFERENCES templates (id) ON DELETE CASCADE,
@@ -32,11 +19,8 @@ export const migration: Migration = {
         status          text NOT NULL DEFAULT 'draft'
                         CHECK (status IN ('draft', 'published', 'archived')),
         subject         text NOT NULL,
-        -- The editor's own document, kept verbatim, next to the marker of its format. Moving the
-        -- marker forward is a separate migration, never an implicit rewrite on library upgrade.
-        editor_format   text NOT NULL,
-        editor_document jsonb NOT NULL,
-        -- Produced by the server on publish. Runtime delivery only ever uses these.
+        source          text NOT NULL,
+        -- Compiled on publication and used for delivery.
         compiled_html   text,
         compiled_text   text,
         published_at    timestamptz,
@@ -45,8 +29,6 @@ export const migration: Migration = {
         UNIQUE (template_id, version)
       );
 
-      -- At most one published version per template, so runtime delivery is never ambiguous about
-      -- which content it must send.
       CREATE UNIQUE INDEX template_versions_published_idx
         ON template_versions (template_id) WHERE status = 'published';
       CREATE INDEX template_versions_template_idx
@@ -54,19 +36,16 @@ export const migration: Migration = {
 
       CREATE TABLE deliveries (
         id                  uuid PRIMARY KEY,
-        -- Idempotency key of the caller; the unique index is what prevents a double send.
+        -- Reserves a send before contacting the provider.
         dedupe_key          text NOT NULL UNIQUE,
         template_key        text NOT NULL,
         template_version_id uuid REFERENCES template_versions (id) ON DELETE SET NULL,
         recipient_email     text NOT NULL,
-        -- Immutable snapshot of what was actually sent. Never regenerated from the template.
+        -- Message snapshot with one-time tokens redacted.
         subject             text NOT NULL,
         html                text NOT NULL,
         text                text NOT NULL,
         transport           text NOT NULL CHECK (transport IN ('log', 'unisender')),
-        -- Whether to send at all is a routing decision and Notifications makes it: it records a
-        -- suppressed event and never calls Email. There is no status here for that, because
-        -- nothing here could ever set it.
         status              text NOT NULL DEFAULT 'queued'
                             CHECK (status IN ('queued', 'sent', 'failed')),
         provider_message_id text,

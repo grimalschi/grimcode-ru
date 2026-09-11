@@ -1,7 +1,9 @@
-import type { Identity } from '@template/auth/contract';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { createDatabaseBrowser } from './admin/database/index.js';
+import type { AuthApi, Identity } from '@template/contracts/modules/auth';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { authorize, canOpenDatabase, visibleServices, type AuthCaller } from './authorization.js';
+import { authorize, visibleModules } from './authorization.js';
+import { createInternalCaller } from './internal/index.js';
 import { authorizationResultSchema } from './schemas.js';
 import type { AdministratorRow, AdminRepository } from './repository.js';
 
@@ -68,16 +70,18 @@ class FakeRepo {
  *
  * The double cast means this object is not checked against Auth's router at all — a procedure that
  * does not exist there compiles here, checked 20 August. What catches a drifting router is
- * `authorize` itself: it calls through `AuthorizeDeps`, so a renamed or reshaped procedure stops
+ * `authorize` itself: it calls through `ModuleContext`, so a renamed or reshaped procedure stops
  * compiling there.
  */
-function fakeAuth(options: { session?: Identity | null; first?: Identity | null }): AuthCaller {
+function fakeAuth(options: { session?: Identity | null; first?: Identity | null }): AuthApi {
   return {
     resolveSession: async () => ({ identity: options.session ?? null }),
     getFirstIdentity: async () => ({ identity: options.first ?? null }),
     getIdentityByEmail: async () => ({ identity: null }),
-  } as unknown as AuthCaller;
+  } as unknown as AuthApi;
 }
+
+const catalogue = ['auth', 'users', 'notifications', 'email'].map((id) => ({ id, admin: { icon: 'app-window', title: id } }));
 
 let repo: FakeRepo;
 
@@ -85,9 +89,45 @@ beforeEach(() => {
   repo = new FakeRepo();
 });
 
-function deps(auth: AuthCaller) {
-  return { repo: repo as unknown as AdminRepository, auth };
+function deps(auth: AuthApi) {
+  return { repo: repo as unknown as AdminRepository, auth, catalogue, databaseBrowser: createDatabaseBrowser(async () => { throw new Error('Unexpected database access'); }) };
 }
+
+describe('one internal caller', () => {
+  it('keeps overlapping owner and administrator sessions separate with lazy per-call context', async () => {
+    repo.rows.set(FIRST.id, administrator({ user_id: FIRST.id, email: FIRST.email, role: 'owner' }));
+    repo.rows.set(SECOND.id, administrator({ user_id: SECOND.id, email: SECOND.email, role: 'admin' }));
+    let releaseOwner!: () => void;
+    let ownerStarted!: () => void;
+    const waiting = new Promise<void>((resolve) => { releaseOwner = resolve; });
+    const started = new Promise<void>((resolve) => { ownerStarted = resolve; });
+    const auth: AuthApi = {
+      ...fakeAuth({}),
+      resolveSession: async ({ sessionToken }) => {
+        if (sessionToken === 'owner-session') {
+          ownerStarted();
+          await waiting;
+          return { identity: FIRST };
+        }
+        return { identity: SECOND };
+      },
+    };
+    const context = vi.fn(async () => deps(auth));
+    const caller = createInternalCaller(context);
+    expect(context).not.toHaveBeenCalled();
+
+    const owner = caller.authorize({ sessionToken: 'owner-session', target: { area: 'module', module: 'auth' } });
+    await started;
+    try {
+      await expect(caller.authorize({ sessionToken: 'admin-session', target: { area: 'module', module: 'auth' } }))
+        .resolves.toEqual({ state: 'denied', reason: 'no-grant' });
+    } finally { releaseOwner(); }
+    await expect(owner).resolves.toEqual({
+      state: 'allowed', userId: FIRST.id, email: FIRST.email, role: 'owner',
+    });
+    expect(context).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe('session requirement', () => {
   /** Somebody has registered in Auth, so the panel has an owner to point at: an ordinary refusal. */
@@ -189,55 +229,26 @@ describe('roles and grants', () => {
     repo.rows.set(FIRST.id, administrator({ user_id: FIRST.id, role: 'owner', bootstrap: true }));
   });
 
-  it('lets an owner open every admin service', async () => {
-    for (const service of ['auth', 'users', 'notifications', 'email'] as const) {
+  it('lets an owner open every admin module', async () => {
+    for (const module of ['auth', 'users', 'notifications', 'email'] as const) {
       const result = await authorize(
-        { sessionToken: 't', target: { area: 'service', service } },
+        { sessionToken: 't', target: { area: 'module', module } },
         deps(fakeAuth({ session: FIRST })),
       );
       expect(result).toMatchObject({ state: 'allowed', role: 'owner' });
     }
   });
 
-  /**
-   * The database area is part of the panel, not a service, and it reads every service's data at
-   * once — so it is the owner's alone and no grant can name it.
-   */
-  it('lets only an owner open the database area', async () => {
-    await expect(
-      authorize({ sessionToken: 't', target: { area: 'database' } }, deps(fakeAuth({ session: FIRST }))),
-    ).resolves.toMatchObject({ state: 'allowed', role: 'owner' });
-
-    repo.rows.set(
-      SECOND.id,
-      administrator({ user_id: SECOND.id, grants: ['auth', 'users', 'notifications', 'email'] }),
-    );
-
-    await expect(
-      authorize({ sessionToken: 't', target: { area: 'database' } }, deps(fakeAuth({ session: SECOND }))),
-    ).resolves.toEqual({ state: 'denied', reason: 'owner-only' });
-  });
-
-  it('denies a granted service to an administrator who does not have it', async () => {
+  it('denies a granted module to an administrator who does not have it', async () => {
     repo.rows.set(SECOND.id, administrator({ user_id: SECOND.id, grants: ['email'] }));
 
     await expect(
-      authorize({ sessionToken: 't', target: { area: 'service', service: 'email' } }, deps(fakeAuth({ session: SECOND }))),
+      authorize({ sessionToken: 't', target: { area: 'module', module: 'email' } }, deps(fakeAuth({ session: SECOND }))),
     ).resolves.toMatchObject({ state: 'allowed', role: 'admin' });
 
     await expect(
-      authorize({ sessionToken: 't', target: { area: 'service', service: 'auth' } }, deps(fakeAuth({ session: SECOND }))),
+      authorize({ sessionToken: 't', target: { area: 'module', module: 'auth' } }, deps(fakeAuth({ session: SECOND }))),
     ).resolves.toEqual({ state: 'denied', reason: 'no-grant' });
-  });
-
-  it('never lets a regular administrator reach the database area, even with a grant row', async () => {
-    repo.rows.set(SECOND.id, administrator({ user_id: SECOND.id, grants: ['database', 'email'] }));
-
-    const result = await authorize(
-      { sessionToken: 't', target: { area: 'database' } },
-      deps(fakeAuth({ session: SECOND })),
-    );
-    expect(result).toEqual({ state: 'denied', reason: 'owner-only' });
   });
 
   it('lets any enabled administrator open central Admin', async () => {
@@ -258,33 +269,43 @@ describe('roles and grants', () => {
     expect(result).toEqual({ state: 'denied', reason: 'disabled' });
   });
 
-  it('refuses a service id that is not an admin service', async () => {
+  it('refuses a module id that is not an admin module', async () => {
     const result = await authorize(
-      { sessionToken: 't', target: { area: 'service', service: 'billing' as never } },
+      { sessionToken: 't', target: { area: 'module', module: 'billing' as never } },
       deps(fakeAuth({ session: FIRST })),
     );
-    expect(result).toEqual({ state: 'denied', reason: 'unknown-service' });
+    expect(result).toEqual({ state: 'denied', reason: 'unknown-module' });
+  });
+
+  it('uses installed metadata and refuses owner-only modules even with a stale grant', async () => {
+    repo.rows.set(SECOND.id, administrator({ user_id: SECOND.id, grants: ['billing', 'operations'] }));
+    const installed = [
+      { id: 'billing', admin: { icon: 'app-window', title: 'Billing' } },
+      { id: 'operations', admin: { icon: 'app-window', title: 'Operations', assignable: false } },
+    ];
+    const context = { ...deps(fakeAuth({ session: SECOND })), catalogue: installed };
+    await expect(authorize({ sessionToken: 't', target: { area: 'module', module: 'billing' } }, context))
+      .resolves.toMatchObject({ state: 'allowed' });
+    await expect(authorize({ sessionToken: 't', target: { area: 'module', module: 'operations' } }, context))
+      .resolves.toEqual({ state: 'denied', reason: 'owner-only' });
+    expect(visibleModules('admin', ['billing', 'operations'], installed)).toEqual(['billing']);
+    expect(visibleModules('owner', [], installed)).toEqual(['billing', 'operations']);
   });
 });
 
 describe('sidebar contents', () => {
-  it('shows every admin service to an owner', () => {
-    expect(visibleServices('owner', [])).toEqual(['auth', 'users', 'notifications', 'email']);
+  it('shows every admin module to an owner', () => {
+    expect(visibleModules('owner', [], catalogue)).toEqual(['auth', 'users', 'notifications', 'email']);
   });
 
   it('shows a regular administrator only what they were granted', () => {
-    expect(visibleServices('admin', ['email'])).toEqual(['email']);
-    expect(visibleServices('admin', [])).toEqual([]);
-  });
-
-  it('offers the database area to owners only', () => {
-    expect(canOpenDatabase('owner')).toBe(true);
-    expect(canOpenDatabase('admin')).toBe(false);
+    expect(visibleModules('admin', ['email'], catalogue)).toEqual(['email']);
+    expect(visibleModules('admin', [], catalogue)).toEqual([]);
   });
 });
 
 describe('authorization result', () => {
-  it('models denial reasons explicitly so Gateway never interprets an error', () => {
+  it('models denial reasons explicitly so Router never interprets an error', () => {
     expect(
       authorizationResultSchema.safeParse({ state: 'denied', reason: 'owner-only' }).success,
     ).toBe(true);

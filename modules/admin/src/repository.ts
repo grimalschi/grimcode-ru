@@ -1,7 +1,7 @@
-import type { AdminRole, AssignableServiceId } from '@template/shared/vocabulary';
-
-import type { Administrator } from './schemas.js';
-import { newId, withTransaction, type Pool, type PoolClient } from '@template/shared';
+import type { Administrator, AdminRole } from '@template/contracts/modules/admin';
+import { randomUUID } from 'node:crypto';
+import { withTransaction } from './db/pool.js';
+import { type Pool, type PoolClient } from './db/database.js';
 
 export interface AdministratorRow {
   id: string;
@@ -17,8 +17,8 @@ export interface AdministratorRow {
 
 const COLUMNS = `
   a.id, a.user_id, a.email, a.role, a.enabled, a.bootstrap, a.created_at, a.updated_at,
-  ARRAY(SELECT g.service FROM administrator_grants g
-         WHERE g.administrator_id = a.id ORDER BY g.service) AS grants
+  ARRAY(SELECT g.module FROM administrator_grants g
+         WHERE g.administrator_id = a.id ORDER BY g.module) AS grants
 `;
 
 export function toAdministrator(row: AdministratorRow): Administrator {
@@ -28,24 +28,24 @@ export function toAdministrator(row: AdministratorRow): Administrator {
     email: row.email,
     role: row.role,
     enabled: row.enabled,
-    grants: (row.grants ?? []) as AssignableServiceId[],
+    grants: (row.grants ?? []) as string[],
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
 }
 
 export class AdminRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool, private readonly sql: Pool | PoolClient = pool) {}
 
   async isRegistryEmpty(): Promise<boolean> {
-    const { rows } = await this.pool.query<{ count: string }>(
+    const { rows } = await this.sql.query<{ count: string }>(
       'SELECT count(*)::text AS count FROM administrators',
     );
     return Number(rows[0]?.count ?? 0) === 0;
   }
 
   async findByUserId(userId: string): Promise<AdministratorRow | null> {
-    const { rows } = await this.pool.query<AdministratorRow>(
+    const { rows } = await this.sql.query<AdministratorRow>(
       `SELECT ${COLUMNS} FROM administrators a WHERE a.user_id = $1`,
       [userId],
     );
@@ -69,7 +69,7 @@ export class AdminRepository {
         `INSERT INTO administrators (id, user_id, email, role, bootstrap)
          VALUES ($1, $2, $3, 'owner', true)
          ON CONFLICT DO NOTHING`,
-        [newId(), userId, email],
+        [randomUUID(), userId, email],
       );
 
       if (rowCount === 1) {
@@ -93,52 +93,41 @@ export class AdminRepository {
   }
 
   async firstBootstrapOwner(): Promise<AdministratorRow | null> {
-    const { rows } = await this.pool.query<AdministratorRow>(
+    const { rows } = await this.sql.query<AdministratorRow>(
       `SELECT ${COLUMNS} FROM administrators a WHERE a.bootstrap LIMIT 1`,
     );
     return rows[0] ?? null;
   }
 
-  async list(
-    query: string | undefined,
-    limit: number,
-    offset: number,
-  ): Promise<{ rows: AdministratorRow[]; total: number }> {
-    const filter = query ? `%${query.toLowerCase()}%` : null;
-
-    const { rows } = await this.pool.query<AdministratorRow>(
-      `SELECT ${COLUMNS} FROM administrators a
-        WHERE $1::text IS NULL OR lower(a.email) LIKE $1
-        ORDER BY a.created_at ASC
-        LIMIT $2 OFFSET $3`,
-      [filter, limit, offset],
+  async list(): Promise<AdministratorRow[]> {
+    const { rows } = await this.sql.query<AdministratorRow>(
+      `SELECT ${COLUMNS} FROM administrators a ORDER BY a.created_at ASC, a.id ASC`,
     );
-
-    const { rows: countRows } = await this.pool.query<{ count: string }>(
-      `SELECT count(*)::text AS count FROM administrators
-        WHERE $1::text IS NULL OR lower(email) LIKE $1`,
-      [filter],
-    );
-
-    return { rows, total: Number(countRows[0]?.count ?? 0) };
+    return rows;
   }
 
+  async withRegistryLock<T>(operation: (repo: AdminRepository) => Promise<T>): Promise<T> {
+    return withTransaction(this.pool, async (client) => {
+      await client.query('LOCK TABLE administrators IN SHARE ROW EXCLUSIVE MODE');
+      return operation(new AdminRepository(this.pool, client));
+    });
+  }
+
+  /** Called inside withRegistryLock so the administrator, grants and audit commit together. */
   async add(
     userId: string,
     email: string,
     role: AdminRole,
     grants: readonly string[],
   ): Promise<AdministratorRow> {
-    await withTransaction(this.pool, async (client) => {
-      const { rows } = await client.query<{ id: string }>(
-        `INSERT INTO administrators (id, user_id, email, role) VALUES ($1, $2, $3, $4)
-         RETURNING id`,
-        [newId(), userId, email, role],
-      );
-      const id = rows[0]?.id;
-      if (!id) throw new Error('Administrator insert returned no row');
-      await this.replaceGrants(id, grants, client);
-    });
+    const { rows } = await this.sql.query<{ id: string }>(
+      `INSERT INTO administrators (id, user_id, email, role) VALUES ($1, $2, $3, $4)
+       RETURNING id`,
+      [randomUUID(), userId, email, role],
+    );
+    const id = rows[0]?.id;
+    if (!id) throw new Error('Administrator insert returned no row');
+    await this.replaceGrants(id, grants, this.sql);
 
     const row = await this.findByUserId(userId);
     if (!row) throw new Error('Administrator could not be read back');
@@ -147,7 +136,7 @@ export class AdminRepository {
 
   /** Owners other than this one, as this registry sees them. Whether they can sign in is Auth's fact. */
   async otherActiveOwnerIds(userId: string): Promise<string[]> {
-    const { rows } = await this.pool.query<{ user_id: string }>(
+    const { rows } = await this.sql.query<{ user_id: string }>(
       `SELECT user_id FROM administrators
         WHERE role = 'owner' AND enabled AND user_id <> $1`,
       [userId],
@@ -155,48 +144,39 @@ export class AdminRepository {
     return rows.map((row) => row.user_id);
   }
 
-  /**
-   * Applies a change while holding the whole administrators table against concurrent writes, so
-   * the "last active owner" rule cannot be bypassed by two simultaneous requests.
-   *
-   * `eligibleOwnerIds` is which of the other owners could actually take over — the registry cannot
-   * tell, because being blocked is Auth's fact, so the caller establishes it and passes it in.
-   */
+  /** Called inside withRegistryLock after Auth resolves the remaining owners. */
   async update(
     userId: string,
     patch: { role?: AdminRole; enabled?: boolean; grants?: readonly string[] },
     guard: (next: { role: AdminRole; enabled: boolean }, activeOwners: number) => void,
     eligibleOwnerIds: readonly string[],
   ): Promise<AdministratorRow> {
-    await withTransaction(this.pool, async (client) => {
-      await client.query('LOCK TABLE administrators IN SHARE ROW EXCLUSIVE MODE');
+    const client = this.sql;
+    const { rows } = await client.query<{ id: string; role: AdminRole; enabled: boolean }>(
+      'SELECT id, role, enabled FROM administrators WHERE user_id = $1',
+      [userId],
+    );
+    const current = rows[0];
+    if (!current) throw new Error('Administrator not found');
 
-      const { rows } = await client.query<{ id: string; role: AdminRole; enabled: boolean }>(
-        'SELECT id, role, enabled FROM administrators WHERE user_id = $1',
-        [userId],
-      );
-      const current = rows[0];
-      if (!current) throw new Error('Administrator not found');
+    const next = {
+      role: patch.role ?? current.role,
+      enabled: patch.enabled ?? current.enabled,
+    };
 
-      const next = {
-        role: patch.role ?? current.role,
-        enabled: patch.enabled ?? current.enabled,
-      };
+    const { rows: ownerRows } = await client.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM administrators
+        WHERE role = 'owner' AND enabled AND user_id <> $1 AND user_id = ANY($2)`,
+      [userId, eligibleOwnerIds],
+    );
+    guard(next, Number(ownerRows[0]?.count ?? 0));
 
-      const { rows: ownerRows } = await client.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM administrators
-          WHERE role = 'owner' AND enabled AND user_id <> $1 AND user_id = ANY($2)`,
-        [userId, eligibleOwnerIds],
-      );
-      guard(next, Number(ownerRows[0]?.count ?? 0));
+    await client.query(
+      'UPDATE administrators SET role = $2, enabled = $3, updated_at = now() WHERE user_id = $1',
+      [userId, next.role, next.enabled],
+    );
 
-      await client.query(
-        'UPDATE administrators SET role = $2, enabled = $3, updated_at = now() WHERE user_id = $1',
-        [userId, next.role, next.enabled],
-      );
-
-      if (patch.grants) await this.replaceGrants(current.id, patch.grants, client);
-    });
+    if (patch.grants) await this.replaceGrants(current.id, patch.grants, client);
 
     const row = await this.findByUserId(userId);
     if (!row) throw new Error('Administrator could not be read back');
@@ -206,15 +186,15 @@ export class AdminRepository {
   private async replaceGrants(
     administratorId: string,
     grants: readonly string[],
-    client: PoolClient,
+    client: Pick<PoolClient, 'query'>,
   ): Promise<void> {
     await client.query('DELETE FROM administrator_grants WHERE administrator_id = $1', [
       administratorId,
     ]);
-    for (const service of grants) {
+    for (const module of grants) {
       await client.query(
-        'INSERT INTO administrator_grants (administrator_id, service) VALUES ($1, $2)',
-        [administratorId, service],
+        'INSERT INTO administrator_grants (administrator_id, module) VALUES ($1, $2)',
+        [administratorId, module],
       );
     }
   }
@@ -228,12 +208,12 @@ export class AdminRepository {
     },
     client?: PoolClient,
   ): Promise<void> {
-    const runner = client ?? this.pool;
+    const runner = client ?? this.sql;
     await runner.query(
       `INSERT INTO admin_audit (id, action, actor_user_id, subject_user_id, details)
        VALUES ($1, $2, $3, $4, $5::jsonb)`,
       [
-        newId(),
+        randomUUID(),
         entry.action,
         entry.actorUserId,
         entry.subjectUserId,
@@ -249,7 +229,7 @@ export class AdminRepository {
   ): Promise<{ rows: Record<string, unknown>[]; total: number }> {
     const filter = query ? `%${query.toLowerCase()}%` : null;
 
-    const { rows } = await this.pool.query(
+    const { rows } = await this.sql.query(
       `SELECT id, action, actor_user_id, subject_user_id, details, created_at
          FROM admin_audit
         WHERE $1::text IS NULL OR lower(action) LIKE $1
@@ -258,7 +238,7 @@ export class AdminRepository {
       [filter, limit, offset],
     );
 
-    const { rows: countRows } = await this.pool.query<{ count: string }>(
+    const { rows: countRows } = await this.sql.query<{ count: string }>(
       `SELECT count(*)::text AS count FROM admin_audit
         WHERE $1::text IS NULL OR lower(action) LIKE $1`,
       [filter],

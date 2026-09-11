@@ -1,13 +1,4 @@
-import type { Migration } from '@template/shared';
-
-/**
- * The schema this module starts from.
- *
- * The statement is stored as it was applied, indentation included: the migrator remembers a version by
- * the checksum of this text, so re-indenting it — by one space — makes the module refuse to start
- * against a database that has already run it. Nothing here is reformatted, ever.
- */
-export const migration: Migration = {
+export const migration = {
   version: 1,
   name: 'identities-sessions-tokens-audit',
   sql: `

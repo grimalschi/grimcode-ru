@@ -1,0 +1,61 @@
+name: Check
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: template_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/template_ci
+      PROJECT_SLUG: template_ci
+      PUBLIC_SITE_URL: http://127.0.0.1:63000
+      PORT: 63000
+      EMAIL_PROVIDER: log
+      ACCEPTANCE_OWNER_EMAIL: ci-owner@example.test
+      ACCEPTANCE_OWNER_PASSWORD: ci-test-only-passphrase
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm --filter @template/tests exec playwright install --with-deps chromium
+      - name: Start and initialize the test installation
+        run: |
+          pnpm start > /tmp/application.log 2>&1 &
+          node --input-type=module <<'JS'
+          const origin = process.env.PUBLIC_SITE_URL;
+          for (let attempt = 0; ; attempt++) {
+            try {
+              const response = await fetch(`${origin}/healthz`);
+              if (response.ok) break;
+            } catch {}
+            if (attempt === 60) throw new Error('Application did not start');
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+          const response = await fetch(`${origin}/module/auth/rpc/register`, {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email: process.env.ACCEPTANCE_OWNER_EMAIL, password: process.env.ACCEPTANCE_OWNER_PASSWORD }),
+          });
+          if (!response.ok) throw new Error(`Owner registration failed: ${response.status}`);
+          JS
+      - run: pnpm test:acceptance
+      - run: pnpm test:browser
+      - name: Application log on failure
+        if: failure()
+        run: cat /tmp/application.log 2>/dev/null || true

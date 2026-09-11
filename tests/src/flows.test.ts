@@ -6,7 +6,7 @@ import {
   BASE_URL,
   errorMessage,
   Session,
-  serviceAdmin,
+  moduleAdmin,
   USERS,
   waitForStack,
 } from './client.js';
@@ -15,14 +15,15 @@ import {
   ensureFixtureTemplate,
   RegistryRestore,
   resolveOwner,
+  testEmail,
 } from './fixtures.js';
 
 /**
- * The flows that cross service boundaries.
+ * The flows that cross module boundaries.
  *
  * A password reset in Auth has to become an event in Notifications and a stored message in Email,
- * and each of those services has to keep to its own data. That chain is where a template usually
- * breaks first, so it is checked end to end rather than per service.
+ * and each of those modules has to keep to its own data. That chain is where a template usually
+ * breaks first, so it is checked end to end rather than per module.
  */
 
 let owner: Session;
@@ -35,7 +36,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await restore.restoreAll();
+  await restore?.restoreAll();
 });
 
 interface DeliveryRow {
@@ -76,7 +77,7 @@ describe('a security email, end to end', () => {
 
     const event = await waitFor(async () => {
       const page = await owner.call<{ items: EventRow[] }>(
-        serviceAdmin('notifications'),
+        moduleAdmin('notifications'),
         'listEvents',
         { limit: 50, offset: 0 },
       );
@@ -93,7 +94,7 @@ describe('a security email, end to end', () => {
 
     const delivery = await owner.call<{
       delivery: DeliveryRow & { html: string; text: string };
-    }>(serviceAdmin('email'), 'getDelivery', { id: event.deliveryId });
+    }>(moduleAdmin('email'), 'getDelivery', { id: event.deliveryId });
 
     expect(delivery.delivery.recipientEmail).toBe(user.email);
     expect(delivery.delivery.templateKey).toBe('auth-password-reset');
@@ -121,14 +122,14 @@ describe('a security email, end to end', () => {
 
     // Registration emits one event; asking for the profile again must not add another.
     const before = await owner.call<{ total: number }>(
-      serviceAdmin('notifications'),
+      moduleAdmin('notifications'),
       'listEvents',
       { limit: 1, offset: 0 },
     );
 
     await new Session().call(AUTH, 'currentSession');
 
-    const after = await owner.call<{ total: number }>(serviceAdmin('notifications'), 'listEvents', {
+    const after = await owner.call<{ total: number }>(moduleAdmin('notifications'), 'listEvents', {
       limit: 1,
       offset: 0,
     });
@@ -138,7 +139,7 @@ describe('a security email, end to end', () => {
   });
 
   it('keeps messages inside the log when the local transport is configured', async () => {
-    const page = await owner.call<{ items: DeliveryRow[] }>(serviceAdmin('email'), 'listDeliveries', {
+    const page = await owner.call<{ items: DeliveryRow[] }>(moduleAdmin('email'), 'listDeliveries', {
       limit: 10,
       offset: 0,
     });
@@ -149,10 +150,14 @@ describe('a security email, end to end', () => {
   });
 });
 
+function mjml(body: string) {
+  return `<mjml><mj-body><mj-section><mj-column><mj-text>${body}</mj-text></mj-column></mj-section></mj-body></mjml>`;
+}
+
 describe('email templates', () => {
   it('ships the auth templates already published', async () => {
     const page = await owner.call<{ items: { key: string }[] }>(
-      serviceAdmin('email'),
+      moduleAdmin('email'),
       'listTemplates',
       { limit: 50, offset: 0 },
     );
@@ -169,41 +174,29 @@ describe('email templates', () => {
     }
   });
 
-  /**
-   * Publishing is where the server takes over, and its checks are the reason a broken template
-   * cannot reach a recipient.
-   */
-  it('refuses to publish a document that uses an undeclared variable', async () => {
+  it('refuses to publish source that uses an undeclared variable', async () => {
     const templateId = await ensureFixtureTemplate(owner, 'acceptance-refused', ['allowed']);
 
     const draft = await owner.call<{ version: { id: string } }>(
-      serviceAdmin('email'),
+      moduleAdmin('email'),
       'createDraft',
       { templateId },
       { csrf: true },
     );
 
     await owner.call(
-      serviceAdmin('email'),
+      moduleAdmin('email'),
       'saveDraft',
       {
         id: draft.version.id,
         subject: 'Acceptance',
-        editorDocument: {
-          type: 'doc',
-          content: [
-            {
-              type: 'paragraph',
-              content: [{ type: 'variable', attrs: { id: 'notDeclared' } }],
-            },
-          ],
-        },
+        source: mjml('<p>{{notDeclared}}</p>'),
       },
       { csrf: true },
     );
 
     const refused = await owner.rpc(
-      serviceAdmin('email'),
+      moduleAdmin('email'),
       'publishDraft',
       { id: draft.version.id },
       { csrf: true },
@@ -213,54 +206,103 @@ describe('email templates', () => {
     expect(errorMessage(refused.body)).toMatch(/notDeclared/);
   });
 
-  it('publishes a correct document and keeps its placeholders for send time', async () => {
-    const templateId = await ensureFixtureTemplate(owner, 'acceptance-published', ['name']);
+  it('publishes MJML source and substitutes variables on test send', async () => {
+    const source = '<mjml><mj-body><mj-section><mj-column><mj-text>Hello {{name}}</mj-text><mj-button href="{{url}}">Confirm</mj-button></mj-column></mj-section></mj-body></mjml>';
+    const templateId = await ensureFixtureTemplate(owner, 'acceptance-published-links', ['name', 'url']);
 
     const draft = await owner.call<{ version: { id: string } }>(
-      serviceAdmin('email'),
+      moduleAdmin('email'),
       'createDraft',
       { templateId },
       { csrf: true },
     );
 
     await owner.call(
-      serviceAdmin('email'),
+      moduleAdmin('email'),
       'saveDraft',
       {
         id: draft.version.id,
         subject: 'Hello {{name}}',
-        editorDocument: {
-          type: 'doc',
-          content: [
-            {
-              type: 'paragraph',
-              content: [
-                { type: 'text', text: 'Hello ' },
-                { type: 'variable', attrs: { id: 'name' } },
-              ],
-            },
-          ],
-        },
+        source,
       },
       { csrf: true },
     );
 
     const published = await owner.call<{
-      version: { status: string; compiledHtml: string; compiledText: string };
-    }>(serviceAdmin('email'), 'publishDraft', { id: draft.version.id }, { csrf: true });
+      version: { status: string; source: string; compiledHtml: string; compiledText: string };
+    }>(moduleAdmin('email'), 'publishDraft', { id: draft.version.id }, { csrf: true });
 
-    expect(published.version.status).toBe('published');
-    // The values are per recipient, so the stored content keeps the placeholder.
+    expect(published.version).toMatchObject({ status: 'published', source });
     expect(published.version.compiledHtml).toMatch(/\{\{\s*name\s*\}\}/);
-    expect(published.version.compiledText).toMatch(/Hello/);
+    expect(published.version.compiledText).toContain('Hello {{name}}');
+    expect(published.version.compiledHtml).not.toContain('<mj-text>');
+
+    const to = testEmail('template-mjml');
+    const { deliveryId } = await owner.call<{ deliveryId: string }>(
+      moduleAdmin('email'), 'testSend',
+      { id: draft.version.id, to, variables: {
+        name: 'Ada', url: 'https://example.test/confirm?lang=en&token=PRIVATE_TOKEN&next=profile',
+      } }, { csrf: true },
+    );
+    const { delivery } = await owner.call<{ delivery: DeliveryRow & { html: string; text: string } }>(
+      moduleAdmin('email'), 'getDelivery', { id: deliveryId },
+    );
+    expect(delivery).toMatchObject({ recipientEmail: to, subject: 'Hello Ada', status: 'sent' });
+    expect(delivery.html).toContain('Hello Ada');
+    expect(delivery.text).toContain('Hello Ada');
+    expect(delivery.html).not.toContain('{{name}}');
+    expect(delivery.html).toContain('lang=en&amp;token=***&amp;next=profile');
+    expect(delivery.text).toContain('lang=en&token=***&next=profile');
+    expect(delivery.html).not.toContain('PRIVATE_TOKEN');
+    expect(delivery.text).not.toContain('PRIVATE_TOKEN');
+
+    const editPublished = await owner.rpc(moduleAdmin('email'), 'saveDraft', {
+      id: draft.version.id, subject: 'Changed', source: mjml('<p>Changed</p>'),
+    }, { csrf: true });
+    expect(editPublished.status).toBe(400);
+    const unchanged = await owner.call<{ version: { subject: string; source: string } }>(
+      moduleAdmin('email'), 'getVersion', { id: draft.version.id },
+    );
+    expect(unchanged.version).toMatchObject({ subject: 'Hello {{name}}', source });
+  });
+
+  it.each([
+    { label: 'invalid MJML', source: '<mjml><mj-body><mj-unknown>Invalid component</mj-unknown></mj-body></mjml>', message: /mj-unknown/ },
+    { label: 'plain HTML', source: '<p>Only HTML</p>', message: /mjml/i },
+  ])('keeps $label as a draft and refuses preview, publish and test send', async ({ source, message }) => {
+    const templateId = await ensureFixtureTemplate(owner, 'acceptance-invalid-mjml', []);
+    const { version } = await owner.call<{ version: { id: string } }>(
+      moduleAdmin('email'), 'createDraft', { templateId }, { csrf: true },
+    );
+    await owner.call(moduleAdmin('email'), 'saveDraft', {
+      id: version.id, subject: 'Invalid MJML', source,
+    }, { csrf: true });
+
+    for (const [procedure, input] of [
+      ['previewVersion', { id: version.id }],
+      ['publishDraft', { id: version.id }],
+      ['testSend', { id: version.id, to: testEmail('invalid-mjml') }],
+    ] as const) {
+      const result = await owner.rpc(moduleAdmin('email'), procedure, input, { csrf: true });
+      expect(result.status, procedure).toBe(400);
+      expect(errorMessage(result.body), procedure).toMatch(message);
+    }
+    const unchanged = await owner.call<{ version: { status: string; source: string; compiledHtml: string | null } }>(
+      moduleAdmin('email'), 'getVersion', { id: version.id },
+    );
+    expect(unchanged.version).toMatchObject({ status: 'draft', source, compiledHtml: null });
+    const deliveries = await owner.call<{ total: number }>(moduleAdmin('email'), 'listDeliveries', {
+      query: testEmail('invalid-mjml'), limit: 1, offset: 0,
+    });
+    expect(deliveries.total).toBe(0);
   });
 });
 
-describe('service boundaries', () => {
-  it('gives each admin only its own service’s data', async () => {
+describe('module boundaries', () => {
+  it('gives each admin only its own module’s data', async () => {
     // Auth knows identities and nothing about product profiles.
     const identities = await owner.call<{ items: { email: string }[] }>(
-      serviceAdmin('auth'),
+      moduleAdmin('auth'),
       'listIdentities',
       { limit: 5, offset: 0 },
     );
@@ -268,7 +310,7 @@ describe('service boundaries', () => {
 
     // Users knows profiles and nothing about passwords or sessions.
     const profiles = await owner.call<{ items: Record<string, unknown>[] }>(
-      serviceAdmin('users'),
+      moduleAdmin('users'),
       'listProfiles',
       { limit: 5, offset: 0 },
     );
@@ -290,7 +332,7 @@ describe('service boundaries', () => {
     await user.session.call(USERS, 'getOwnProfile', {});
 
     const page = await owner.call<{ items: { identityId: string; email: string | null }[] }>(
-      serviceAdmin('users'),
+      moduleAdmin('users'),
       'listProfiles',
       { limit: 20, offset: 0 },
     );
@@ -299,13 +341,13 @@ describe('service boundaries', () => {
     expect(mine?.email).toBe(user.email);
   });
 
-  it('never exposes an internal surface through Gateway', async () => {
+  it('never exposes an internal surface through Router', async () => {
     const anonymous = new Session();
 
     for (const path of [
       '/internal/rpc/emit',
-      '/service/notifications/rpc/emit',
-      '/service/email/rpc/send',
+      '/module/notifications/rpc/emit',
+      '/module/email/rpc/send',
     ]) {
       const response = await anonymous.fetch(path, {
         method: 'POST',
@@ -314,42 +356,6 @@ describe('service boundaries', () => {
       });
       expect(response.status).toBe(404);
     }
-  });
-});
-
-describe('the built admin surfaces', () => {
-  it('serves the central Admin without the email editor in its bundle', async () => {
-    const page = await owner.fetch('/admin/');
-    const html = await page.text();
-
-    const scripts = [...html.matchAll(/src="(\/admin\/assets\/[^"]+\.js)"/g)]
-      .map((match) => match[1])
-      .filter((script): script is string => script !== undefined);
-    expect(scripts.length).toBeGreaterThan(0);
-
-    for (const script of scripts) {
-      const asset = await owner.fetch(script);
-      const body = await asset.text();
-
-      // TipTap and the editor's own blocks belong to the Email service admin alone. The contract's
-      // format marker (`maily@1`) is a plain string and legitimately travels with the contracts,
-      // so what is checked is the library, not the word.
-      expect(body).not.toMatch(/@tiptap|ProseMirror|@maily-to\/core/i);
-    }
-  });
-
-  it('keeps the editor out of the Email admin’s first bundle too', async () => {
-    const page = await owner.fetch(`${serviceAdmin('email')}/`);
-    const html = await page.text();
-
-    const entry = /src="(\/admin\/embed\/service\/email\/assets\/[^"]+\.js)"/.exec(html)?.[1];
-    expect(entry).toBeDefined();
-
-    const asset = await owner.fetch(entry!);
-    const body = await asset.text();
-
-    // The editor is a separate chunk, fetched only when its route is opened.
-    expect(body).not.toMatch(/@tiptap|ProseMirror/i);
   });
 });
 

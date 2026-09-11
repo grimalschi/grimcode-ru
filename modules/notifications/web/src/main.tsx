@@ -2,7 +2,6 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
-  Link,
   Outlet,
   RouterProvider,
   useNavigate,
@@ -19,15 +18,13 @@ import { EventsPage } from '@/routes/events';
 
 import '@/styles.css';
 
-const BASE = '/admin/embed/service/notifications';
-
-const TABS = [{ to: '/', label: 'События' }];
+const BASE = '/admin/embed/module/notifications';
 
 /**
- * The Notifications service admin.
+ * The Notifications module admin.
  *
  * It normally runs inside the central Admin shell's iframe, but its protected URL also works on
- * its own — Gateway performs the same check either way. Standing alone it shows its own header;
+ * its own — Router performs the same check either way. Standing alone it shows its own header;
  * embedded, the shell already provides one.
  */
 function Shell() {
@@ -46,22 +43,10 @@ function Shell() {
   return (
     <AdminThemeProvider storageKey="template.notifications.theme" controlledTheme={theme}>
       <div className="min-h-svh">
-        {TABS.length > 1 || !embedded ? (
-        <header className="flex h-12 items-center justify-between gap-4 border-b px-4">
-          <nav className="flex items-center gap-4 text-sm">
-            {TABS.length > 1 && TABS.map((tab) => (
-              <Link
-                key={tab.to}
-                to={tab.to}
-                className="[&.active]:text-foreground text-muted-foreground [&.active]:font-medium"
-                activeOptions={{ exact: tab.to === '/' }}
-              >
-                {tab.label}
-              </Link>
-            ))}
-          </nav>
+        {!embedded ? (
+        <header className="flex h-12 items-center justify-end gap-4 border-b px-4">
           {/* The shell owns the theme when embedded, so the switch would only disagree with it. */}
-          {embedded ? null : <ThemeToggle />}
+          <ThemeToggle />
         </header>
         ) : null}
         <Outlet />

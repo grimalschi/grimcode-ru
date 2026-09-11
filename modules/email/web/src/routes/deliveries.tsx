@@ -19,25 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAsync, type Page } from '@/hooks/use-async';
-
-interface DeliveryRow {
-  id: string;
-  templateKey: string;
-  recipientEmail: string;
-  subject: string;
-  transport: 'log' | 'unisender';
-  status: 'queued' | 'sent' | 'failed';
-  providerMessageId: string | null;
-  error: string | null;
-  createdAt: string;
-  sentAt: string | null;
-}
-
-interface Delivery extends DeliveryRow {
-  html: string;
-  text: string;
-}
+import { useAsync } from '@/hooks/use-async';
 
 const LIMIT = 50;
 const ANY = 'any';
@@ -49,7 +31,7 @@ const STATUSES = ['queued', 'sent', 'failed'] as const;
  * A filled badge inside a clickable row reads as a button that does something of its own, so this
  * is a coloured dot next to plain text instead.
  */
-const STATUS_DOT: Record<DeliveryRow['status'], string> = {
+const STATUS_DOT = {
   sent: 'bg-emerald-500',
   queued: 'bg-muted-foreground',
   failed: 'bg-destructive',
@@ -77,11 +59,11 @@ export function DeliveriesPage() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const list = useAsync<Page<DeliveryRow>>(
+  const list = useAsync(
     () =>
       api.listDeliveries.query({
         query: search === '' ? undefined : search,
-        status: status === ANY ? undefined : (status as DeliveryRow['status']),
+        status: status === ANY ? undefined : (status as (typeof STATUSES)[number]),
         limit: LIMIT,
         offset,
       }),
@@ -192,7 +174,7 @@ export function DeliveriesPage() {
 }
 
 function DeliveryDialog({ id, onClose }: { id: string; onClose: () => void }) {
-  const state = useAsync<{ delivery: Delivery }>(() => api.getDelivery.query({ id }), [id]);
+  const state = useAsync(() => api.getDelivery.query({ id }), [id]);
   const delivery = state.data?.delivery;
 
   return (

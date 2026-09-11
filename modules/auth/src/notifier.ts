@@ -1,5 +1,4 @@
-import type { NotificationEvent } from '@template/notifications/contract';
-import type { NotificationsInternalCaller } from '@template/notifications/contract';
+import type { NotificationEvent, NotificationsApi } from '@template/contracts/modules/notifications';
 
 /**
  * Auth's outgoing side.
@@ -8,24 +7,13 @@ import type { NotificationsInternalCaller } from '@template/notifications/contra
  * and Email renders and sends them.
  */
 export class Notifier {
-  constructor(
-    private readonly requestIdOf: () => string,
-    private readonly callNotifications: (call: { requestId: string }) => NotificationsInternalCaller,
-  ) {}
+  constructor(private readonly notifications: NotificationsApi) {}
 
-  /**
-   * Emitting must never fail a security flow: the token a reset consumed is gone either way, so a
-   * failed hand-off is swallowed. Nothing reports it — the cost of having no logging — and what makes
-   * that `catch` reachable at all is the deadline Notifications puts on its own caller, because
-   * nothing here honours an abort signal.
-   */
   async emit(event: NotificationEvent, dedupeKey: string): Promise<void> {
     try {
-      const notifications = this.callNotifications({ requestId: this.requestIdOf() });
-
-      await notifications.emit({ event, dedupeKey });
-    } catch {
-      // Deliberately empty: see above.
+      await this.notifications.emit({ event, dedupeKey });
+    } catch (error) {
+      console.error('Auth notification hand-off failed', { type: event.type }, error);
     }
   }
 }

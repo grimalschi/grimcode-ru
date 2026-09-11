@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { editorDocumentSchema, EDITOR_FORMAT, editorFormatSchema } from './schemas.js';
+import { createHash } from 'node:crypto';
+import { describe, expect, it, vi } from 'vitest';
+import { templateVersionSchema } from './schemas.js';
 
 import {
   assertDeclaredVariables,
@@ -15,232 +16,81 @@ import {
   TemplateRenderError,
 } from './render.js';
 import { SEED_TEMPLATES } from './seed.js';
-import { RPC_TIMEOUT_MS } from '@template/shared';
+import { RPC_TIMEOUT_MS } from './rpc.js';
 
-import { createLogTransport, createUniSenderTransport, PROVIDER_TIMEOUT_MS } from './transport.js';
+import { createTransport, createUniSenderTransport, PROVIDER_TIMEOUT_MS } from './transport.js';
 import type { MailSettings } from './transport.js';
-import type { EditorDocument } from './schemas.js';
 
 /** Settings of a configured provider, as the composer would hand them over. */
 const configured: MailSettings = {
   provider: 'unisender',
   apiKey: 'test-key',
-  apiUrl: '',
   fromAddress: 'no-reply@example.com',
-  fromName: '',
 };
 
-describe('variable collection', () => {
-  it('finds variables in text and in a button url', () => {
-    const document: EditorDocument = {
-      type: 'doc',
-      content: [
-        {
-          type: 'paragraph',
-          content: [{ type: 'variable', attrs: { id: 'email' } }],
-        },
-        {
-          type: 'button',
-          attrs: { text: 'Go', isTextVariable: false, url: 'resetUrl', isUrlVariable: true },
-        },
-      ],
-    };
-    expect(collectVariables(document)).toEqual(['email', 'resetUrl']);
-  });
-
-  it('refuses a document using a variable the template does not declare', () => {
-    const document: EditorDocument = {
-      type: 'doc',
-      content: [{ type: 'paragraph', content: [{ type: 'variable', attrs: { id: 'secret' } }] }],
-    };
-    expect(() => assertDeclaredVariables(document, ['email'])).toThrow(TemplateRenderError);
-    expect(() => assertDeclaredVariables(document, ['secret'])).not.toThrow();
-  });
-});
-
-describe('sanitizing', () => {
-  it('removes scripts, frames and inline handlers', () => {
-    const dirty = `<p onclick="steal()">hi</p><script>bad()</script><iframe src="x"></iframe>`;
-    const clean = sanitizeHtml(dirty);
-    expect(clean).not.toContain('<script');
-    expect(clean).not.toContain('<iframe');
-    expect(clean).not.toContain('onclick');
-    expect(clean).toContain('hi');
-  });
-
-  it('defuses a javascript: link', () => {
-    expect(sanitizeHtml(`<a href="javascript:alert(1)">x</a>`)).toContain('href="#"');
-  });
-});
-
-describe('placeholder filling', () => {
-  it('escapes values on the way into HTML but not into text', () => {
-    const value = { name: '<b>Ada</b> & co' };
-    expect(fillHtml('<p>{{name}}</p>', value)).toBe('<p>&lt;b&gt;Ada&lt;/b&gt; &amp; co</p>');
-    expect(fillText('Hello {{name}}', value)).toBe('Hello <b>Ada</b> & co');
-  });
-
-  it('leaves an unknown placeholder visible instead of blanking it', () => {
-    expect(fillHtml('<p>{{missing}}</p>', {})).toBe('<p>{{missing}}</p>');
-    expect(renderSubject('Hi {{name}}', {})).toBe('Hi {{name}}');
-  });
-
-  it('escapes ampersands in a link, which is what an href needs anyway', () => {
-    expect(escapeHtml('https://x.test/a?b=1&c=2')).toBe('https://x.test/a?b=1&amp;c=2');
-  });
-});
-
-describe('plain text generation', () => {
-  it('derives the text version from the produced HTML', () => {
-    const text = htmlToText('<h1>Title</h1><p>Line one</p><p>Line two</p>');
-    expect(text).toContain('Title');
-    expect(text).toContain('Line one');
-    expect(text).not.toContain('<p>');
-  });
-
-  it('skips hidden preheader content', () => {
-    expect(htmlToText('<p hidden>preheader</p><p>body</p>')).toBe('body');
-  });
-});
-
-describe('seed templates', () => {
-  it('declares every variable its document uses', () => {
-    for (const seed of SEED_TEMPLATES) {
-      expect(() => assertDeclaredVariables(seed.document, seed.variables)).not.toThrow();
-    }
-  });
-
-  it('covers the auth events the template ships with', () => {
-    expect(SEED_TEMPLATES.map((seed) => seed.key).sort()).toEqual([
-      'auth-confirm-email-change',
-      'auth-email-changed',
-      'auth-password-reset',
-      'auth-verify-email',
-      'auth-welcome',
-    ]);
-  });
-
-  it('publishes with variables left as placeholders, because values are per recipient', async () => {
-    const seed = SEED_TEMPLATES.find((entry) => entry.key === 'auth-password-reset');
-    const compiled = await renderMessage(seed!.document, seed!.subject);
-
-    expect(compiled.html).toContain('{{resetUrl}}');
-    expect(compiled.html).toContain('{{email}}');
-    expect(compiled.text).toContain('{{resetUrl}}');
-
-    // ...and a real delivery fills them in.
-    const html = fillHtml(compiled.html, {
-      email: 'user@example.com',
-      resetUrl: 'https://example.test/app/reset-password?token=abc',
-    });
-    expect(html).toContain('user@example.com');
-    expect(html).toContain('reset-password?token=abc');
-    expect(html).not.toContain('{{');
-  });
-
-  /**
-   * The renderer escapes values itself. Escaping them here as well turned every `&` in a link into
-   * `&amp;amp;`, precisely where someone looks to check a message before sending it.
-   */
-  it('escapes a value exactly once', async () => {
-    const preview = await renderMessage(
-      {
-        type: 'doc',
-        content: [{ type: 'paragraph', content: [{ type: 'variable', attrs: { id: 'url' } }] }],
-      },
-      'Тема',
-      { url: 'https://example.test/r?a=1&b=2' },
-    );
-
-    expect(preview.html).toContain('a=1&amp;b=2');
-    expect(preview.html).not.toContain('&amp;amp;');
-    expect(preview.text).toContain('a=1&b=2');
-  });
-
-  it('still keeps markup in a value from becoming markup', async () => {
-    const preview = await renderMessage(
-      {
-        type: 'doc',
-        content: [{ type: 'paragraph', content: [{ type: 'variable', attrs: { id: 'name' } }] }],
-      },
-      'Тема',
-      { name: '<script>alert(1)</script>' },
-    );
-
-    expect(preview.html).not.toContain('<script>alert');
-  });
-
-  /**
-   * Auth keeps only the hash of a one-time token, so the delivery log must not keep the token
-   * itself: an administrator who may read messages could otherwise ask for a reset of someone
-   * else's password and take the link out of the log.
-   */
-  it('keeps one-time tokens out of the stored copy', () => {
-    const sent = '<a href="https://x.test/app/reset-password/confirm?token=SECRET123">Ссылка</a>';
-    const stored = redactOneTimeTokens(sent);
-
-    expect(stored).toContain('token=***');
-    expect(stored).not.toContain('SECRET123');
-    // Everything else about the message survives, so the record is still worth keeping.
-    expect(stored).toContain('/app/reset-password/confirm');
-  });
-
-  /**
-   * A preview or a test send rarely carries every value. What is missing has to stay a visible
-   * placeholder: the renderer's own fallback is the bare variable name, which turned a button's
-   * link into `href="resetUrl"` — a relative link to nowhere.
-   */
-  it('keeps a placeholder for a value the preview does not carry', async () => {
-    const seed = SEED_TEMPLATES.find((entry) => entry.key === 'auth-password-reset');
-    const preview = await renderMessage(seed!.document, seed!.subject, {
-      email: 'user@example.com',
-    });
-
-    expect(preview.html).toContain('user@example.com');
-    expect(preview.html).toContain('href="{{resetUrl}}"');
-    expect(preview.html).not.toContain('href="resetUrl"');
-  });
-
-  it('renders a preview with sample values filled in', async () => {
-    const seed = SEED_TEMPLATES.find((entry) => entry.key === 'auth-welcome');
-    const preview = await renderMessage(seed!.document, seed!.subject, {
-      email: 'user@example.com',
-      verificationUrl: 'https://example.test/app/verify-email?token=abc',
-    });
-
-    expect(preview.html).toContain('user@example.com');
-    expect(preview.text).toContain('user@example.com');
-  });
-});
+function mjml(body: string): string {
+  return `<mjml><mj-body><mj-section><mj-column><mj-text>${body}</mj-text></mj-column></mj-section></mj-body></mjml>`;
+}
 
 describe('transports', () => {
-  it('keeps a local message inside the delivery journal, sending nothing', async () => {
-    const result = await createLogTransport().send({
+  it.each([undefined, '', 'log'])('keeps provider %s local without sending', async (provider) => {
+    const fetchFn = vi.fn<typeof fetch>();
+    const transport = createTransport({ provider }, fetchFn);
+    const result = await transport.send({
       dedupeKey: 'k',
       to: 'a@example.com',
       subject: 's',
       html: '<p>h</p>',
       text: 'h',
     });
+    expect(transport.name).toBe('log');
     expect(result.providerStatus).toBe('logged');
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 
-  it('refuses to send through UniSender Go without credentials', async () => {
-    const transport = createUniSenderTransport(
-      { ...configured, apiKey: '' },
-      async () => new Response('{}'),
-    );
-    await expect(
-      transport.send({ dedupeKey: 'k', to: 'a@example.com', subject: 's', html: '', text: '' }),
-    ).rejects.toThrow(/not configured/);
+  it.each([
+    { missing: { apiKey: '' }, variable: 'UNISENDER_GO_API_KEY' },
+    { missing: { apiKey: undefined }, variable: 'UNISENDER_GO_API_KEY' },
+    { missing: { fromAddress: '' }, variable: 'EMAIL_FROM_ADDRESS' },
+    { missing: { fromAddress: undefined }, variable: 'EMAIL_FROM_ADDRESS' },
+  ])('refuses to send when $variable is empty or unset', async ({ missing, variable }) => {
+    const fetchFn = vi.fn<typeof fetch>();
+    expect(() => createUniSenderTransport({ ...configured, ...missing }, fetchFn)).toThrow(`UniSender Go is not configured: ${variable} missing`);
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 
-  it('passes the dedupe key to the provider as its idempotency key', async () => {
-    let body: unknown;
+  it('rejects a misspelled provider at startup', () => {
+    expect(() => createTransport({ provider: 'unisenderr' })).toThrow('Unknown EMAIL_PROVIDER');
+  });
+
+  it.each(['', 'not json', '{}', '{"status":"success"}'])(
+    'does not report acceptance for malformed provider response %s', async (body) => {
+      const transport = createUniSenderTransport(configured, async () => new Response(body));
+      await expect(transport.send({ dedupeKey: 'key', to: 'a@example.com', subject: 's', html: '', text: '' }))
+        .rejects.toThrow('invalid acceptance response');
+    },
+  );
+
+  it('bounds long idempotency keys and keeps retries stable', async () => {
+    const keys: string[] = [];
     const transport = createUniSenderTransport(configured, async (_url, init) => {
+      keys.push(JSON.parse(String(init?.body)).message.idempotence_key);
+      return Response.json({ status: 'success', job_id: 'job-1' });
+    });
+    const message = { dedupeKey: 'test:'.repeat(100), to: 'a@example.com', subject: 's', html: '', text: '' };
+    await transport.send(message);
+    await transport.send(message);
+    expect(keys[0]).toHaveLength(64);
+    expect(keys[1]).toBe(keys[0]);
+  });
+
+  it.each([undefined, ''])('uses provider defaults for %s settings and hashes the dedupe key', async (unset) => {
+    let body: unknown;
+    const fetchFn = vi.fn<typeof fetch>(async (_url, init) => {
       body = JSON.parse(String((init as RequestInit).body));
       return new Response(JSON.stringify({ status: 'success', job_id: 'job-1' }), { status: 200 });
     });
+    const transport = createUniSenderTransport({ ...configured, apiUrl: unset, fromName: unset }, fetchFn);
 
     const result = await transport.send({
       dedupeKey: 'delivery-42',
@@ -251,7 +101,12 @@ describe('transports', () => {
     });
 
     expect(result.providerMessageId).toBe('job-1');
-    expect(body).toMatchObject({ message: { idempotence_key: 'delivery-42', track_links: 0 } });
+    expect(body).toMatchObject({ message: { idempotence_key: createHash('sha256').update('delivery-42').digest('hex'), track_links: 0 } });
+    expect(body).not.toHaveProperty('message.from_name');
+    expect(fetchFn).toHaveBeenCalledWith(
+      'https://go1.unisender.ru/ru/transactional/api/v1/email/send.json',
+      expect.objectContaining({ headers: expect.objectContaining({ 'x-api-key': 'test-key' }) }),
+    );
   });
 
   /**
@@ -277,13 +132,148 @@ describe('transports', () => {
   });
 });
 
-describe('email editor document', () => {
-  it('pins the stored editor format marker', () => {
-    expect(EDITOR_FORMAT).toBe('maily@1');
-    expect(editorFormatSchema.safeParse('unlayer@1').success).toBe(false);
+
+describe('template variables', () => {
+  it('collects placeholders from source and subject once', () => {
+    expect(collectVariables('<a href="{{ resetUrl }}">{{email}}</a>', 'Hello {{email}}')).toEqual(['email', 'resetUrl']);
   });
 
-  it('accepts an empty document', () => {
-    expect(editorDocumentSchema.parse({ type: 'doc' })).toEqual({ type: 'doc', content: [] });
+  it('rejects undeclared subject variables as well as body variables', () => {
+    expect(() => assertDeclaredVariables('<p>{{email}}</p>', '{{secret}}', ['email'])).toThrow(/secret/);
+    expect(() => assertDeclaredVariables('<p>{{secret}}</p>', 'Subject', ['email'])).toThrow(TemplateRenderError);
+    expect(() => assertDeclaredVariables('<p>{{email}}</p>', '{{email}}', ['email'])).not.toThrow();
+  });
+
+  it('escapes HTML values while keeping subject and plain text readable', () => {
+    const variables = { name: '<b>Ada</b> & co' };
+    expect(fillHtml('<p>{{name}}</p>', variables)).toBe('<p>&lt;b&gt;Ada&lt;/b&gt; &amp; co</p>');
+    expect(fillText('Hello {{name}}', variables)).toBe('Hello <b>Ada</b> & co');
+    expect(renderSubject('Hi {{name}}', variables)).toBe('Hi <b>Ada</b> & co');
+    expect(escapeHtml('https://x.test/a?b=1&c=2')).toBe('https://x.test/a?b=1&amp;c=2');
+  });
+
+  it('retains missing values as placeholders', () => {
+    expect(fillHtml('<a href="{{url}}">{{missing}}</a>', {})).toBe('<a href="{{url}}">{{missing}}</a>');
+    expect(renderSubject('Hi {{name}}', {})).toBe('Hi {{name}}');
+  });
+
+  it.each(['javascript:alert(1)', 'data:text/html,hello', '//untrusted.test/a', 'java\nscript:alert(1)'])(
+    'removes unsafe URL values after substitution: %s', (url) => {
+      expect(fillHtml('<a href="{{url}}">Go</a><img src="{{url}}">', { url })).not.toMatch(/(?:href|src)=/);
+    },
+  );
+
+  it('preserves a safe URL and encodes its ampersand once', () => {
+    expect(fillHtml('<a href="{{url}}">Go</a>', { url: 'https://example.test/?a=1&b=2' }))
+      .toBe('<a href="https://example.test/?a=1&amp;b=2">Go</a>');
+  });
+});
+
+describe('HTML output', () => {
+  it('preserves email head, styles and tables during sanitization', () => {
+    const html = sanitizeHtml('<!doctype html><html><head><title>Email</title><style>.body{color:red}</style></head><body><table cellpadding="0" role="presentation"><tr><td style="color:red">Hello</td></tr></table></body></html>');
+    expect(html).toMatch(/^<!DOCTYPE html>/);
+    expect(html).toContain('<head>');
+    expect(html).toContain('<style>.body{color:red}</style>');
+    expect(html).toContain('cellpadding="0"');
+    expect(html).toContain('style="color:red"');
+    expect(htmlToText(html)).toBe('Hello');
+  });
+
+  it('removes scripts, frames, event handlers and entity-encoded unsafe links', () => {
+    const html = sanitizeHtml('<p onclick="doSomething()">Visible</p><script>private script</script><iframe src="https://x.test"></iframe><a href="jav&#x61;script:alert(1)">Go</a>');
+    expect(html).toBe('<p>Visible</p><a>Go</a>');
+  });
+
+  it('generates plain text without styles, hidden preheaders or HTML', () => {
+    expect(htmlToText('<style>p{color:red}</style><p hidden>Hidden</p><h1>Title</h1><p>Body</p>'))
+      .toBe('Title\n\nBody');
+  });
+
+  it('does not double-escape values in preview', async () => {
+    const preview = await renderMessage(mjml('<p>{{url}}</p>'), 'Subject', { url: 'https://example.test/?a=1&b=2' });
+    expect(preview.html).toContain('a=1&amp;b=2');
+    expect(preview.html).not.toContain('&amp;amp;');
+    expect(preview.text).toContain('a=1&b=2');
+  });
+
+  it('rejects a message without readable content', async () => {
+    await expect(renderMessage(mjml('<script>only script</script>'), 'Subject'))
+      .rejects.toThrow('no readable text');
+  });
+
+  it.each([
+    ['https://x.test/reset?token=SECRET123&lang=en#form', 'https://x.test/reset?token=***&lang=en#form'],
+    ['https://x.test/reset?lang=en&token=SECRET123&next=profile#form', 'https://x.test/reset?lang=en&token=***&next=profile#form'],
+    ['<a href="https://x.test/reset?lang=en&amp;token=SECRET123&amp;next=profile#form">Reset</a>', '<a href="https://x.test/reset?lang=en&amp;token=***&amp;next=profile#form">Reset</a>'],
+    ['https://x.test/reset?token=FIRST&amp;token=SECOND', 'https://x.test/reset?token=***&amp;token=***'],
+  ])('redacts one-time tokens and preserves the surrounding URL: %s', (content, expected) => {
+    expect(redactOneTimeTokens(content)).toBe(expected);
+  });
+});
+
+describe('MJML rendering', () => {
+  it('compiles responsive markup and fills recipient data', async () => {
+    const rendered = await renderMessage(mjml('Hello {{name}}'), 'Hello {{name}}', { name: '<Ada> & co' });
+    expect(rendered.html).toContain('<table');
+    expect(rendered.html).toContain('&lt;Ada&gt; &amp; co');
+    expect(rendered.text).toContain('Hello <Ada> & co');
+    expect(rendered.subject).toBe('Hello <Ada> & co');
+  });
+
+  it('rejects invalid MJML instead of publishing partial output', async () => {
+    await expect(renderMessage('<mjml><mj-body><mj-unknown /></mj-body></mjml>', 'Subject'))
+      .rejects.toThrow(/Invalid MJML/);
+  });
+
+  it.each(['./part.mjml', '/tmp/private-file', 'https://example.test/part.mjml'])(
+    'rejects includes before compilation: %s', async (path) => {
+      await expect(renderMessage(`<mjml><mj-body><mj-include path="${path}" /></mj-body></mjml>`, 'Subject'))
+        .rejects.toThrow('includes are not supported');
+    },
+  );
+
+  it.each(['<p>Plain HTML</p>', '<!doctype html><html><body><p>Plain HTML</p></body></html>'])(
+    'rejects raw HTML as a template source: %s', async (source) => {
+      await expect(renderMessage(source, 'Subject')).rejects.toThrow(/Invalid MJML/);
+    },
+  );
+
+  it('requires a text source and bounds its size', () => {
+    const source = templateVersionSchema.shape.source;
+    expect(source.safeParse({ type: 'doc' }).success).toBe(false);
+    expect(source.safeParse('x'.repeat(1_000_001)).success).toBe(false);
+  });
+});
+
+describe('seed templates', () => {
+  it('declares every variable used by its source and subject', () => {
+    for (const seed of SEED_TEMPLATES) {
+      expect(() => assertDeclaredVariables(seed.source, seed.subject, seed.variables)).not.toThrow();
+    }
+  });
+
+  it('compiles every initial Auth template', async () => {
+    expect(SEED_TEMPLATES.map((seed) => seed.key).sort()).toEqual([
+      'auth-confirm-email-change', 'auth-email-changed', 'auth-password-reset', 'auth-verify-email', 'auth-welcome',
+    ]);
+    for (const seed of SEED_TEMPLATES) {
+      const compiled = await renderMessage(seed.source, seed.subject);
+      expect(compiled.html).toContain('<table');
+      expect(compiled.text.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('keeps placeholders when publishing, then fills only supplied values', async () => {
+    const seed = SEED_TEMPLATES.find((entry) => entry.key === 'auth-password-reset')!;
+    const compiled = await renderMessage(seed.source, seed.subject);
+    expect(compiled.html).toContain('href="{{resetUrl}}"');
+    expect(compiled.text).toContain('{{resetUrl}}');
+    const html = fillHtml(compiled.html, { email: 'a@example.test', resetUrl: 'https://example.test/reset?token=secret' });
+    expect(html).toContain('reset?token=secret');
+    expect(html).not.toContain('{{');
+    const preview = await renderMessage(seed.source, seed.subject, { email: 'a@example.test' });
+    expect(preview.html).toContain('href="{{resetUrl}}"');
+    expect(preview.text).toContain('a@example.test');
   });
 });

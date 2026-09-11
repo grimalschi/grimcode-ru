@@ -1,5 +1,5 @@
 import * as React from 'react';
-import type { AdminUserProfile } from '@template/users/contract';
+import type { AdminUserProfile as Profile } from '@template/contracts/modules/users';
 
 import { api } from '@/api';
 import { AdminPage, ErrorState } from '@/components/layout/admin-page';
@@ -15,9 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAsync, type Page } from '@/hooks/use-async';
-
-type Profile = AdminUserProfile;
+import { useAsync } from '@/hooks/use-async';
 
 const LIMIT = 25;
 
@@ -43,7 +41,7 @@ export function ProfilesPage() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const list = useAsync<Page<Profile>>(
+  const list = useAsync(
     () =>
       api.listProfiles.query({ query: search === '' ? undefined : search, limit: LIMIT, offset }),
     [search, offset],
@@ -132,7 +130,7 @@ export function ProfilesPage() {
  * stale answer.
  */
 function ProfileDialog({ id, onClose }: { id: string; onClose: () => void }) {
-  const state = useAsync<{ profile: Profile }>(() => api.getProfile.query({ id }), [id]);
+  const state = useAsync(() => api.getProfile.query({ id }), [id]);
   const profile = state.data?.profile;
 
   return (
@@ -145,7 +143,9 @@ function ProfileDialog({ id, onClose }: { id: string; onClose: () => void }) {
           </DialogDescription>
         </DialogHeader>
 
-        {state.loading || !profile ? (
+        {state.error ? (
+          <ErrorState error={state.error} retry={state.reload} />
+        ) : state.loading || !profile ? (
           <Skeleton className="h-40 w-full" />
         ) : (
         <dl className="grid grid-cols-[9rem_1fr] gap-y-2 text-sm">

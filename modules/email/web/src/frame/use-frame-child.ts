@@ -1,38 +1,30 @@
 import {
   ADMIN_FRAME_MESSAGES,
-  isThemePreference,
-  normalizeServicePath,
-  type AdminFrameMessage,
-  type ThemePreference,
-} from "@template/shared/browser"
+  normalizeModulePath,
+  type ShellFrameMessage,
+  type ChildFrameMessage,
+} from "./protocol"
+import { isThemePreference, type ThemePreference } from "../theme"
 import * as React from "react"
 
 /**
  * Iframe side of the frame protocol.
  *
- * A service admin is normally embedded in the central Admin shell, but its protected URL also
- * works when opened directly. `embedded` tells the two apart: standing alone, the service admin
+ * A module admin is normally embedded in the central Admin shell, but its protected URL also
+ * works when opened directly. `embedded` tells the two apart: standing alone, the module admin
  * owns its own theme and shows its own switch.
  */
-export interface FrameChildOptions {
-  /** Current service-relative path, from this application's router. */
+export function useFrameChild({ path, onNavigate }: {
+  /** Current module-relative path, from this application's router. */
   path: string
   /** Called when the shell asks for a different path. */
   onNavigate: (path: string) => void
-}
-
-export interface FrameChildState {
-  embedded: boolean
-  /** Theme sent by the shell, or `null` when this surface owns its own. */
-  theme: ThemePreference | null
-}
-
-export function useFrameChild({ path, onNavigate }: FrameChildOptions): FrameChildState {
+}) {
   const [embedded] = React.useState(() => typeof window !== "undefined" && window.parent !== window)
   const [theme, setTheme] = React.useState<ThemePreference | null>(null)
 
   const post = React.useCallback(
-    (message: AdminFrameMessage) => {
+    (message: ChildFrameMessage) => {
       if (!embedded) return
       window.parent.postMessage(message, window.location.origin)
     },
@@ -46,7 +38,7 @@ export function useFrameChild({ path, onNavigate }: FrameChildOptions): FrameChi
       if (event.origin !== window.location.origin) return
       if (event.source !== window.parent) return
 
-      const message = event.data as AdminFrameMessage | null
+      const message = event.data as ShellFrameMessage | null
       if (!message || typeof message !== "object") return
 
       if (message.type === ADMIN_FRAME_MESSAGES.theme && isThemePreference(message.theme)) {
@@ -55,7 +47,7 @@ export function useFrameChild({ path, onNavigate }: FrameChildOptions): FrameChi
       }
 
       if (message.type === ADMIN_FRAME_MESSAGES.navigate) {
-        onNavigate(normalizeServicePath(message.path))
+        onNavigate(normalizeModulePath(message.path))
       }
     }
 
@@ -70,7 +62,7 @@ export function useFrameChild({ path, onNavigate }: FrameChildOptions): FrameChi
   }, [post])
 
   React.useEffect(() => {
-    post({ type: ADMIN_FRAME_MESSAGES.path, path: normalizeServicePath(path) })
+    post({ type: ADMIN_FRAME_MESSAGES.path, path: normalizeModulePath(path) })
   }, [path, post])
 
   return { embedded, theme }

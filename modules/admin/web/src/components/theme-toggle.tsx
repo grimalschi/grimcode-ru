@@ -1,4 +1,4 @@
-import { THEME_PREFERENCES, type ThemePreference } from "@template/shared/browser"
+import { THEME_PREFERENCES, type ThemePreference } from "@/theme"
 import { MoonIcon, SunIcon, SunMoonIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -24,15 +24,8 @@ const ICONS: Record<ThemePreference, typeof SunIcon> = {
   system: SunMoonIcon,
 }
 
-/**
- * Light, dark and system.
- *
- * Renders nothing when an outer surface owns the theme: a service admin embedded in the shell
- * must not offer a second, disagreeing switch.
- */
 export function ThemeToggle() {
-  const { preference, setPreference, controlled } = useTheme()
-  if (controlled) return null
+  const { preference, setPreference } = useTheme()
 
   const Icon = ICONS[preference]
 

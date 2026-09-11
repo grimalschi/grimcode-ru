@@ -2,11 +2,9 @@ import { z } from 'zod';
 
 import {
   adminRoleSchema,
-  assignableServiceIdSchema,
-  emailSchema,
-  idSchema,
-  isoDateTimeSchema,
-} from '@template/shared/vocabulary';
+  adminModuleIdSchema,
+} from './vocabulary.js';
+import { emailSchema, idSchema, isoDateTimeSchema } from './primitives.js';
 
 export const administratorSchema = z.object({
   id: idSchema,
@@ -14,12 +12,10 @@ export const administratorSchema = z.object({
   email: emailSchema,
   role: adminRoleSchema,
   enabled: z.boolean(),
-  grants: z.array(assignableServiceIdSchema),
+  grants: z.array(adminModuleIdSchema),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
-
-export type Administrator = z.infer<typeof administratorSchema>;
 
 export const adminAuditEntrySchema = z.object({
   id: idSchema,
@@ -31,9 +27,9 @@ export const adminAuditEntrySchema = z.object({
 });
 
 /**
- * Result of the single authorization method Gateway calls on every `/admin/**` request.
+ * Result of the single authorization method Router calls on every `/admin/**` request.
  *
- * `state` is deliberately explicit so Gateway never has to interpret an error: it either denies,
+ * `state` is deliberately explicit so Router never has to interpret an error: it either denies,
  * or forwards a verified administrator context it did not compute itself.
  */
 export const authorizationResultSchema = z.discriminatedUnion('state', [
@@ -51,11 +47,9 @@ export const authorizationResultSchema = z.discriminatedUnion('state', [
       'disabled',
       'no-grant',
       'owner-only',
-      'unknown-service',
+      'unknown-module',
     ]),
   }),
   /** Auth has no users yet, so no owner can be bootstrapped. */
   z.object({ state: z.literal('awaiting-first-user') }),
 ]);
-
-export type AuthorizationResult = z.infer<typeof authorizationResultSchema>;

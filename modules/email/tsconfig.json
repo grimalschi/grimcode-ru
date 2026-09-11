@@ -8,5 +8,7 @@
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts"],
-  "references": [{ "path": "../../shared" }]
+  "references": [
+    { "path": "../../contracts" }
+  ]
 }

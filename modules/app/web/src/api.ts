@@ -1,7 +1,7 @@
-import { createTRPCClient, httpLink, type TRPCClient } from '@trpc/client';
+import { createTRPCClient, httpLink } from '@trpc/client';
 
-import type { AuthPublicRouter } from '@template/auth/contract';
-import type { UsersPublicRouter } from '@template/users/contract';
+import type { AuthPublicRouter } from '@template/contracts/modules/auth';
+import type { UsersPublicRouter } from '@template/contracts/modules/users';
 
 /**
  * Clients for the two modules the application talks to.
@@ -20,12 +20,12 @@ function publicLink(prefix: string) {
   });
 }
 
-export const auth: TRPCClient<AuthPublicRouter> = createTRPCClient<AuthPublicRouter>({
-  links: [publicLink('/service/auth/rpc')],
+export const auth = createTRPCClient<AuthPublicRouter>({
+  links: [publicLink('/module/auth/rpc')],
 });
 
-export const users: TRPCClient<UsersPublicRouter> = createTRPCClient<UsersPublicRouter>({
-  links: [publicLink('/service/users/rpc')],
+export const users = createTRPCClient<UsersPublicRouter>({
+  links: [publicLink('/module/users/rpc')],
 });
 
 export function messageOf(error: unknown): string {

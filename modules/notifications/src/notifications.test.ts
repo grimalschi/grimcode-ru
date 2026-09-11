@@ -1,9 +1,9 @@
-import { NOTIFICATION_EVENT_TYPES } from '@template/shared/vocabulary';
+import { NOTIFICATION_EVENT_TYPES } from './vocabulary.js';
 
 import { EVENT_TEMPLATE_KEYS, notificationEventSchema } from './schemas.js';
 import { describe, expect, it } from 'vitest';
 
-import { variablesOf } from './routers.js';
+import { variablesOf } from './internal/router.js';
 
 describe('event routing', () => {
   it('has a template for every accepted event type', () => {
@@ -34,12 +34,6 @@ describe('template variables', () => {
 });
 
 describe('notification events', () => {
-  it('routes every known event type to a template key', () => {
-    for (const type of NOTIFICATION_EVENT_TYPES) {
-      expect(EVENT_TEMPLATE_KEYS[type]).toBeTruthy();
-    }
-  });
-
   it('rejects unknown event types', () => {
     const result = notificationEventSchema.safeParse({
       type: 'billing.invoice.paid',

@@ -3,7 +3,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /**
- * The page frame every admin screen uses — central Admin and service admins alike, so an
+ * The page frame every admin screen uses — central Admin and module admins alike, so an
  * administrator moving between them meets the same layout rather than four dialects.
  */
 export function AdminPage({
@@ -29,25 +29,6 @@ export function AdminPage({
         {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
       </header>
       {children}
-    </div>
-  )
-}
-
-/** A short explanation of why a screen is empty, in place of a blank area. */
-export function EmptyState({
-  title,
-  description,
-  action,
-}: {
-  title: string
-  description?: React.ReactNode
-  action?: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed p-10 text-center">
-      <p className="font-medium">{title}</p>
-      {description ? <p className="text-muted-foreground text-sm">{description}</p> : null}
-      {action}
     </div>
   )
 }

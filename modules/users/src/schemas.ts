@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { emailSchema, idSchema, isoDateTimeSchema } from '@template/shared/vocabulary';
+import { emailSchema, idSchema, isoDateTimeSchema } from './primitives.js';
 
 /**
  * Product profile. Users never stores passwords, OAuth identities, sessions or admin rights.
@@ -16,8 +16,6 @@ export const userProfileSchema = z.object({
   updatedAt: isoDateTimeSchema,
 });
 
-export type UserProfile = z.infer<typeof userProfileSchema>;
-
 /**
  * A profile as an administrator sees it, with the sign-in address Auth holds.
  *
@@ -28,6 +26,3 @@ export type UserProfile = z.infer<typeof userProfileSchema>;
 export const adminUserProfileSchema = userProfileSchema.extend({
   email: emailSchema.nullable(),
 });
-
-/** The profile as an administrator sees it: the product fields plus the account they belong to. */
-export type AdminUserProfile = z.infer<typeof adminUserProfileSchema>;

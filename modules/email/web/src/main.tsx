@@ -18,17 +18,11 @@ import { useFrameChild } from '@/frame/use-frame-child';
 import { DeliveriesPage } from '@/routes/deliveries';
 import { TemplateDetailPage } from '@/routes/template-detail';
 import { TemplatesPage } from '@/routes/templates';
+import { VersionEditorPage } from '@/routes/version-editor';
 
 import '@/styles.css';
 
-const BASE = '/admin/embed/service/email';
-
-// The editor and everything it pulls in — TipTap and the Maily blocks — is by far the largest part
-// of this admin. Loading it lazily keeps it out of the bundle for anyone who only came to read the
-// delivery log.
-const VersionEditorPage = React.lazy(() =>
-  import('@/routes/version-editor').then((module) => ({ default: module.VersionEditorPage })),
-);
+const BASE = '/admin/embed/module/email';
 
 const TABS = [
   { to: '/', label: 'Шаблоны' },
@@ -36,10 +30,10 @@ const TABS = [
 ];
 
 /**
- * The Email service admin.
+ * The Email module admin.
  *
  * It normally runs inside the central Admin shell's iframe, but its protected URL also works on
- * its own — Gateway performs the same check either way. Standing alone it shows its own header;
+ * its own — Router performs the same check either way. Standing alone it shows its own header;
  * embedded, the shell already provides one.
  */
 function Shell() {
@@ -93,15 +87,10 @@ const router = createRouter({
       path: '/templates/$templateId',
       component: TemplateDetailPage,
     }),
-    // The editor is its own route, so the bundle that carries it loads only when it is opened.
     createRoute({
       getParentRoute: () => rootRoute,
       path: '/versions/$versionId',
-      component: () => (
-        <React.Suspense fallback={<div className="p-6 text-muted-foreground">Открываем редактор…</div>}>
-          <VersionEditorPage />
-        </React.Suspense>
-      ),
+      component: VersionEditorPage,
     }),
     createRoute({ getParentRoute: () => rootRoute, path: '/deliveries', component: DeliveriesPage }),
   ]),

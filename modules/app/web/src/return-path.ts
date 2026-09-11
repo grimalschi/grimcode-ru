@@ -20,7 +20,3 @@ export function safeReturnPath(value: string | undefined | null): string | null 
 
   return value;
 }
-
-export function returnPathOrHome(value: string | undefined | null): string {
-  return safeReturnPath(value) ?? '/app/';
-}

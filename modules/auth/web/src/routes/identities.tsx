@@ -1,4 +1,4 @@
-import type { AdminIdentity } from '@template/auth/contract';
+import type { AdminIdentity as Identity } from '@template/contracts/modules/auth';
 import * as React from 'react';
 import { toast } from 'sonner';
 
@@ -16,9 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { useAsync, type Page } from '@/hooks/use-async';
-
-type Identity = AdminIdentity;
+import { useAsync } from '@/hooks/use-async';
 
 const LIMIT = 25;
 
@@ -44,7 +42,7 @@ export function IdentitiesPage() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const list = useAsync<Page<Identity>>(
+  const list = useAsync(
     () => api.listIdentities.query({ query: search === '' ? undefined : search, limit: LIMIT, offset }),
     [search, offset],
   );
@@ -156,7 +154,7 @@ function IdentityDialog({
   onClose: () => void;
   onChanged: () => void;
 }) {
-  const state = useAsync<{ identity: Identity }>(() => api.getIdentity.query({ id }), [id]);
+  const state = useAsync(() => api.getIdentity.query({ id }), [id]);
   const identity = state.data?.identity;
   const [busy, setBusy] = React.useState(false);
 
@@ -174,14 +172,15 @@ function IdentityDialog({
     }
   };
 
-  if (!identity) {
+  if (state.loading || !identity) {
     return (
       <Dialog open onOpenChange={(open) => !open && onClose()}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Пользователь</DialogTitle>
-            <DialogDescription>Загружаем.</DialogDescription>
+            <DialogDescription>{state.error ? messageOf(state.error) : 'Загружаем.'}</DialogDescription>
           </DialogHeader>
+          {state.error ? <Button onClick={state.reload}>Повторить</Button> : null}
         </DialogContent>
       </Dialog>
     );
@@ -251,20 +250,6 @@ function IdentityDialog({
         </div>
 
         <DialogFooter className="sm:justify-between">
-          {/* Blocking is owner-only, and the server refuses an owner blocking themselves. */}
-          <Button
-            variant={identity.blockedAt ? 'outline' : 'destructive'}
-            size="sm"
-            disabled={busy}
-            onClick={() =>
-              void run(
-                () => api.setBlocked.mutate({ id: identity.id, blocked: identity.blockedAt === null }),
-                identity.blockedAt ? 'Разблокирован' : 'Заблокирован',
-              )
-            }
-          >
-            {identity.blockedAt ? 'Разблокировать' : 'Заблокировать'}
-          </Button>
           <Button variant="ghost" size="sm" onClick={onClose}>
             Закрыть
           </Button>

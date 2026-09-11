@@ -1,5 +1,6 @@
-import type { UserProfile } from './schemas.js';
-import { newId, type Pool } from '@template/shared';
+import type { UserProfile } from '@template/contracts/modules/users';
+import { randomUUID } from 'node:crypto';
+import { type Pool } from './db/database.js';
 
 export interface ProfileRow {
   id: string;
@@ -23,10 +24,9 @@ export function toProfile(row: ProfileRow): UserProfile {
   };
 }
 
-/** Data access for the Users database only. */
+/** Data access for the Users schema only. */
 export class UsersRepository {
   constructor(private readonly pool: Pool) {}
-
 
   async findById(id: string): Promise<ProfileRow | null> {
     const { rows } = await this.pool.query<ProfileRow>(
@@ -45,7 +45,7 @@ export class UsersRepository {
       `INSERT INTO profiles (id, identity_id) VALUES ($1, $2)
        ON CONFLICT (identity_id) DO UPDATE SET identity_id = EXCLUDED.identity_id
        RETURNING ${COLUMNS}`,
-      [newId(), identityId],
+      [randomUUID(), identityId],
     );
     const row = rows[0];
     if (!row) throw new Error('Profile upsert returned no row');

@@ -1,8 +1,8 @@
-import { EDITOR_FORMAT } from './schemas.js';
-import { newId, withTransaction, type Pool, type PoolClient } from '@template/shared';
+import { randomUUID } from 'node:crypto';
+import { withTransaction } from './db/pool.js';
+import { type Pool, type PoolClient } from './db/database.js';
 
 import { SEED_TEMPLATES } from './seed.js';
-import type { EditorDocument } from './schemas.js';
 
 export interface TemplateRow {
   id: string;
@@ -20,8 +20,7 @@ export interface VersionRow {
   version: number;
   status: 'draft' | 'published' | 'archived';
   subject: string;
-  editor_format: string;
-  editor_document: EditorDocument;
+  source: string;
   compiled_html: string | null;
   compiled_text: string | null;
   published_at: Date | null;
@@ -49,7 +48,7 @@ export interface DeliveryRow {
 
 const TEMPLATE_COLUMNS = 'id, key, name, description, variables, created_at, updated_at';
 const VERSION_COLUMNS = `
-  id, template_id, version, status, subject, editor_format, editor_document,
+  id, template_id, version, status, subject, source,
   compiled_html, compiled_text, published_at, created_at, updated_at
 `;
 const DELIVERY_COLUMNS = `
@@ -109,7 +108,7 @@ export class EmailRepository {
     const { rows } = await this.pool.query<TemplateRow>(
       `INSERT INTO templates (id, key, name, description, variables)
        VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING ${TEMPLATE_COLUMNS}`,
-      [newId(), key, name, description, JSON.stringify(variables)],
+      [randomUUID(), key, name, description, JSON.stringify(variables)],
     );
     const row = rows[0];
     if (!row) throw new Error('Template insert returned no row');
@@ -162,8 +161,8 @@ export class EmailRepository {
   /** The version runtime delivery must use: the published one for that template. */
   async findPublished(templateKey: string): Promise<VersionRow | null> {
     const { rows } = await this.pool.query<VersionRow>(
-      `SELECT v.id, v.template_id, v.version, v.status, v.subject, v.editor_format,
-              v.editor_document, v.compiled_html, v.compiled_text, v.published_at,
+      `SELECT v.id, v.template_id, v.version, v.status, v.subject,
+              v.source, v.compiled_html, v.compiled_text, v.published_at,
               v.created_at, v.updated_at
          FROM template_versions v
          JOIN templates t ON t.id = v.template_id
@@ -176,9 +175,10 @@ export class EmailRepository {
   /** Creates a draft, copying the newest version when one exists. */
   async createDraft(
     templateId: string,
-    fallback: { subject: string; document: EditorDocument },
+    fallback: Pick<VersionRow, 'subject' | 'source'>,
   ): Promise<VersionRow> {
     return withTransaction(this.pool, async (client) => {
+      await client.query('SELECT id FROM templates WHERE id = $1 FOR UPDATE', [templateId]);
       const { rows: latest } = await client.query<VersionRow>(
         `SELECT ${VERSION_COLUMNS} FROM template_versions
           WHERE template_id = $1 ORDER BY version DESC LIMIT 1`,
@@ -190,16 +190,15 @@ export class EmailRepository {
 
       const { rows } = await client.query<VersionRow>(
         `INSERT INTO template_versions
-           (id, template_id, version, status, subject, editor_format, editor_document)
-         VALUES ($1, $2, $3, 'draft', $4, $5, $6::jsonb)
+           (id, template_id, version, status, subject, source)
+         VALUES ($1, $2, $3, 'draft', $4, $5)
          RETURNING ${VERSION_COLUMNS}`,
         [
-          newId(),
+          randomUUID(),
           templateId,
           nextVersion,
           previous?.subject ?? fallback.subject,
-          EDITOR_FORMAT,
-          JSON.stringify(previous?.editor_document ?? fallback.document),
+          previous?.source ?? fallback.source,
         ],
       );
 
@@ -209,13 +208,13 @@ export class EmailRepository {
     });
   }
 
-  async saveDraft(id: string, subject: string, document: EditorDocument): Promise<VersionRow> {
+  async saveDraft(id: string, subject: string, source: string): Promise<VersionRow> {
     const { rows } = await this.pool.query<VersionRow>(
       `UPDATE template_versions
-          SET subject = $2, editor_document = $3::jsonb, updated_at = now()
+          SET subject = $2, source = $3, updated_at = now()
         WHERE id = $1 AND status = 'draft'
       RETURNING ${VERSION_COLUMNS}`,
-      [id, subject, JSON.stringify(document)],
+      [id, subject, source],
     );
     const row = rows[0];
     if (!row) throw new Error('Only a draft can be edited');
@@ -228,14 +227,24 @@ export class EmailRepository {
    * The previously published version is archived in the same transaction, so the partial unique
    * index always sees exactly one published version.
    */
-  async publish(id: string, compiled: { html: string; text: string }): Promise<VersionRow> {
+  async publish(
+    id: string,
+    compile: (draft: VersionRow, variables: string[]) => Promise<{ html: string; text: string }>,
+  ): Promise<VersionRow> {
     return withTransaction(this.pool, async (client) => {
-      const { rows: current } = await client.query<{ template_id: string }>(
-        `SELECT template_id FROM template_versions WHERE id = $1 AND status = 'draft'`,
+      const { rows: templates } = await client.query<TemplateRow>(
+        `SELECT t.* FROM templates t JOIN template_versions v ON v.template_id = t.id
+          WHERE v.id = $1 FOR UPDATE OF t`,
+        [id],
+      );
+      const { rows: current } = await client.query<VersionRow>(
+        `SELECT ${VERSION_COLUMNS} FROM template_versions
+          WHERE id = $1 AND status = 'draft' FOR UPDATE`,
         [id],
       );
       const target = current[0];
-      if (!target) throw new Error('Only a draft can be published');
+      if (!target || !templates[0]) throw new Error('Only a draft can be published');
+      const compiled = await compile(target, templates[0].variables);
 
       await client.query(
         `UPDATE template_versions SET status = 'archived', updated_at = now()
@@ -283,7 +292,7 @@ export class EmailRepository {
        ON CONFLICT (dedupe_key) DO NOTHING
        RETURNING ${DELIVERY_COLUMNS}`,
       [
-        newId(),
+        randomUUID(),
         input.dedupeKey,
         input.templateKey,
         input.templateVersionId,
@@ -379,7 +388,7 @@ export class EmailRepository {
       `INSERT INTO email_audit (id, action, actor_user_id, actor_role, details)
        VALUES ($1, $2, $3, $4, $5::jsonb)`,
       [
-        newId(),
+        randomUUID(),
         entry.action,
         entry.actorUserId,
         entry.actorRole,
@@ -396,31 +405,32 @@ export class EmailRepository {
    */
   async ensureSeedTemplates(
     compile: (
-      document: EditorDocument,
+      source: string,
       subject: string,
-      variables: readonly string[],
     ) => Promise<{ html: string; text: string }>,
   ): Promise<number> {
     let created = 0;
 
     for (const seed of SEED_TEMPLATES) {
       if (await this.findTemplateByKey(seed.key)) continue;
-
-      const template = await this.createTemplate(
-        seed.key,
-        seed.name,
-        seed.description,
-        seed.variables,
-      );
-      const draft = await this.createDraft(template.id, {
-        subject: seed.subject,
-        document: seed.document,
+      const compiled = await compile(seed.source, seed.subject);
+      created += await withTransaction(this.pool, async (client) => {
+        const { rows } = await client.query<{ id: string }>(
+          `INSERT INTO templates (id, key, name, description, variables)
+           VALUES ($1, $2, $3, $4, $5::jsonb) ON CONFLICT (key) DO NOTHING RETURNING id`,
+          [randomUUID(), seed.key, seed.name, seed.description, JSON.stringify(seed.variables)],
+        );
+        if (!rows[0]) return 0;
+        await client.query(
+          `INSERT INTO template_versions
+             (id, template_id, version, status, subject, source,
+              compiled_html, compiled_text, published_at)
+           VALUES ($1, $2, 1, 'published', $3, $4, $5, $6, now())`,
+          [randomUUID(), rows[0].id, seed.subject,
+            seed.source, compiled.html, compiled.text],
+        );
+        return 1;
       });
-      await this.saveDraft(draft.id, seed.subject, seed.document);
-
-      const compiled = await compile(seed.document, seed.subject, seed.variables);
-      await this.publish(draft.id, compiled);
-      created += 1;
     }
 
     return created;

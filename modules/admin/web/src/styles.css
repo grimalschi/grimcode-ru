@@ -2,7 +2,7 @@
  * Design tokens for the central Admin.
  *
  * Every admin surface keeps its own copy of the shadcn components and of these variables, so a
- * service owns its interface outright and no service can break another one's screens by editing a
+ * module owns its interface outright and no module can break another one's screens by editing a
  * common component. The values are deliberately the same across the admins — copies on purpose,
  * no shared file.
  */
@@ -14,7 +14,7 @@
 
 /*
  * Dark mode is a resolved state on the document, not a media query: the Admin shell owns the
- * choice and can hand it to an embedded service admin, which has no say in it. `data-theme`
+ * choice and can hand it to an embedded module admin, which has no say in it. `data-theme`
  * carries it for the non-React kit and for anything else the panel embeds; the class is what
  * Tailwind's `dark:` variant and the shadcn components read.
  */

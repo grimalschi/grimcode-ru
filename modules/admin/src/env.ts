@@ -1,8 +1,8 @@
-/** What this module is given: the database it works in. Who may sign in is data in it, not a variable. */
+/** Database and cookie settings. Who may sign in is data, not configuration. */
 export interface AdminEnv {
   databaseUrl: string;
-  /** The database `databaseUrl` must land on; the pool refuses anything else. */
-  databaseName: string;
-  /** The server itself, for the one `CREATE DATABASE`. */
-  maintenanceUrl: string;
+  sessionCookieName: string;
+  /** The public origin determines whether the session cookie must be Secure. */
+  publicOrigin: string;
+  csrfCookieName: string;
 }

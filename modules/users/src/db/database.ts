@@ -1,29 +1,33 @@
 import pg from 'pg';
 
-import { runMigrations, waitForDatabase } from '@template/shared';
+import { SCHEMA, runMigrations } from './migrator.js';
+import { waitForDatabase } from './pool.js';
 
 import type { UsersEnv } from '../env.js';
 import { migrations } from './migrations/index.js';
 
 export type Pool = pg.Pool;
+export type PoolClient = pg.PoolClient;
 
 // Five modules share this process and the server's 100 connections; the sum is what matters.
 const MAX_CONNECTIONS = 5;
 
 /**
- * This module's database, prepared on the first request that needs it. No deployment step stands
- * behind it, and the cost of that is a broken migration answering 500 instead of failing a deploy.
+ * This module's fixed schema in the installation database, prepared by migrate() before the application starts listening.
+ * The same cached opening promise is reused by HTTP handlers and internal callers.
  */
-export function createDatabase(): (env: UsersEnv) => Promise<Pool> {
-  const open = async (env: UsersEnv): Promise<Pool> => {
-    await ensureDatabase(env);
+export function createDatabase(env: UsersEnv) {
+  let opening: Promise<Pool> | undefined;
 
+  const open = async (): Promise<Pool> => {
     const pool = new pg.Pool({
       connectionString: env.databaseUrl,
       max: MAX_CONNECTIONS,
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
-      application_name: 'users-service',
+      application_name: 'users-module',
+      // pg-pool awaits this hook before handing out each new connection, including replacements.
+      onConnect: async (client) => { await client.query(`SET search_path TO "${SCHEMA}"`); },
     });
 
     // Empty on purpose: without a listener a broken idle connection takes the whole process down.
@@ -31,7 +35,7 @@ export function createDatabase(): (env: UsersEnv) => Promise<Pool> {
     pool.on('error', () => undefined);
 
     try {
-      await assertOpenedDatabase(pool, env.databaseName);
+      await waitForDatabase(pool);
       await runMigrations(pool, migrations);
     } catch (error) {
       // The attempt is retried, so its connections must not be left behind.
@@ -42,65 +46,9 @@ export function createDatabase(): (env: UsersEnv) => Promise<Pool> {
     return pool;
   };
 
-  return openOnce(open);
-}
-
-/**
- * Remembers the promise, not the value: two requests arriving together share one attempt. A failure
- * is forgotten, so a server that was not up yet is retried instead of refusing until restart.
- */
-export function openOnce<TArg, TValue>(
-  open: (arg: TArg) => Promise<TValue>,
-): (arg: TArg) => Promise<TValue> {
-  let opening: Promise<TValue> | undefined;
-
-  return (arg) =>
-    (opening ??= open(arg).catch((error: unknown) => {
-      opening = undefined;
-      throw error;
-    }));
-}
-
-/** A database cannot be created from inside itself, hence the second connection, closed straight away. */
-async function ensureDatabase(env: UsersEnv): Promise<void> {
-  const server = new pg.Pool({
-    connectionString: env.maintenanceUrl,
-    max: 1,
-    idleTimeoutMillis: 5_000,
-    connectionTimeoutMillis: 10_000,
-    application_name: 'users-create',
-  });
-
-  server.on('error', () => undefined);
-
-  try {
-    await waitForDatabase(server);
-
-    const { rowCount } = await server.query('SELECT 1 FROM pg_database WHERE datname = $1', [
-      env.databaseName,
-    ]);
-    if (rowCount) return;
-
-    try {
-      // An identifier cannot be a bound parameter, so it is quoted instead.
-      await server.query(`CREATE DATABASE "${env.databaseName.replace(/"/g, '""')}"`);
-    } catch (error) {
-      // Two instances starting together both find it missing; the loser gets this and wanted it.
-      if ((error as { code?: string }).code !== '42P04') throw error;
-    }
-  } finally {
-    await server.end().catch(() => undefined);
-  }
-}
-
-/**
- * One account opens every database on the server, so this check is the whole of what stands between a
- * mistyped `DATABASE_URL_<MODULE>` and this module's tables appearing in a neighbour's database.
- */
-export async function assertOpenedDatabase(pool: Pool, expected: string): Promise<void> {
-  const { rows } = await pool.query<{ current_database: string }>('SELECT current_database()');
-  const opened = rows[0]?.current_database;
-  if (opened !== expected) {
-    throw new Error(`Pool opened database "${opened}", expected "${expected}"`);
-  }
+  // Concurrent callers share one opening attempt; a failed attempt can be retried.
+  return () => (opening ??= open().catch((error: unknown) => {
+    opening = undefined;
+    throw error;
+  }));
 }

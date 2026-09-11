@@ -12,13 +12,6 @@ import {
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 
-export interface Column<T> {
-  key: string
-  header: React.ReactNode
-  cell: (row: T) => React.ReactNode
-  className?: string
-}
-
 /**
  * The list every admin screen is built from.
  *
@@ -33,7 +26,12 @@ export function DataTable<T>({
   empty,
   onRowClick,
 }: {
-  columns: readonly Column<T>[]
+  columns: readonly {
+    key: string
+    header: React.ReactNode
+    cell: (row: T) => React.ReactNode
+    className?: string
+  }[]
   rows: readonly T[]
   rowKey: (row: T) => string
   loading?: boolean

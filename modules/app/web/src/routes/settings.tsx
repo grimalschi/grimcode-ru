@@ -1,5 +1,3 @@
-import type { SessionSummary } from '@template/auth/contract';
-import type { UserProfile } from '@template/users/contract';
 import * as React from 'react';
 import { toast } from 'sonner';
 
@@ -13,8 +11,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAsync } from '@/hooks/use-async';
 import { useSession } from '@/session';
-
-type SessionRow = SessionSummary;
 
 /**
  * One settings screen with sections, not three top-level areas.
@@ -49,7 +45,7 @@ export function SettingsScreen() {
 }
 
 function ProfileSection() {
-  const state = useAsync<{ profile: UserProfile }>(() => users.getOwnProfile.query({}), []);
+  const state = useAsync(() => users.getOwnProfile.query({}), []);
   const [displayName, setDisplayName] = React.useState('');
   const [prefilled, setPrefilled] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -260,7 +256,7 @@ function PasswordSection() {
 }
 
 function SessionsSection() {
-  const state = useAsync<{ sessions: SessionRow[] }>(() => auth.listOwnSessions.query({}), []);
+  const state = useAsync(() => auth.listOwnSessions.query({}), []);
   const [busy, setBusy] = React.useState(false);
 
   // Auth revokes every session of the caller, this browser included — that is what makes it a

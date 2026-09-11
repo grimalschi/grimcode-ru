@@ -1,146 +1,73 @@
-import type { EditorDocument } from './schemas.js';
-
-/**
- * Seed templates.
- *
- * They are created directly in the editor's own document format, so the very first template a
- * project opens is a real editable document rather than imported markup. There is no migration
- * from an older editor format in the template.
- *
- * The wording is deliberately plain and belongs to the project that copies this repository. There
- * is one language: a product that needs several adds that itself, knowing how it picks between
- * them, rather than inheriting a guess.
- */
-
 interface SeedTemplate {
   key: string;
   name: string;
   description: string;
   variables: string[];
   subject: string;
-  document: EditorDocument;
+  source: string;
 }
 
-function text(value: string) {
-  return { type: 'text', text: value };
-}
-
-function variable(id: string) {
-  return { type: 'variable', attrs: { id, fallback: null, required: true } };
-}
-
-function paragraph(...content: unknown[]) {
-  return { type: 'paragraph', attrs: { textAlign: 'left' }, content };
-}
-
-function heading(value: string) {
-  return {
-    type: 'heading',
-    attrs: { textAlign: 'left', level: 2 },
-    content: [text(value)],
-  };
-}
-
-function button(label: string, urlVariable: string) {
-  return {
-    type: 'button',
-    attrs: {
-      text: label,
-      isTextVariable: false,
-      // With `isUrlVariable`, the editor stores the bare variable name — not a `{{…}}` placeholder,
-      // which would be rendered literally into the href.
-      url: urlVariable,
-      isUrlVariable: true,
-      alignment: 'left',
-      variant: 'filled',
-      borderRadius: 'smooth',
-      buttonColor: '#1f6feb',
-      textColor: '#ffffff',
-    },
-  };
-}
-
-function fallbackLink(urlVariable: string) {
-  return paragraph(text('Если кнопка не работает, откройте адрес: '), variable(urlVariable));
-}
-
-function document(...content: unknown[]): EditorDocument {
-  return { type: 'doc', content: content as EditorDocument['content'] };
+function message(title: string, paragraphs: string[], button?: { label: string; variable: string }): string {
+  return `<mjml>
+  <mj-head>
+    <mj-attributes>
+      <mj-all font-family="Arial, sans-serif" />
+      <mj-text font-size="16px" line-height="1.5" />
+      <mj-button background-color="#1f6feb" align="left" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body>
+    <mj-section>
+      <mj-column>
+        <mj-text>
+          <h2>${title}</h2>
+${paragraphs.map((paragraph) => `          <p>${paragraph}</p>`).join('\n')}
+        </mj-text>${button ? `
+        <mj-button href="{{${button.variable}}}">
+          ${button.label}
+        </mj-button>
+        <mj-text>
+          Если кнопка не работает, откройте адрес: {{${button.variable}}}
+        </mj-text>` : ''}
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>`;
 }
 
 export const SEED_TEMPLATES: readonly SeedTemplate[] = [
   {
-    key: 'auth-welcome',
-    name: 'Приветствие',
-    description: 'Отправляется сразу после регистрации и несёт первую ссылку подтверждения.',
-    variables: ['email', 'verificationUrl'],
-    subject: 'Подтвердите адрес почты',
-    document: document(
-      heading('Добро пожаловать'),
-      paragraph(text('Для адреса '), variable('email'), text(' создан аккаунт.')),
-      paragraph(text('Подтвердите адрес, чтобы мы могли связаться с вами, когда это будет важно.')),
-      button('Подтвердить адрес', 'verificationUrl'),
-      fallbackLink('verificationUrl'),
-    ),
+    key: 'auth-welcome', name: 'Приветствие',
+    description: 'Первая ссылка подтверждения после регистрации.',
+    variables: ['email', 'verificationUrl'], subject: 'Подтвердите адрес почты',
+    source: message('Добро пожаловать', ['Для адреса {{email}} создан аккаунт.', 'Подтвердите адрес, чтобы мы могли связаться с вами.'],
+      { label: 'Подтвердить адрес', variable: 'verificationUrl' }),
   },
   {
-    key: 'auth-verify-email',
-    name: 'Подтверждение адреса',
-    description: 'Повторная ссылка подтверждения: по просьбе человека или от администратора.',
-    variables: ['email', 'verificationUrl'],
-    subject: 'Подтвердите адрес почты',
-    document: document(
-      heading('Подтвердите адрес'),
-      paragraph(text('Подтвердите адрес '), variable('email'), text(' по ссылке ниже.')),
-      button('Подтвердить адрес', 'verificationUrl'),
-      fallbackLink('verificationUrl'),
-      paragraph(text('Если вы этого не запрашивали, письмо можно не читать.')),
-    ),
+    key: 'auth-verify-email', name: 'Подтверждение адреса',
+    description: 'Повторная ссылка подтверждения адреса.',
+    variables: ['email', 'verificationUrl'], subject: 'Подтвердите адрес почты',
+    source: message('Подтвердите адрес', ['Подтвердите адрес {{email}} по ссылке ниже.', 'Если вы этого не запрашивали, письмо можно не читать.'],
+      { label: 'Подтвердить адрес', variable: 'verificationUrl' }),
   },
   {
-    key: 'auth-password-reset',
-    name: 'Восстановление пароля',
-    description: 'Одноразовая ссылка восстановления. Работает один раз и быстро истекает.',
-    variables: ['email', 'resetUrl'],
-    subject: 'Восстановление пароля',
-    document: document(
-      heading('Восстановление пароля'),
-      paragraph(text('Для адреса '), variable('email'), text(' запросили смену пароля.')),
-      button('Задать новый пароль', 'resetUrl'),
-      fallbackLink('resetUrl'),
-      paragraph(
-        text('Ссылка работает один раз и скоро истекает. Если запрос не ваш, ничего не '),
-        text('изменилось и письмо можно не читать.'),
-      ),
-    ),
+    key: 'auth-password-reset', name: 'Восстановление пароля',
+    description: 'Одноразовая ссылка восстановления пароля.',
+    variables: ['email', 'resetUrl'], subject: 'Восстановление пароля',
+    source: message('Восстановление пароля', ['Для адреса {{email}} запросили смену пароля.', 'Ссылка работает один раз и скоро истекает. Если запрос не ваш, ничего не изменилось.'],
+      { label: 'Задать новый пароль', variable: 'resetUrl' }),
   },
   {
-    key: 'auth-confirm-email-change',
-    name: 'Подтверждение нового адреса',
-    description: 'Отправляется на новый адрес, когда человек меняет почту.',
-    variables: ['email', 'confirmUrl'],
-    subject: 'Подтвердите новый адрес почты',
-    document: document(
-      heading('Подтвердите новый адрес'),
-      paragraph(text('Вы попросили использовать для аккаунта адрес '), variable('email'), text('.')),
-      button('Подтвердить новый адрес', 'confirmUrl'),
-      fallbackLink('confirmUrl'),
-    ),
+    key: 'auth-confirm-email-change', name: 'Подтверждение нового адреса',
+    description: 'Подтверждение смены почты на новом адресе.',
+    variables: ['email', 'confirmUrl'], subject: 'Подтвердите новый адрес почты',
+    source: message('Подтвердите новый адрес', ['Вы попросили использовать для аккаунта адрес {{email}}.'],
+      { label: 'Подтвердить новый адрес', variable: 'confirmUrl' }),
   },
   {
-    key: 'auth-email-changed',
-    name: 'Адрес изменён',
-    description: 'Уведомление на прежний адрес, чтобы угон аккаунта был заметен.',
-    variables: ['email', 'previousEmail'],
-    subject: 'Адрес почты вашего аккаунта изменён',
-    document: document(
-      heading('Адрес почты изменён'),
-      paragraph(
-        text('Адрес '),
-        variable('previousEmail'),
-        text(' больше не используется для этого аккаунта.'),
-      ),
-      paragraph(text('Если это были не вы, немедленно обратитесь в поддержку.')),
-    ),
+    key: 'auth-email-changed', name: 'Адрес изменён',
+    description: 'Уведомление о смене почты на прежний адрес.',
+    variables: ['email', 'previousEmail'], subject: 'Адрес почты вашего аккаунта изменён',
+    source: message('Адрес почты изменён', ['Адрес {{previousEmail}} больше не используется для этого аккаунта.', 'Если это были не вы, немедленно обратитесь в поддержку.']),
   },
 ];

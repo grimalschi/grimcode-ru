@@ -1,5 +1,4 @@
-import { NOTIFICATION_EVENT_TYPES } from '@template/shared/vocabulary';
-import type { StoredNotificationEvent } from '@template/notifications/contract';
+import type { StoredNotificationEvent as Event } from '@template/contracts/modules/notifications';
 import * as React from 'react';
 
 import { api } from '@/api';
@@ -20,9 +19,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useAsync, type Page } from '@/hooks/use-async';
+import { useAsync } from '@/hooks/use-async';
 
-type Event = StoredNotificationEvent;
+/** This screen owns its labels; the contract makes missing or unknown event types a build error. */
+const EVENT_LABELS = {
+  'auth.user.registered': 'auth.user.registered',
+  'auth.email.verification_requested': 'auth.email.verification_requested',
+  'auth.password.reset_requested': 'auth.password.reset_requested',
+  'auth.email.change_requested': 'auth.email.change_requested',
+  'auth.email.changed': 'auth.email.changed',
+} satisfies Record<Event['type'], string>;
+const EVENT_TYPES = Object.keys(EVENT_LABELS) as Event['type'][];
 
 const LIMIT = 50;
 const ANY = 'any';
@@ -47,9 +54,9 @@ export function EventsPage() {
   const [type, setType] = React.useState<string>(ANY);
   const [status, setStatus] = React.useState<string>(ANY);
   const [offset, setOffset] = React.useState(0);
-  const [selected, setSelected] = React.useState<Event | null>(null);
+  const [selectedId, setSelectedId] = React.useState<string | null>(null);
 
-  const list = useAsync<Page<Event>>(
+  const list = useAsync(
     () =>
       api.listEvents.query({
         type: type === ANY ? undefined : (type as Event['type']),
@@ -85,9 +92,9 @@ export function EventsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ANY}>Любое событие</SelectItem>
-              {NOTIFICATION_EVENT_TYPES.map((value) => (
+              {EVENT_TYPES.map((value) => (
                 <SelectItem key={value} value={value}>
-                  {value}
+                  {EVENT_LABELS[value]}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -114,7 +121,7 @@ export function EventsPage() {
         rows={list.data?.items ?? []}
         rowKey={(row) => row.id}
         empty="Событий пока нет."
-        onRowClick={setSelected}
+        onRowClick={(row) => setSelectedId(row.id)}
         columns={[
           {
             key: 'createdAt',
@@ -147,7 +154,7 @@ export function EventsPage() {
         onOffsetChange={setOffset}
       />
 
-      {selected ? <EventDialog id={selected.id} onClose={() => setSelected(null)} /> : null}
+      {selectedId ? <EventDialog id={selectedId} onClose={() => setSelectedId(null)} /> : null}
     </AdminPage>
   );
 }
@@ -159,7 +166,7 @@ export function EventsPage() {
  * opens it, it has usually been routed.
  */
 function EventDialog({ id, onClose }: { id: string; onClose: () => void }) {
-  const state = useAsync<{ event: Event }>(() => api.getEvent.query({ id }), [id]);
+  const state = useAsync(() => api.getEvent.query({ id }), [id]);
   const event = state.data?.event;
 
   if (!event) {

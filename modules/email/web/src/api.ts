@@ -1,12 +1,12 @@
-import { createTRPCClient, httpLink } from '@trpc/client';
+import { createTRPCClient, httpLink, type TRPCClient } from '@trpc/client';
 
-import type { EmailAdminRouter } from '@template/email/contract';
+import type { EmailAdminRouter } from '../../src/admin/router.js';
 
 /**
- * Client for this module's own admin API. Gateway has already checked the session, the role and the
+ * Client for this module's own admin API. Router has already checked the session, the role and the
  * grant; changing calls carry a CSRF token this module issued, under its own scope.
  */
-const BASE = '/admin/embed/service/email';
+const BASE = '/admin/embed/module/email';
 
 const link = httpLink({
   url: `${window.location.origin}${BASE}/rpc`,
@@ -19,25 +19,13 @@ const link = httpLink({
     options.op.type === 'mutation' ? { 'x-csrf-token': await csrfToken() } : {},
 });
 
-let cached: Promise<string> | null = null;
-
 async function csrfToken(): Promise<string> {
-  cached ??= fetch(`${BASE}/csrf`, { credentials: 'same-origin' })
-    .then((response) => {
-      if (!response.ok) throw new Error('The CSRF token could not be obtained');
-      return response.json() as Promise<{ token: string }>;
-    })
-    .then((body) => body.token)
-    .catch((error: unknown) => {
-      // A failed fetch must not poison every later mutation.
-      cached = null;
-      throw error;
-    });
-
-  return cached;
+  const response = await fetch(`${BASE}/csrf`, { credentials: 'same-origin' });
+  if (!response.ok) throw new Error('The CSRF token could not be obtained');
+  return ((await response.json()) as { token: string }).token;
 }
 
-export const api = createTRPCClient<EmailAdminRouter>({ links: [link] });
+export const api: TRPCClient<EmailAdminRouter> = createTRPCClient<EmailAdminRouter>({ links: [link] });
 
 export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

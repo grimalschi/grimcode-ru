@@ -1,33 +1,27 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "stream",
-  "globalDependencies": ["tsconfig.base.json", ".env.example", "eslint.config.js"],
-  "globalEnv": [
-    "NODE_ENV",
-    "PROJECT_SLUG",
-    "PUBLIC_SITE_URL",
-    "DATABASE_URL",
-    "EMAIL_PROVIDER"
-  ],
+  "globalDependencies": ["tsconfig.base.json"],
+  "globalEnv": ["NODE_ENV"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
       // Anything a package builds outside `dist` belongs here: without `web/dist` a cache hit skipped
       // `vite build`, leaving yesterday's screen on disk while every check stayed green.
-      "outputs": ["dist/**", ".output/**", "web/dist/**"]
+      "outputs": ["dist/**", "web/dist/**"]
     },
     "typecheck": {
       "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "@template/site#typecheck": {
+      "dependsOn": ["build"],
       "outputs": []
     },
     "test": {
       // `build`, not `^build`: tests read what their own package built, so a clean checkout fails
       // when only the dependencies are built.
       "dependsOn": ["build"],
-      "outputs": []
-    },
-    "lint": {
-      "dependsOn": ["^build"],
       "outputs": []
     },
     "dev": {

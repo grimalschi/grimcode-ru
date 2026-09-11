@@ -1,5 +1,4 @@
 dist
-.output
 .turbo
 coverage
 pnpm-lock.yaml

@@ -1,6 +1,6 @@
 import * as React from 'react';
 
-export interface AsyncState<T> {
+interface AsyncState<T> {
   data: T | null;
   error: unknown;
   loading: boolean;
@@ -45,12 +45,4 @@ export function useAsync<T>(run: () => Promise<T>, deps: React.DependencyList): 
   const reload = React.useCallback(() => setNonce((value) => value + 1), []);
 
   return { ...state, reload };
-}
-
-/** Shape every paginated admin endpoint returns. */
-export interface Page<T> {
-  items: T[];
-  total: number;
-  limit: number;
-  offset: number;
 }

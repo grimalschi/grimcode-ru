@@ -1,9 +1,9 @@
 /**
  * The smallest HTTP client these tests need.
  *
- * They speak to the stack the way a browser does — over Gateway, with cookies — rather than
- * importing service code: a test that called a router directly would prove the router works and say
- * nothing about whether Gateway lets the request through.
+ * They speak to the stack the way a browser does — over Router, with cookies — rather than
+ * importing module code: a test that called a router directly would prove the router works and say
+ * nothing about whether Router lets the request through.
  */
 
 export const BASE_URL = (process.env.ACCEPTANCE_BASE_URL ?? 'http://127.0.0.1:63000').replace(
@@ -16,7 +16,7 @@ export class Session {
   private cookies = new Map<string, string>();
   /**
    * One token per surface, because each issues its own cookie: a single cached token would send the
-   * panel's to a service admin and be refused.
+   * panel's to a module admin and be refused.
    */
   private csrf = new Map<string, string>();
 
@@ -44,10 +44,7 @@ export class Session {
     }
   }
 
-  /**
-   * A redirect is returned as it is. Walking redirects by hand used to live here, for the one page
-   * that answered with one — the third-party database browser — and nothing in this template does.
-   */
+  /** Preserve redirects so tests can inspect the response returned by Router. */
   async fetch(path: string, init: RequestInit = {}): Promise<Response> {
     const headers = new Headers(init.headers);
     if (this.cookies.size > 0) headers.set('cookie', this.cookieHeader);
@@ -121,13 +118,13 @@ export class Session {
   }
 }
 
-export const AUTH = '/service/auth';
-export const USERS = '/service/users';
+export const AUTH = '/module/auth';
+export const USERS = '/module/users';
 export const ADMIN = '/admin';
 
-/** Where an embedded service admin actually lives; the panel's own page for it is a path. */
-export function serviceAdmin(service: string): string {
-  return `/admin/embed/service/${service}`;
+/** Where an embedded module admin actually lives; the panel's own page for it is a path. */
+export function moduleAdmin(module: string): string {
+  return `/admin/embed/module/${module}`;
 }
 
 /**

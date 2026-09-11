@@ -1,0 +1,23 @@
+{
+  "name": "@template/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./module-instance": { "types": "./dist/module-instance.d.ts", "import": "./dist/module-instance.js" },
+    "./modules/*": { "types": "./dist/modules/*.d.ts", "import": "./dist/modules/*.js" }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc -b tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@trpc/server": "11.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.1",
+    "typescript": "5.9.3"
+  }
+}

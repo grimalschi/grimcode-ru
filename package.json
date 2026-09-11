@@ -5,48 +5,44 @@
   "type": "module",
   "packageManager": "pnpm@9.15.4",
   "engines": {
-    "node": ">=22.0.0"
+    "node": "^22.13.0 || >=24.0.0"
   },
   "scripts": {
     "bootstrap:worktree": "node scripts/bootstrap-worktree.mjs",
     "build": "turbo run build && tsc -b tsconfig.entry.json",
     "typecheck": "turbo run typecheck && tsc -b tsconfig.entry.json",
     "test": "turbo run test && vitest run",
-    "lint": "turbo run lint && eslint index.ts index.test.ts",
-    "check:dependencies": "node scripts/check-dependencies.mjs",
-    "check:boundaries": "node scripts/check-boundaries.mjs",
-    "check:procedures": "node scripts/check-procedures.mjs",
-    "check:migrations": "node scripts/check-migrations.mjs",
-    "check:service-ids": "node scripts/check-service-ids.mjs",
-    "check:scripts": "node scripts/check-scripts.mjs",
-    "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build && pnpm run check:dependencies && pnpm run check:boundaries && pnpm run check:procedures && pnpm run check:migrations && pnpm run check:service-ids && pnpm run check:scripts",
+    "lint": "eslint .",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
     "dev": "pnpm run build && node --env-file=.env dist/index.js",
     "test:acceptance": "pnpm --filter @template/tests acceptance",
-    "test:browser": "pnpm --filter @template/tests browser"
+    "test:browser": "pnpm --filter @template/tests browser",
+    "start": "NODE_ENV=production node dist/index.js"
   },
   "dependencies": {
-    "@grimcode/pg-interface": "workspace:*",
     "@hono/node-server": "2.0.11",
     "@template/admin": "workspace:*",
     "@template/app": "workspace:*",
     "@template/auth": "workspace:*",
     "@template/email": "workspace:*",
-    "@template/gateway": "workspace:*",
     "@template/notifications": "workspace:*",
-    "@template/shared": "workspace:*",
+    "@template/router": "workspace:*",
     "@template/site": "workspace:*",
     "@template/users": "workspace:*"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@template/contracts": "workspace:*",
     "@types/node": "22.20.1",
     "eslint": "10.8.0",
-    "eslint-plugin-react-hooks": "6.1.1",
+    "eslint-import-resolver-typescript": "4.4.5",
+    "eslint-plugin-boundaries": "7.2.0",
+    "eslint-plugin-react-hooks": "7.1.1",
     "globals": "17.7.0",
     "prettier": "3.9.6",
     "turbo": "2.10.7",
     "typescript": "5.9.3",
     "typescript-eslint": "8.65.0",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   }
 }

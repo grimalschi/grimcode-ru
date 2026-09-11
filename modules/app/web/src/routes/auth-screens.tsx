@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { returnPathOrHome } from '@/return-path';
+import { safeReturnPath } from '@/return-path';
 import { useSession } from '@/session';
 
 /**
@@ -50,8 +50,7 @@ function AuthCard({
 }
 
 export function LoginScreen() {
-  const search = useSearch({ strict: false }) as { next?: string };
-  const { refresh } = useSession();
+  const search = useSearch({ from: '/login' });
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -61,9 +60,8 @@ export function LoginScreen() {
     setBusy(true);
     try {
       await auth.login.mutate({ email, password });
-      await refresh();
       // A full navigation, so the protected part starts from a clean state with the new cookie.
-      window.location.assign(returnPathOrHome(search.next));
+      window.location.assign(safeReturnPath(search.next) ?? '/app/');
     } catch (error) {
       toast.error(messageOf(error));
       setBusy(false);
@@ -116,7 +114,6 @@ export function LoginScreen() {
 }
 
 export function RegisterScreen() {
-  const { refresh } = useSession();
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -126,7 +123,6 @@ export function RegisterScreen() {
     setBusy(true);
     try {
       await auth.register.mutate({ email, password });
-      await refresh();
       window.location.assign('/app/');
     } catch (error) {
       toast.error(messageOf(error));
@@ -187,10 +183,10 @@ export function RequestResetScreen() {
     setBusy(true);
     try {
       await auth.requestPasswordReset.mutate({ email });
-    } finally {
-      // The same answer either way: whether an address is registered is not something this screen
-      // is willing to reveal.
       setSent(true);
+    } catch (error) {
+      toast.error(messageOf(error));
+    } finally {
       setBusy(false);
     }
   };
@@ -242,7 +238,7 @@ export function RequestResetScreen() {
 }
 
 export function ResetPasswordScreen() {
-  const search = useSearch({ strict: false }) as { token?: string };
+  const search = useSearch({ from: '/reset-password/confirm' });
   const navigate = useNavigate();
   const [password, setPassword] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -311,7 +307,7 @@ export function ResetPasswordScreen() {
  * the old one is told about it afterwards.
  */
 export function ConfirmEmailChangeScreen() {
-  const search = useSearch({ strict: false }) as { token?: string };
+  const search = useSearch({ from: '/confirm-email-change' });
   const { refresh } = useSession();
   const [state, setState] = React.useState<'working' | 'done' | 'failed'>('working');
   const [message, setMessage] = React.useState('');
@@ -378,7 +374,7 @@ export function ConfirmEmailChangeScreen() {
 }
 
 export function VerifyEmailScreen() {
-  const search = useSearch({ strict: false }) as { token?: string };
+  const search = useSearch({ from: '/verify-email' });
   const { refresh } = useSession();
   const [state, setState] = React.useState<'working' | 'done' | 'failed'>('working');
   const [message, setMessage] = React.useState('');
