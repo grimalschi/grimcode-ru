@@ -3,7 +3,6 @@ import { TRPCError } from '@trpc/server';
 import { COUNT_LIMIT, countRows, readCatalogue, type Queryable } from './catalog.js';
 import { conditionsFor } from './filters.js';
 import type { Table } from './identifiers.js';
-import { typeParsers } from '../../db/type-parsers.js';
 import { deleteRow, insertRow, pageOf, selectRows, updateRow } from './statements.js';
 
 
@@ -228,53 +227,22 @@ describe('adding a row', () => {
   });
 });
 
-/** The word `null` typed into a field that cannot hold it: read as empty, except in text. */
-/** `date` and `timestamp` come back as text, `timestamptz` as a moment — the day must not shift. */
-describe('reading a date', () => {
-  const parserFor = (oid: number) => typeParsers().getTypeParser(oid) as (value: string) => unknown;
-
-  it('hands over a date and a zoneless timestamp exactly as stored', () => {
-    expect(parserFor(1082)('2026-08-27')).toBe('2026-08-27');
-    expect(parserFor(1114)('2026-08-27 10:00:00')).toBe('2026-08-27 10:00:00');
+describe('literal text and SQL NULL remain distinct', () => {
+  it('does not reinterpret the word null for any type', () => {
+    expect(insertRow(rows, { values: { id: 'u-1', email: 'null', attempts: 'null' } }).values)
+      .toEqual(['u-1', 'null', 'null']);
+    expect(updateRow(rows, { key: { id: 'u-1' }, values: { attempts: 'NULL' } }).values)
+      .toEqual(['NULL', 'u-1']);
   });
 
-  it('leaves a timestamptz to the driver, because that one is a moment', () => {
-    const parsed = parserFor(1184)('2026-08-27 00:00:00+00');
-    expect(parsed).toBeInstanceOf(Date);
-  });
-});
-
-describe('the word null', () => {
-  it('means empty for a type that cannot hold the word', () => {
-    const statement = insertRow(rows, {
-      values: { id: 'u-1', email: 'a@b.c', attempts: 'null' },
-    });
-
-    expect(statement.values).toEqual(['u-1', 'a@b.c', null]);
+  it('allows SQL NULL only when the column is nullable', () => {
+    expect(insertRow(rows, { values: { id: 'u-1', email: 'a', attempts: null } }).values)
+      .toEqual(['u-1', 'a', null]);
+    expect(() => insertRow(rows, { values: { id: null, email: 'a' } })).toThrow(/SQL NULL/);
   });
 
-  it('stays a word for a text column, because there it is a value', () => {
-    const statement = insertRow(rows, { values: { id: 'u-1', email: 'null' } });
-    expect(statement.values).toEqual(['u-1', 'null']);
-  });
-
-  it('is refused where the column cannot be empty at all', () => {
-    const notNullable: Table = {
-      ...rows,
-      columns: [
-        { name: 'id', type: 'uuid', nullable: false, hasDefault: false, generated: false },
-        { name: 'count', type: 'integer', nullable: false, hasDefault: false, generated: false },
-      ],
-    };
-
-    expect(() => insertRow(notNullable, { values: { id: 'u-1', count: 'null' } })).toThrow(
-      /cannot be empty/,
-    );
-  });
-
-  it('means empty when editing a row as well', () => {
-    const statement = updateRow(rows, { key: { id: 'u-1' }, values: { attempts: 'NULL' } });
-    expect(statement.values).toEqual([null, 'u-1']);
+  it('refuses already parsed values for every type', () => {
+    expect(() => insertRow(rows, { values: { id: 'u-1', email: 'a', attempts: 123 } })).toThrow(/исходный текст/);
   });
 });
 
@@ -282,7 +250,7 @@ describe('a row is addressed by its whole key', () => {
   it('changes one row of a single-column key', () => {
     const statement = updateRow(rows, { key: { id: 'u-1' }, values: { email: 'new@example.test' } });
 
-    expect(statement.text).toBe('UPDATE "auth"."identities" SET "email" = $1 WHERE "id" = $2');
+    expect(statement.text).toBe('UPDATE ONLY "auth"."identities" SET "email" = $1 WHERE "id" = $2 RETURNING "id", "email", "created_at", "attempts"');
     expect(statement.values).toEqual(['new@example.test', 'u-1']);
   });
 
@@ -377,6 +345,10 @@ function fakePool(tables: Table[]): FakePool {
             table_name: table.name,
             column_name: column.name,
             data_type: column.type,
+            server_encoding: 'UTF8', sql_type: column.type, type_name: column.type === 'integer' ? 'int4' : column.type,
+            type_schema: 'pg_catalog', type_kind: 'b',
+            element_name: null, element_schema: null, element_kind: null,
+            complete_columns: true, unsafe_relation: false, unsafe_code: false, cascading_delete: false, cascading_update: false,
             is_nullable: column.nullable ? 'YES' : 'NO',
             // The two schema facts that say "this column counts upwards as rows are added". The test
             // tables carry them in the same shape `information_schema` reports them.
@@ -497,22 +469,6 @@ describe('the order rows come back in', () => {
 
     // Such a table cannot be edited here, so `ctid` is stable enough to page by.
     expect(statement.text).toContain('ORDER BY ctid');
-  });
-});
-
-/**
- * Reading the catalogue is the expensive part of every request, so its two halves go out together.
- *
- * Measured on a live database: the keys cost 1.6 ms beside 5.2 ms for a small schema's columns, and 72 ms beside 160 ms on a database of two hundred tables. Awaited one after the other
- * that time was added up — and the catalogue is read for the table list, for a page of rows, and for
- * every change of shape.
- */
-describe('reading the catalogue', () => {
-  it('asks for columns and keys in the same round', async () => {
-    const pool = fakePool(structuredClone([rows, grants]));
-    await readCatalogue(pool, 'auth');
-
-    expect(pool.mostAtOnce).toBe(2);
   });
 });
 
@@ -724,19 +680,19 @@ describe('lossless JSON values', () => {
 
   it('keeps large JSON numbers as text on reads, inserts and updates', () => {
     const document = '{"large":9007199254740993,"fraction":1.234567890123456789}';
-    expect(selectRows(table, {}).rows.text).toContain('"document"::text AS "document"');
+    expect(selectRows(table, {}).rows.text).toContain('SELECT "id", "document" FROM');
     const insert = insertRow(table, { values: { document } });
     expect(insert.values).toEqual([document]);
-    expect(insert.text).toContain('"document"::text AS "document"');
+    expect(insert.text).toContain('RETURNING "id", "document"');
     expect(updateRow(table, { key: { id: 1 }, values: { document } }).values).toEqual([document, 1]);
   });
 
   it('keeps JSON null distinct from SQL NULL, including a NOT NULL JSON column', () => {
     expect(insertRow(table, { values: { document: 'null' } }).values).toEqual(['null']);
-    expect(updateRow(table, { key: { id: 1 }, values: { document: null } }).values).toEqual([null, 1]);
+    expect(() => updateRow(table, { key: { id: '1' }, values: { document: null } })).toThrow(/SQL NULL/);
   });
 
   it('refuses pre-parsed JSON that may have already lost precision', () => {
-    expect(() => insertRow(table, { values: { document: { large: 123 } } })).toThrow(/JSON/);
+    expect(() => insertRow(table, { values: { document: { large: 123 } } })).toThrow(/исходный текст/);
   });
 });

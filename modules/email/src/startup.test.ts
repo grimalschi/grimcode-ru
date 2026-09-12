@@ -19,6 +19,7 @@ vi.mock('./db/migrator.js', async (original) => ({
 }));
 vi.mock('./db/seeding.js', () => ({ seedTemplates: state.seeded }));
 
+const adminContext = { userId: '00000000-0000-4000-8000-000000000001', email: 'owner@example.com', role: 'owner' as const };
 const env = {
   databaseUrl: 'postgres://module:configured@storage.invalid:5544/test_installation?sslmode=require&application_name=module-test',
   csrfCookieName: 'email_csrf',
@@ -43,11 +44,8 @@ describe('email startup migration', () => {
     ]);
     expect(state.seeded).toHaveBeenCalledOnce();
 
-    // Context preparation reaches storage even when the subsequent admin guard refuses this call.
-    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    try {
-      await module.adminFetch(new Request('https://example.test/admin/embed/module/email/rpc/listTemplates?input={}'));
-    } finally { errorLog.mockRestore(); }
+    const response = await module.adminFetch(new Request('https://example.test/admin/embed/module/email/rpc/listTemplates?input={}'), adminContext);
+    expect(response.status).toBe(200);
     expect(state.constructors).toHaveBeenCalledOnce();
     expect(state.migrated).toHaveBeenCalledOnce();
   });
@@ -69,7 +67,7 @@ describe('email startup migration', () => {
   it('has no database-panel HTTP endpoints, including through the SPA fallback', async () => {
     const module = createModule({ env });
     for (const [path, method] of [['schema', 'GET'], ['columns', 'POST'], ['columns/rename', 'POST'], ['columns/drop', 'POST']] as const) {
-      const response = await module.adminFetch(new Request(`https://example.test/admin/embed/database/api/schemas/email/${path}`, { method }));
+      const response = await module.adminFetch(new Request(`https://example.test/admin/embed/database/api/schemas/email/${path}`, { method }), adminContext);
       expect(response.status).toBe(404);
     }
     expect(state.constructors).not.toHaveBeenCalled();

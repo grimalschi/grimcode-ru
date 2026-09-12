@@ -22,7 +22,7 @@ function caller() {
   const transport = { name: 'log', send: vi.fn().mockResolvedValue({ providerMessageId: null, providerStatus: 'logged' }) };
   const api = adminRouter.createCaller({
     repo: repo as unknown as EmailRepository, transport: transport as Transport,
-    admin: { userId: id, email: 'owner@example.com', role: 'owner' },
+    adminContext: { userId: id, email: 'owner@example.com', role: 'owner' },
     env: { csrfCookieName: 'csrf_email' },
     request: new Request('https://example.com/', { headers: { cookie: 'csrf_email=token', 'x-csrf-token': 'token' } }),
   });

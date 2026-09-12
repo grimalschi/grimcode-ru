@@ -38,6 +38,10 @@ export function DatabasePage() {
     ? await api.database.rows.query(query) : null }), [queryKey]);
   const page = listing.data?.key === queryKey ? listing.data.page : null;
   const columns = page?.columns ?? selected?.columns ?? [];
+  const readOnlyReason = page ? page.readOnlyReason : selected?.readOnlyReason ?? null;
+  const deleteReadOnlyReason = readOnlyReason ?? (page ? page.deleteReadOnlyReason : selected?.deleteReadOnlyReason ?? null);
+  const currentTable = selected ? { ...selected, primaryKey: page?.primaryKey ?? selected.primaryKey, readOnlyReason, deleteReadOnlyReason } : null;
+  const blockedInsert = columns.some((column) => column.readOnlyReason && !column.generated && !column.hasDefault && !column.nullable);
   const shown = view.columns.length ? columns.filter((column) => view.columns.includes(column.name)) : columns;
   const loading = !!view.table && (listing.loading || listing.data?.key !== queryKey);
 
@@ -80,7 +84,7 @@ export function DatabasePage() {
     if (!editor) return;
     const target = { schema: editor.table.schema, table: editor.table.name };
     if (editor.row) {
-      await api.database.update.mutate({ ...target, key: keyOf(editor.table, editor.row), values });
+      await api.database.update.mutate({ ...target, original: editor.row, values });
       toast.success('Строка сохранена');
     } else {
       await api.database.insert.mutate({ ...target, values });
@@ -94,7 +98,7 @@ export function DatabasePage() {
     if (!deleting) return;
     setBusy(true);
     try {
-      await api.database.delete.mutate({ schema: deleting.table.schema, table: deleting.table.name, key: keyOf(deleting.table, deleting.row) });
+      await api.database.delete.mutate({ schema: deleting.table.schema, table: deleting.table.name, original: deleting.row });
       counted(deleting.table, -1);
       setDeleting(null);
       toast.success('Строка удалена');
@@ -126,10 +130,12 @@ export function DatabasePage() {
             <h2 className="mr-2 font-medium" data-testid="database-table-title">{view.schema}.{view.table}</h2>
             <Button variant="outline" size="sm" onClick={() => setFiltersOpen(!filtersOpen)} aria-expanded={filtersOpen}><FilterIcon />Фильтры{query.filters.length ? ` (${query.filters.length})` : ''}</Button>
             {view.columns.length > 0 && <Button variant="ghost" size="sm" onClick={() => setView({ ...view, columns: [] })}>Показать все колонки</Button>}
-            <Button className="ml-auto" size="sm" disabled={!page || loading || !selected} onClick={() => selected && setEditor({ table: selected, columns, row: null })}>Добавить строку</Button>
+            <Button className="ml-auto" size="sm" disabled={!page || loading || !currentTable || !!readOnlyReason || blockedInsert} onClick={() => currentTable && setEditor({ table: currentTable, columns, row: null })}>Добавить строку</Button>
           </div>
           {filtersOpen && <Filters columns={columns} filters={view.filters} combine={view.combine} onChange={(filters, combine) => setView({ ...view, filters, combine, page: 1 })} />}
-          {page && !page.primaryKey.length && <p className="text-xs text-muted-foreground">У таблицы нет первичного ключа — строки можно читать и добавлять, но не менять.</p>}
+          {readOnlyReason && <p role="status" className="text-sm text-muted-foreground">Только чтение: {readOnlyReason}</p>}
+          {!readOnlyReason && blockedInsert && <p className="text-xs text-muted-foreground">Добавление недоступно: обязательная колонка имеет неподдержанный тип.</p>}
+          {!readOnlyReason && deleteReadOnlyReason && <p className="text-xs text-muted-foreground">Удаление недоступно: {deleteReadOnlyReason}</p>}
           {listing.error ? <ErrorState error={listing.error} retry={listing.reload} /> : <TooltipProvider delayDuration={250}>
             <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
               <Table data-testid="database-table">
@@ -150,18 +156,18 @@ export function DatabasePage() {
                       </DropdownMenuContent></DropdownMenu>
                     </TableHead>;
                   })}
-                  {page?.primaryKey.length ? <TableHead className="w-20"><span className="sr-only">Действия</span></TableHead> : null}
+                  {page ? <TableHead className="w-20"><span className="sr-only">Действия</span></TableHead> : null}
                 </TableRow></TableHeader>
                 <TableBody>
                   {loading ? Array.from({ length: 5 }, (_, row) => <TableRow key={row}>{shown.map((column) => <TableCell key={column.name}><Skeleton className="h-4 w-28" /></TableCell>)}</TableRow>)
                     : page?.rows.map((row, index) => <TableRow key={page.primaryKey.length ? JSON.stringify(page.primaryKey.map((column) => row[column])) : index}>
                       {shown.map((column) => <TableCell key={column.name}><ValueCell column={column.name} value={row[column.name]} /></TableCell>)}
-                      {page.primaryKey.length && selected ? <TableCell><div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="size-7" aria-label="Открыть строку" title="Открыть строку" onClick={() => setEditor({ table: selected, columns, row })}><PencilIcon className="size-4" /></Button>
-                        <Button variant="ghost" size="icon" className="size-7 text-destructive" aria-label="Удалить строку" title="Удалить строку" onClick={() => setDeleting({ table: selected, row })}><Trash2Icon className="size-4" /></Button>
+                      {currentTable ? <TableCell><div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="size-7" aria-label="Открыть строку" title="Открыть строку" onClick={() => setEditor({ table: currentTable, columns, row })}><PencilIcon className="size-4" /></Button>
+                        <Button variant="ghost" size="icon" className="size-7 text-destructive" aria-label="Удалить строку" title={deleteReadOnlyReason ?? 'Удалить строку'} disabled={!!deleteReadOnlyReason} onClick={() => setDeleting({ table: currentTable, row })}><Trash2Icon className="size-4" /></Button>
                       </div></TableCell> : null}
                     </TableRow>)}
-                  {!loading && page?.rows.length === 0 && <TableRow><TableCell colSpan={shown.length + (page.primaryKey.length ? 1 : 0)} className="h-24 text-center text-muted-foreground">Строк нет</TableCell></TableRow>}
+                  {!loading && page?.rows.length === 0 && <TableRow><TableCell colSpan={shown.length + 1} className="h-24 text-center text-muted-foreground">Строк нет</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </div>
@@ -177,7 +183,7 @@ export function DatabasePage() {
         </>}
       </section>
     </div>}
-    {editor && <RowEditor schema={editor.table.schema} table={editor.table.name} columns={editor.columns} primaryKey={editor.table.primaryKey} row={editor.row} onClose={() => setEditor(null)} onSave={save} />}
+    {editor && <RowEditor schema={editor.table.schema} table={editor.table.name} columns={editor.columns} primaryKey={editor.table.primaryKey} readOnlyReason={editor.table.readOnlyReason} row={editor.row} onClose={() => setEditor(null)} onSave={save} />}
     <Dialog open={!!deleting} onOpenChange={(open) => { if (!open && !busy) setDeleting(null); }}>
       <DialogContent><DialogHeader><DialogTitle>Удалить строку?</DialogTitle><DialogDescription>Это нельзя отменить.</DialogDescription></DialogHeader>
         <DialogFooter><Button variant="ghost" disabled={busy} onClick={() => setDeleting(null)}>Отмена</Button><Button variant="destructive" disabled={busy} onClick={() => void remove()}>Удалить</Button></DialogFooter>
@@ -186,30 +192,20 @@ export function DatabasePage() {
   </AdminPage>;
 }
 
-function keyOf(table: TableInfo, row: Row): Row {
-  return Object.fromEntries(table.primaryKey.map((column) => [column, row[column]]));
-}
-
-function ValueCell({ column, value }: { column: string; value: unknown }) {
+function ValueCell({ column, value }: { column: string; value: string | null | undefined }) {
   const text = cellText(value);
-  if (value === null) return <span className="text-muted-foreground">null</span>;
+  if (value === null) return <span data-testid="database-cell" data-column={column} className="text-muted-foreground">SQL NULL</span>;
   async function copy() {
     try {
-      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
-      else {
-        const field = document.createElement('textarea');
-        field.value = text; field.style.position = 'fixed'; field.style.opacity = '0';
-        document.body.append(field); field.select();
-        try { if (!document.execCommand('copy')) throw new Error('Не удалось скопировать'); }
-        finally { field.remove(); }
-      }
+      if (!navigator.clipboard?.writeText) throw new Error('Браузер не поддерживает безопасное копирование.');
+      await navigator.clipboard.writeText(text);
       toast.success('Значение скопировано');
     } catch (error) { toast.error(messageOf(error)); }
   }
-  return <Tooltip><TooltipTrigger asChild><button type="button" data-testid="database-cell" data-column={column} className="block max-w-64 truncate text-left hover:underline" title="Нажмите, чтобы скопировать" onClick={() => void copy()}>{text.slice(0, 600) || '\u00a0'}</button></TooltipTrigger>
+  return <Tooltip><TooltipTrigger asChild><button type="button" data-testid="database-cell" data-column={column} className="block max-w-64 truncate text-left hover:underline" title="Нажмите, чтобы скопировать" onClick={() => void copy()}>{text.slice(0, 600) || '""'}</button></TooltipTrigger>
     {text && <TooltipContent className="max-w-lg max-h-80 overflow-auto" data-testid="database-value-preview">
       <p className="mb-1 flex items-center gap-2 font-medium"><CopyIcon className="size-3" />{column}</p>
-      <pre className="whitespace-pre-wrap break-all font-mono text-xs">{typeof value === 'object' ? JSON.stringify(value, null, 2) : text}</pre>
+      <pre className="whitespace-pre-wrap break-all font-mono text-xs">{text}</pre>
     </TooltipContent>}
   </Tooltip>;
 }

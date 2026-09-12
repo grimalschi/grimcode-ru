@@ -3,7 +3,7 @@ import { stat } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
 
-import type { Hono } from 'hono';
+import type { Env, Hono } from 'hono';
 
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -32,8 +32,8 @@ const MIME_TYPES: Record<string, string> = {
  * `/admin/embed/module/email/templates/123` renders the app instead of a 404. Admin authorization has
  * already happened at Router — these assets are behind the very same check as the HTML.
  */
-export function mountSpa(
-  app: Hono,
+export function mountSpa<E extends Env>(
+  app: Hono<E>,
   { basePath, rootDir }: { basePath: string; rootDir: string },
 ): void {
   const root = resolve(rootDir);
@@ -47,6 +47,11 @@ export function mountSpa(
 
     const asset = relative === '' ? null : await resolveAsset(root, relative);
     if (asset) return fileResponse(asset.path, asset.immutable);
+
+    // Missing static files must not fall back to the SPA entry document.
+    if (relative === 'assets' || relative.startsWith('assets/')) {
+      return c.notFound();
+    }
 
     const index = join(root, 'index.html');
     try {

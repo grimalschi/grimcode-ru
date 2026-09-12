@@ -37,15 +37,13 @@ describe('csrf', () => {
     expect(isCsrfValid(headers, 'template_csrf_panel')).toBe(false);
   });
 
-  it('issues and validates the cookie captured for each application', async () => {
+  it('issues and validates the cookie from each request’s bindings', async () => {
     vi.stubEnv('PROJECT_SLUG', 'unrelated');
-    const firstApp = new Hono();
-    const secondApp = new Hono();
-    mountCsrfEndpoint(firstApp, '/admin/csrf', 'first_panel_csrf');
-    mountCsrfEndpoint(secondApp, '/admin/csrf', 'second_panel_csrf');
+    const app = new Hono<{ Bindings: { csrfCookieName: string } }>();
+    mountCsrfEndpoint(app, '/admin/csrf');
 
-    const first = await firstApp.fetch(new Request('https://example.test/admin/csrf'));
-    const second = await secondApp.fetch(new Request('https://example.test/admin/csrf'));
+    const first = await app.fetch(new Request('https://example.test/admin/csrf'), { csrfCookieName: 'first_panel_csrf' });
+    const second = await app.fetch(new Request('https://example.test/admin/csrf'), { csrfCookieName: 'second_panel_csrf' });
     const { token } = await first.json() as { token: string };
     const cookie = first.headers.get('set-cookie')!;
     expect(cookie).toMatch(/^first_panel_csrf=/);

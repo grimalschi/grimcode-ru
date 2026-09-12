@@ -3,6 +3,8 @@ import type { AuthApi } from '@template/contracts/modules/auth';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createModule } from './index.js';
 
+const owner = { userId: '00000000-0000-4000-8000-000000000001', email: 'owner@example.com', role: 'owner' as const };
+
 const state = vi.hoisted(() => ({ constructors: vi.fn(), migrated: vi.fn(), closed: vi.fn() }));
 vi.mock('pg', () => ({
   default: {
@@ -49,7 +51,7 @@ describe('admin startup migration', () => {
     // Context preparation reaches storage even when the subsequent admin guard refuses this call.
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     try {
-      const response = await module.adminFetch(new Request('https://example.test/admin/rpc/session?input={}'));
+      const response = await module.adminFetch(new Request('https://example.test/admin/rpc/session?input={}'), undefined as never);
       expect(response.status).toBe(403);
     } finally { errorLog.mockRestore(); }
     expect(state.constructors).toHaveBeenCalledOnce();
@@ -82,12 +84,9 @@ describe('admin startup migration', () => {
         'content-type': 'application/json',
         cookie: 'test_session=active; admin_csrf=csrf-value',
         'x-csrf-token': 'csrf-value',
-        'x-template-admin-user-id': '00000000-0000-4000-8000-000000000001',
-        'x-template-admin-email': 'owner@example.test',
-        'x-template-admin-role': 'owner',
       },
       body: '{}',
-    }));
+    }), owner);
 
     expect(response.status).toBe(200);
     expect(revokeSessionByToken).toHaveBeenCalledWith({ sessionToken: 'active' });
@@ -112,7 +111,7 @@ describe('admin startup migration', () => {
   it('has no database-panel HTTP endpoints, including through the SPA fallback', async () => {
     const module = createModule({ env, modules: { auth: {} as AuthApi }, catalogue: [] });
     for (const [path, method] of [['schema', 'GET'], ['columns', 'POST'], ['columns/rename', 'POST'], ['columns/drop', 'POST']] as const) {
-      const response = await module.adminFetch(new Request(`https://example.test/admin/embed/database/api/schemas/admin/${path}`, { method }));
+      const response = await module.adminFetch(new Request(`https://example.test/admin/embed/database/api/schemas/admin/${path}`, { method }), owner);
       expect(response.status).toBe(404);
     }
     expect(state.constructors).not.toHaveBeenCalled();

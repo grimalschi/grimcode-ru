@@ -15,6 +15,9 @@ await modules.notifications.emit({ event, dedupeKey });
 
 The Admin screen and API at `/admin/embed/module/notifications/` expose the event log to
 administrators granted Notifications. Configuration supplies `databaseUrl`.
+Router passes the verified administrator as `adminFetch(request, adminContext)`.
+Hono bindings contain the module settings and the request's `adminContext`, which reaches the
+administrative tRPC procedures.
 
 ## Events
 

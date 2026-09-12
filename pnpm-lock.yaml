@@ -14,9 +14,6 @@ importers:
       '@template/admin':
         specifier: workspace:*
         version: link:modules/admin
-      '@template/app':
-        specifier: workspace:*
-        version: link:modules/app
       '@template/auth':
         specifier: workspace:*
         version: link:modules/auth
@@ -29,12 +26,12 @@ importers:
       '@template/router':
         specifier: workspace:*
         version: link:modules/router
-      '@template/site':
-        specifier: workspace:*
-        version: link:modules/site
       '@template/users':
         specifier: workspace:*
         version: link:modules/users
+      '@template/web':
+        specifier: workspace:*
+        version: link:modules/web
     devDependencies:
       '@eslint/js':
         specifier: 10.0.1
@@ -122,79 +119,6 @@ importers:
       '@types/pg':
         specifier: 8.20.0
         version: 8.20.0
-      '@types/react':
-        specifier: 19.2.17
-        version: 19.2.17
-      '@types/react-dom':
-        specifier: 19.2.3
-        version: 19.2.3(@types/react@19.2.17)
-      '@vitejs/plugin-react':
-        specifier: 6.0.4
-        version: 6.0.4(vite@8.1.5(@types/node@22.20.1)(jiti@2.7.0))
-      class-variance-authority:
-        specifier: 0.7.1
-        version: 0.7.1
-      clsx:
-        specifier: 2.1.1
-        version: 2.1.1
-      lucide-react:
-        specifier: 1.26.0
-        version: 1.26.0(react@19.2.8)
-      radix-ui:
-        specifier: 1.6.7
-        version: 1.6.7(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      react:
-        specifier: 19.2.8
-        version: 19.2.8
-      react-dom:
-        specifier: 19.2.8
-        version: 19.2.8(react@19.2.8)
-      sonner:
-        specifier: 2.0.7
-        version: 2.0.7(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      tailwind-merge:
-        specifier: 3.6.0
-        version: 3.6.0
-      tailwindcss:
-        specifier: 4.3.3
-        version: 4.3.3
-      tw-animate-css:
-        specifier: 1.4.0
-        version: 1.4.0
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      vite:
-        specifier: 8.1.5
-        version: 8.1.5(@types/node@22.20.1)(jiti@2.7.0)
-      vitest:
-        specifier: 4.1.11
-        version: 4.1.11(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(jiti@2.7.0))
-
-  modules/app:
-    dependencies:
-      '@trpc/client':
-        specifier: 11.18.0
-        version: 11.18.0(@trpc/server@11.18.0(typescript@5.9.3))(typescript@5.9.3)
-      '@trpc/server':
-        specifier: 11.18.0
-        version: 11.18.0(typescript@5.9.3)
-      hono:
-        specifier: 4.13.7
-        version: 4.13.7
-    devDependencies:
-      '@tailwindcss/vite':
-        specifier: 4.3.3
-        version: 4.3.3(vite@8.1.5(@types/node@22.20.1)(jiti@2.7.0))
-      '@tanstack/react-router':
-        specifier: 1.170.18
-        version: 1.170.18(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      '@template/contracts':
-        specifier: workspace:*
-        version: link:../../contracts
-      '@types/node':
-        specifier: 22.20.1
-        version: 22.20.1
       '@types/react':
         specifier: 19.2.17
         version: 19.2.17
@@ -530,70 +454,6 @@ importers:
         specifier: 4.1.11
         version: 4.1.11(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(jiti@2.7.0))
 
-  modules/site:
-    dependencies:
-      '@hono/node-server':
-        specifier: 2.0.11
-        version: 2.0.11(hono@4.13.7)
-      '@tanstack/react-router':
-        specifier: 1.170.18
-        version: 1.170.18(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      class-variance-authority:
-        specifier: 0.7.1
-        version: 0.7.1
-      clsx:
-        specifier: 2.1.1
-        version: 2.1.1
-      hono:
-        specifier: 4.13.7
-        version: 4.13.7
-      radix-ui:
-        specifier: 1.6.7
-        version: 1.6.7(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      react:
-        specifier: 19.2.8
-        version: 19.2.8
-      react-dom:
-        specifier: 19.2.8
-        version: 19.2.8(react@19.2.8)
-      tailwind-merge:
-        specifier: 3.6.0
-        version: 3.6.0
-    devDependencies:
-      '@tailwindcss/vite':
-        specifier: 4.3.3
-        version: 4.3.3(vite@8.1.5(@types/node@22.20.1)(jiti@2.7.0))
-      '@tanstack/react-start':
-        specifier: 1.168.32
-        version: 1.168.32(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.1.5)(vite@8.1.5(@types/node@22.20.1)(jiti@2.7.0))
-      '@template/contracts':
-        specifier: workspace:*
-        version: link:../../contracts
-      '@types/node':
-        specifier: 22.20.1
-        version: 22.20.1
-      '@types/react':
-        specifier: 19.2.17
-        version: 19.2.17
-      '@types/react-dom':
-        specifier: 19.2.3
-        version: 19.2.3(@types/react@19.2.17)
-      tailwindcss:
-        specifier: 4.3.3
-        version: 4.3.3
-      tw-animate-css:
-        specifier: 1.4.0
-        version: 1.4.0
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      vite:
-        specifier: 8.1.5
-        version: 8.1.5(@types/node@22.20.1)(jiti@2.7.0)
-      vitest:
-        specifier: 4.1.11
-        version: 4.1.11(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(jiti@2.7.0))
-
   modules/users:
     dependencies:
       '@trpc/client':
@@ -660,6 +520,82 @@ importers:
       tailwind-merge:
         specifier: 3.6.0
         version: 3.6.0
+      tailwindcss:
+        specifier: 4.3.3
+        version: 4.3.3
+      tw-animate-css:
+        specifier: 1.4.0
+        version: 1.4.0
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 8.1.5
+        version: 8.1.5(@types/node@22.20.1)(jiti@2.7.0)
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(jiti@2.7.0))
+
+  modules/web:
+    dependencies:
+      '@hono/node-server':
+        specifier: 2.0.11
+        version: 2.0.11(hono@4.13.7)
+      '@tanstack/react-router':
+        specifier: 1.170.18
+        version: 1.170.18(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@trpc/client':
+        specifier: 11.18.0
+        version: 11.18.0(@trpc/server@11.18.0(typescript@5.9.3))(typescript@5.9.3)
+      '@trpc/server':
+        specifier: 11.18.0
+        version: 11.18.0(typescript@5.9.3)
+      class-variance-authority:
+        specifier: 0.7.1
+        version: 0.7.1
+      clsx:
+        specifier: 2.1.1
+        version: 2.1.1
+      hono:
+        specifier: 4.13.7
+        version: 4.13.7
+      lucide-react:
+        specifier: 1.26.0
+        version: 1.26.0(react@19.2.8)
+      radix-ui:
+        specifier: 1.6.7
+        version: 1.6.7(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      react-dom:
+        specifier: 19.2.8
+        version: 19.2.8(react@19.2.8)
+      sonner:
+        specifier: 2.0.7
+        version: 2.0.7(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      tailwind-merge:
+        specifier: 3.6.0
+        version: 3.6.0
+    devDependencies:
+      '@tailwindcss/vite':
+        specifier: 4.3.3
+        version: 4.3.3(vite@8.1.5(@types/node@22.20.1)(jiti@2.7.0))
+      '@tanstack/react-start':
+        specifier: 1.168.32
+        version: 1.168.32(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.1.5)(vite@8.1.5(@types/node@22.20.1)(jiti@2.7.0))
+      '@template/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@types/node':
+        specifier: 22.20.1
+        version: 22.20.1
+      '@types/react':
+        specifier: 19.2.17
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: 19.2.3
+        version: 19.2.3(@types/react@19.2.17)
       tailwindcss:
         specifier: 4.3.3
         version: 4.3.3
@@ -7959,7 +7895,7 @@ snapshots:
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.5
-      postcss: 8.5.23
+      postcss: 8.5.28
       rolldown: 1.1.5
       tinyglobby: 0.2.17
     optionalDependencies:

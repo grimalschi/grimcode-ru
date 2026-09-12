@@ -2,6 +2,11 @@ import type * as Migrator from './db/migrator.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createModule } from './index.js';
 
+const administrator = {
+  userId: '00000000-0000-4000-8000-000000000002',
+  email: 'owner@example.com', role: 'owner' as const,
+};
+
 const state = vi.hoisted(() => ({ constructors: vi.fn(), migrated: vi.fn(), closed: vi.fn() }));
 vi.mock('pg', () => ({
   default: {
@@ -42,10 +47,10 @@ describe('auth startup migration', () => {
       { application: 'auth-module', connectionString: env.databaseUrl },
     ]);
 
-    // Context preparation reaches storage even when the subsequent admin guard refuses this call.
+    // The administrative handler reuses the storage prepared by startup.
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     try {
-      await module.adminFetch(new Request('https://example.test/admin/embed/module/auth/rpc/listIdentities?input={}'));
+      await module.adminFetch(new Request('https://example.test/admin/embed/module/auth/rpc/listIdentities?input={}'), administrator);
     } finally { errorLog.mockRestore(); }
     expect(state.constructors).toHaveBeenCalledOnce();
     expect(state.migrated).toHaveBeenCalledOnce();
@@ -67,7 +72,7 @@ describe('auth startup migration', () => {
   it('has no database-panel HTTP endpoints, including through the SPA fallback', async () => {
     const module = createModule({ env, modules: { notifications: { emit: vi.fn() } } });
     for (const [path, method] of [['schema', 'GET'], ['columns', 'POST'], ['columns/rename', 'POST'], ['columns/drop', 'POST']] as const) {
-      const response = await module.adminFetch(new Request(`https://example.test/admin/embed/database/api/schemas/auth/${path}`, { method }));
+      const response = await module.adminFetch(new Request(`https://example.test/admin/embed/database/api/schemas/auth/${path}`, { method }), administrator);
       expect(response.status).toBe(404);
     }
     expect(state.constructors).not.toHaveBeenCalled();

@@ -28,6 +28,9 @@ export interface Column {
    * outright, and a value written into a `BY DEFAULT` identity quietly desynchronises its sequence.
    */
   generated: boolean;
+  /** Native SQL type including constraints, supplied by PostgreSQL itself. */
+  sqlType: string;
+  readOnlyReason: string | null;
 }
 
 /** A table as the catalogue describes it, with the key rows are addressed by. */
@@ -37,6 +40,8 @@ export interface Table {
   columns: Column[];
   /** The primary key columns in order, or an empty list when the table has none. */
   primaryKey: string[];
+  readOnlyReason: string | null;
+  deleteReadOnlyReason: string | null;
   /**
    * The column that records the order rows arrived in — a counter or a creation time — when the table
    * has one. What a table opens sorted by, because a uuid key sorts in no order a person can see.

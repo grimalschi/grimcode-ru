@@ -54,6 +54,16 @@ describe('Module iframe convention', () => {
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
+  it('ignores malformed navigation without breaking later messages', () => {
+    const { parent, onNavigate, receive } = mount();
+    for (const path of [undefined, null, 42, true, {}, []]) {
+      expect(() => receive('https://panel.test', parent, { type: 'template.admin.navigate', path })).not.toThrow();
+    }
+    expect(onNavigate).not.toHaveBeenCalled();
+    receive('https://panel.test', parent, { type: 'template.admin.navigate', path: '/valid' });
+    expect(onNavigate).toHaveBeenCalledExactlyOnceWith('/valid');
+  });
+
   it('accepts the parent route and only recognized theme preferences', () => {
     const { parent, onNavigate, receive, setTheme } = mount();
     receive('https://panel.test', parent, { type: 'template.admin.navigate', path: 'items//7' });

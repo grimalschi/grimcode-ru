@@ -72,7 +72,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['**/web/src/**/*.{ts,tsx}', 'modules/site/src/**/*.{ts,tsx}'],
+    files: ['**/web/src/**/*.{ts,tsx}', 'modules/web/src/**/*.{ts,tsx}'],
     plugins: { 'react-hooks': reactHooks },
     rules: {
       'react-hooks/rules-of-hooks': 'error',

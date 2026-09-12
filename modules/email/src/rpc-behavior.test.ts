@@ -6,6 +6,7 @@ vi.mock('./db/database.js', () => ({ createDatabase: () => async () => ({ query 
 vi.mock('./transport.js', () => ({ createTransport: () => ({ name: 'log', send }) }));
 
 const id = '00000000-0000-4000-8000-000000000001';
+const adminContext = { userId: '00000000-0000-4000-8000-000000000001', email: 'owner@example.com', role: 'owner' as const };
 const env = {
   databaseUrl: 'postgres://unused/test_email',
   csrfCookieName: 'email_csrf', mail: { provider: 'log', apiKey: '', apiUrl: '', fromAddress: '', fromName: '' },
@@ -14,8 +15,6 @@ const env = {
 function request(procedure: string, input: unknown, token: string | null = 'csrf-value') {
   const headers = new Headers({
     'content-type': 'application/json', cookie: 'email_csrf=csrf-value',
-    'x-template-admin-user-id': id, 'x-template-admin-email': 'owner@example.com',
-    'x-template-admin-role': 'owner',
   });
   if (token !== null) headers.set('x-csrf-token', token);
   return new Request(`https://example.test/admin/embed/module/email/rpc/${procedure}`, {
@@ -34,7 +33,7 @@ describe('Email RPC boundaries', () => {
     query.mockRejectedValue(cause);
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
-      const response = await createModule({ env }).adminFetch(request('listTemplates', {}));
+      const response = await createModule({ env }).adminFetch(request('listTemplates', {}), adminContext);
       expect(response.status).toBe(500);
       expect(logged).toHaveBeenCalledWith(
         'procedure failed: listTemplates (query, INTERNAL_SERVER_ERROR)', cause,
@@ -54,7 +53,7 @@ describe('Email RPC boundaries', () => {
   ])('$procedure refuses missing or mismatched CSRF before storage or delivery', async ({ procedure, input }) => {
     const module = createModule({ env });
     for (const token of [null, 'different-token']) {
-      const response = await module.adminFetch(request(procedure, input, token));
+      const response = await module.adminFetch(request(procedure, input, token), adminContext);
       expect(response.status).toBe(403);
       expect(await response.json()).toMatchObject({ error: { message: expect.stringContaining('CSRF') } });
       expect(query).not.toHaveBeenCalled();
@@ -64,7 +63,7 @@ describe('Email RPC boundaries', () => {
 
   it('rejects malformed editor and delivery inputs before storage or transport', async () => {
     const module = createModule({ env });
-    const response = await module.adminFetch(request('saveDraft', { id, subject: 'Welcome', source: { type: 'doc' } }));
+    const response = await module.adminFetch(request('saveDraft', { id, subject: 'Welcome', source: { type: 'doc' } }), adminContext);
     expect(response.status).toBe(400);
     await expect(module.internalCaller.send({ templateKey: 'welcome', to: 'invalid', variables: {}, dedupeKey: 'test' }))
       .rejects.toMatchObject({ code: 'BAD_REQUEST' });

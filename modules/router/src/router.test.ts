@@ -1,6 +1,6 @@
+import type { AdminContext } from '@template/contracts/module-instance';
 import type { AdminApi, AuthorizationResult } from '@template/contracts/modules/admin';
 import { gzipSync, gunzipSync } from 'node:zlib';
-import { ADMIN_CONTEXT_HEADERS } from './http/admin-context.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { hasModule, type RouterOptions } from './registry.js';
@@ -22,6 +22,7 @@ interface Forwarded {
   path: string;
   method: string;
   headers: Headers;
+  adminContext?: AdminContext;
 }
 
 const forwarded: Forwarded[] = [];
@@ -30,13 +31,14 @@ let upstreamResponse: () => Response;
 
 /** A bound module handler records the unchanged request address. */
 function fakeModule(name: string) {
-  return (request: Request): Response => {
+  return (request: Request, adminContext?: AdminContext): Response => {
     const url = new URL(request.url);
     forwarded.push({
       target: name,
       path: url.pathname + url.search,
       method: request.method,
       headers: new Headers(request.headers),
+      adminContext,
     });
     return upstreamResponse();
   };
@@ -47,7 +49,7 @@ function fakeOptions(): RouterOptions {
     env: ENV,
     modules: { admin },
     publicFetches: {
-      site: fakeModule('site'), app: fakeModule('app'),
+      web: fakeModule('web'),
       auth: fakeModule('auth.public'), users: fakeModule('users.public'),
     },
     adminFetches: {
@@ -113,7 +115,7 @@ describe('allowlists', () => {
 
   it.each(['/module/', '/admin/embed/module/'])('refuses reserved names under %s even when registered', async (prefix) => {
     stub.authorize = async () => OWNER;
-    for (const name of ['site', 'app', 'admin', 'router']) {
+    for (const name of ['web', 'admin', 'router']) {
       options.publicFetches = { ...options.publicFetches, [name]: fakeModule(`${name}.public`) };
       options.adminFetches = { ...options.adminFetches, [name]: fakeModule(`${name}.admin`) };
 
@@ -155,15 +157,15 @@ describe('allowlists', () => {
 });
 
 describe('public routing', () => {
-  it('sends everything unmatched to site without rewriting the path', async () => {
+  it('sends public pages to Web without rewriting the path', async () => {
     await route('/pricing?ref=1');
-    expect(forwarded[0]?.target).toBe('site');
+    expect(forwarded[0]?.target).toBe('web');
     expect(forwarded[0]?.path).toBe('/pricing?ref=1');
   });
 
-  it('sends /app/** to app', async () => {
+  it('sends product pages to the same Web handler', async () => {
     await route('/app/dashboard');
-    expect(forwarded[0]?.target).toBe('app');
+    expect(forwarded[0]?.target).toBe('web');
     expect(forwarded[0]?.path).toBe('/app/dashboard');
   });
 
@@ -197,7 +199,7 @@ describe('public routing', () => {
 
   it('routes installed modules without a source-level name list and rejects inherited names', async () => {
     options.publicFetches = {
-      site: options.publicFetches.site, app: options.publicFetches.app,
+      web: options.publicFetches.web,
       billing: fakeModule('billing.public'),
     };
     await route('/module/billing/rpc/example');
@@ -228,33 +230,31 @@ describe('admin authorization', () => {
     const sent = forwarded[0];
     expect(sent?.target).toBe('email.admin');
     expect(sent?.path).toBe('/admin/embed/module/email/templates/123');
-    expect(sent?.headers.get('x-template-admin-user-id')).toBe(OWNER.userId);
-    expect(sent?.headers.get('x-template-admin-email')).toBe('owner@example.com');
-    expect(sent?.headers.get('x-template-admin-role')).toBe('owner');
+    expect(sent?.adminContext).toEqual({ userId: OWNER.userId, email: OWNER.email, role: OWNER.role });
   });
 
-  it('replaces control headers a client tried to forge', async () => {
+  it('builds administrator context from authorization independently of client headers', async () => {
     stub.authorize = async () => OWNER;
-    const headers = new Headers();
-    for (const name of ADMIN_CONTEXT_HEADERS) headers.set(name, 'forged-by-client');
+    const headers = new Headers({
+      'x-template-admin-user-id': 'forged-by-client',
+      'x-template-admin-email': 'attacker@example.com',
+      'x-template-admin-role': 'admin',
+      adminContext: '{"role":"owner"}',
+    });
     await route('/admin/embed/module/email/', { headers });
 
     const sent = forwarded[0];
-    for (const name of ADMIN_CONTEXT_HEADERS) {
-      expect(sent?.headers.get(name)).not.toBe('forged-by-client');
-    }
-    expect(sent?.headers.get('x-template-admin-user-id')).toBe(OWNER.userId);
+    expect(sent?.adminContext).toEqual({ userId: OWNER.userId, email: OWNER.email, role: OWNER.role });
+    expect(sent?.headers.get('x-template-admin-user-id')).toBe('forged-by-client');
   });
 
-  it('strips forged control headers even on a public route that is never authorized', async () => {
-    const headers = new Headers();
-    for (const name of ADMIN_CONTEXT_HEADERS) headers.set(name, 'forged-by-client');
+  it('never supplies administrator context to a public handler', async () => {
+    const headers = new Headers({ 'x-template-admin-role': 'owner', adminContext: '{"role":"owner"}' });
     await route('/module/auth/rpc/login', { method: 'POST', body: '{}', headers });
 
     const sent = forwarded[0];
-    expect(sent?.headers.get('x-template-admin-user-id')).toBeNull();
-    expect(sent?.headers.get('x-template-admin-role')).toBeNull();
-    expect(sent?.headers.get('x-template-admin-email')).toBeNull();
+    expect(sent?.adminContext).toBeUndefined();
+    expect(stub.calls).toHaveLength(0);
   });
 
   it('asks Admin about the requested module', async () => {

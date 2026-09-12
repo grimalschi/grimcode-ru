@@ -166,9 +166,46 @@ test.describe('the public site', () => {
   });
 
   test('answers an unknown address with its own not-found page', async ({ page }) => {
-    const response = await page.goto('/no-such-page');
+    for (const path of ['/no-such-page', '/about/no-such-page', '/legal/privacy/no-such-page', '/app/no-such-page']) {
+      const response = await page.goto(path);
+      expect(response?.status(), path).toBe(404);
+      await expect(page.getByRole('heading', { name: 'Такой страницы нет' })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'На главную' })).toHaveAttribute('href', '/');
+    }
+  });
 
-    expect(response?.status()).toBe(404);
-    await expect(page.getByText('Такой страницы нет')).toBeVisible();
+  test('keeps one document and restores the public layout when returning from the application', async ({ page }) => {
+    const problems = collectPageErrors(page);
+    await page.addInitScript(() => localStorage.setItem('template.app.theme', 'dark'));
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await expect(page.locator('html')).not.toHaveClass(/dark/);
+    await page.evaluate(() => Reflect.set(window, '__webDocument', 'same-document'));
+
+    await page.getByRole('link', { name: 'Войти' }).click();
+    await page.waitForURL(/\/app\/login/);
+    await expect(page.getByLabel('Пароль')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'О проекте', exact: true })).toHaveCount(0);
+    await expect(page.locator('html')).toHaveClass(/dark/);
+    expect(await page.evaluate(() => Reflect.get(window, '__webDocument'))).toBe('same-document');
+
+    await page.goBack();
+    await expect(page.getByRole('link', { name: 'О проекте', exact: true })).toBeVisible();
+    await expect(page.locator('html')).not.toHaveClass(/dark/);
+    expect(await page.evaluate(() => Reflect.get(window, '__webDocument'))).toBe('same-document');
+    expectNoPageErrors(problems);
+  });
+});
+
+test.describe('public SSR', () => {
+  test.use({ javaScriptEnabled: false });
+
+  test('serves public content and links without browser JavaScript', async ({ page }) => {
+    for (const path of ['/', '/about', '/contact']) {
+      const response = await page.goto(path);
+      expect(response?.status(), path).toBe(200);
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Войти' })).toHaveAttribute('href', '/app/');
+    }
   });
 });

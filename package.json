@@ -22,13 +22,12 @@
   "dependencies": {
     "@hono/node-server": "2.0.11",
     "@template/admin": "workspace:*",
-    "@template/app": "workspace:*",
     "@template/auth": "workspace:*",
     "@template/email": "workspace:*",
     "@template/notifications": "workspace:*",
     "@template/router": "workspace:*",
-    "@template/site": "workspace:*",
-    "@template/users": "workspace:*"
+    "@template/users": "workspace:*",
+    "@template/web": "workspace:*"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

@@ -30,10 +30,10 @@ export const databaseRouter = adminT.router({
   insert: mutation.input(tableInputSchema.extend({ values: valuesSchema }))
     .output(z.object({ inserted: valuesSchema.nullable() }))
     .mutation(({ ctx, input }) => ctx.databaseBrowser.insert(input)),
-  update: mutation.input(tableInputSchema.extend({ key: valuesSchema, values: valuesSchema }))
-    .output(z.object({ updated: z.number().int().positive() }))
+  update: mutation.input(tableInputSchema.extend({ original: valuesSchema, values: valuesSchema }))
+    .output(z.object({ updated: z.number().int().nonnegative() }))
     .mutation(({ ctx, input }) => ctx.databaseBrowser.update(input)),
-  delete: mutation.input(tableInputSchema.extend({ key: valuesSchema }))
+  delete: mutation.input(tableInputSchema.extend({ original: valuesSchema }))
     .output(z.object({ deleted: z.number().int().positive() }))
     .mutation(({ ctx, input }) => ctx.databaseBrowser.delete(input)),
 });

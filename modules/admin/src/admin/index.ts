@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import type { AdminEnv } from '../env.js';
 import type { ModuleContext } from '../context.js';
-import { readAdminContext } from '../http/admin-context.js';
+import type { AdminContext } from '@template/contracts/module-instance';
 import { mountSpa } from '../http/spa.js';
 import { issueCsrfToken } from '../http/csrf.js';
 import { adminRouter } from './router.js';
@@ -14,7 +14,7 @@ export function createAdminFetch({ env, context }: {
   env: AdminEnv;
   context: () => Promise<ModuleContext>;
 }) {
-  const app = new Hono();
+  const app = new Hono<{ Bindings: AdminEnv & { adminContext: AdminContext } }>();
   // Router dispatches embedded modules to their own HTTP handlers.
   app.all('/admin/embed/*', (c) => c.notFound());
   app.get('/healthz', (c) => c.json({ ok: true, module: 'admin' }));
@@ -25,10 +25,10 @@ export function createAdminFetch({ env, context }: {
     allowMethodOverride: true,
     createContext: async ({ req, resHeaders }) => ({
       ...await context(),
-      env,
+      env: c.env,
       request: req,
       resHeaders,
-      admin: readAdminContext(req.headers),
+      adminContext: c.env.adminContext,
     }),
     // Report failures without logging procedure input, which may contain credentials.
     onError: ({ error, path, type }) => {
@@ -36,7 +36,7 @@ export function createAdminFetch({ env, context }: {
     },
   }));
   app.get('/admin/csrf', (c) => {
-    const { token, cookie } = issueCsrfToken(env.csrfCookieName, c.req.raw.headers);
+    const { token, cookie } = issueCsrfToken(c.env.csrfCookieName, c.req.raw.headers);
     c.header('set-cookie', cookie);
     c.header('cache-control', 'no-store');
     return c.json({ token });
@@ -45,5 +45,5 @@ export function createAdminFetch({ env, context }: {
     basePath: '/admin',
     rootDir: join(dirname(fileURLToPath(import.meta.url)), '../../web/dist'),
   });
-  return (request: Request) => app.fetch(request);
+  return (request: Request, adminContext: AdminContext) => app.fetch(request, { ...env, adminContext });
 }

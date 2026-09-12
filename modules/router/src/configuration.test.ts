@@ -1,3 +1,4 @@
+import type { AdminContext } from '@template/contracts/module-instance';
 import type { AdminApi, AuthorizationResult } from '@template/contracts/modules/admin';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,12 +10,12 @@ const DENIED = { state: 'denied', reason: 'not-an-administrator' } satisfies Aut
 
 function setup(env: RouterEnv = { sessionCookieName: 'own_session', publicOrigin: 'https://own.example' }) {
   const authorize = vi.fn<AdminApi['authorize']>().mockResolvedValue(DENIED);
-  const forward = vi.fn((_request: Request) => new Response('upstream'));
+  const forward = vi.fn((_request: Request, _adminContext?: AdminContext) => new Response('upstream'));
   const admin = { authorize } as unknown as AdminApi;
   const options: RouterOptions = {
     env,
     modules: { admin },
-    publicFetches: { site: forward, app: forward, auth: forward, users: forward },
+    publicFetches: { web: forward, auth: forward, users: forward },
     adminFetches: { admin: forward, auth: forward, users: forward, notifications: forward, email: forward },
   };
   const app = createModule(options);
@@ -107,7 +108,9 @@ describe('construction environment', () => {
     expect(forward).toHaveBeenCalledOnce();
     const forwarded = forward.mock.calls[0]![0];
     expect(forwarded.headers.get('cookie')).toBe('own_session=owner-session');
-    expect(forwarded.headers.get('x-template-admin-role')).toBe('owner');
+    expect(forward.mock.calls[0]![1]).toEqual({
+      userId: '00000000-0000-4000-8000-000000000001', email: 'owner@example.com', role: 'owner',
+    });
     expect(authorize.mock.calls.map(([input]) => input.sessionToken)).toEqual(['owner-session', 'admin-session']);
   });
 });

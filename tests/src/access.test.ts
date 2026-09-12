@@ -296,8 +296,8 @@ function databaseProbe(action: string, table = 'auth_audit') {
   return {
     schema: 'auth', table,
     ...(['update', 'delete'].includes(action) ? {
-      key: table === 'schema_migrations'
-        ? { version: -1 }
+      original: table === 'schema_migrations'
+        ? { version: '-1' }
         : { id: '00000000-0000-4000-8000-000000000000' },
     } : {}),
     ...(['insert', 'update'].includes(action) ? {
@@ -387,6 +387,7 @@ describe('the database area', () => {
         'x-template-admin-user-id': plainUser.userId,
         'x-template-admin-role': 'owner',
         'x-template-admin-grants': 'database',
+        adminContext: JSON.stringify({ userId: plainUser.userId, role: 'owner' }),
       },
       body: JSON.stringify({}),
     });
@@ -472,10 +473,44 @@ describe('the owner-only registry', () => {
   });
 });
 
+describe('administrative SPA routing', () => {
+  it.each([
+    { base: ADMIN, deepLink: '/database' },
+    { base: moduleAdmin('auth'), deepLink: '/audit' },
+    { base: moduleAdmin('email'), deepLink: '/deliveries' },
+    { base: moduleAdmin('users'), deepLink: '/profiles/example' },
+    { base: moduleAdmin('notifications'), deepLink: '/events/example' },
+  ])('serves navigation and existing assets, but refuses missing files at $base', async ({ base, deepLink }) => {
+    const session = owner;
+    const entry = await session.fetch(`${base}/`);
+    expect(entry.status).toBe(200);
+    const html = await entry.text();
+
+    const navigation = await session.fetch(`${base}${deepLink}`);
+    expect(navigation.status).toBe(200);
+    expect(navigation.headers.get('content-type')).toContain('text/html');
+    expect(await navigation.text()).toBe(html);
+
+    const scriptPath = html.match(/<script\b[^>]*\bsrc="([^"]+\.js)"/)?.[1];
+    expect(scriptPath).toBeDefined();
+    const asset = await session.fetch(scriptPath!);
+    expect(asset.status).toBe(200);
+    expect(asset.headers.get('content-type')).toContain('text/javascript');
+    expect(asset.headers.get('cache-control')).toContain('immutable');
+    expect((await asset.text()).length).toBeGreaterThan(0);
+
+    for (const path of ['assets/nonexistent.js', 'assets/missing', 'assets/nonexistent.svg']) {
+      const missing = await session.fetch(`${base}/${path}`);
+      expect(missing.status, path).toBe(404);
+      expect(missing.headers.get('content-type')).not.toContain('text/html');
+    }
+  });
+});
+
 describe('public routing', () => {
   it('refuses unavailable modules, special destinations and prototype names', async () => {
     const anonymous = new Session();
-    const unavailable = ['billing', 'site', 'app', 'admin', 'router', '__proto__', 'constructor', 'toString', 'hasOwnProperty'];
+    const unavailable = ['billing', 'web', 'admin', 'router', '__proto__', 'constructor', 'toString', 'hasOwnProperty'];
     for (const module of ['email', 'notifications', ...unavailable]) {
       const path = `/module/${module}/rpc/anything`;
       expect(await anonymous.status(path), path).toBe(404);
@@ -505,7 +540,7 @@ describe('public routing', () => {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        // Router builds these itself and strips whatever arrived.
+        // HTTP headers cannot supply the handler's internal administrator context.
         'x-template-admin-user-id': '00000000-0000-4000-8000-000000000001',
         'x-template-admin-role': 'owner',
         'x-template-admin-grants': 'auth,users,notifications,email',

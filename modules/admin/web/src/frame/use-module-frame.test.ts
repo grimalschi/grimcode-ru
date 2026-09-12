@@ -51,6 +51,16 @@ describe('Admin shell frame convention', () => {
     expect(contentWindow.postMessage).not.toHaveBeenCalled();
   });
 
+  it('ignores malformed paths without breaking later messages', () => {
+    const { contentWindow, onPathChange, receive } = mount();
+    for (const path of [undefined, null, 42, true, {}, []]) {
+      expect(() => receive('https://panel.test', contentWindow, { type: 'template.admin.path', path })).not.toThrow();
+    }
+    expect(onPathChange).not.toHaveBeenCalled();
+    receive('https://panel.test', contentWindow, { type: 'template.admin.path', path: '/valid' });
+    expect(onPathChange).toHaveBeenCalledExactlyOnceWith('/valid');
+  });
+
   it('accepts a path only from its own embedded window', () => {
     const { contentWindow, onPathChange, receive } = mount();
     receive('https://panel.test', contentWindow, { type: 'template.admin.path', path: 'templates//42' });

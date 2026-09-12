@@ -10,7 +10,6 @@
   "include": ["index.ts"],
   "references": [
     { "path": "modules/admin" },
-    { "path": "modules/app" },
     { "path": "modules/auth" },
     { "path": "modules/email" },
     { "path": "modules/notifications" },

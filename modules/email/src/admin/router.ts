@@ -10,7 +10,7 @@ import {
   templateSchema,
   templateVersionSchema,
 } from '../schemas.js';
-import type { AdminContext } from '../http/admin-context.js';
+import type { AdminContext } from '@template/contracts/module-instance';
 import { isCsrfValid } from '../http/csrf.js';
 import { initTRPC, TRPCError } from '@trpc/server';
 
@@ -29,7 +29,7 @@ import {
 
 interface AdminRpcContext extends ModuleContext {
   request: Request;
-  admin: AdminContext | null;
+  adminContext: AdminContext;
   env: Pick<EmailEnv, 'csrfCookieName'>;
 }
 
@@ -88,9 +88,9 @@ function renderVersion(version: VersionRow, variables: Record<string, VariableVa
 const adminT = initTRPC.context<AdminRpcContext>().create();
 
 const adminProcedure = adminT.procedure.use(({ ctx, next }) => {
-  if (!ctx.admin)
+  if (!ctx.adminContext)
     throw new TRPCError({ code: 'FORBIDDEN', message: 'Контекст администратора отсутствует' });
-  return next({ ctx: { admin: ctx.admin } });
+  return next({ ctx: { adminContext: ctx.adminContext } });
 });
 
 const adminMutation = adminProcedure.use(({ ctx, next }) => {
@@ -148,8 +148,8 @@ export const adminRouter = adminT.router({
       );
       await ctx.repo.audit({
         action: 'template.created',
-        actorUserId: ctx.admin.userId,
-        actorRole: ctx.admin.role,
+        actorUserId: ctx.adminContext.userId,
+        actorRole: ctx.adminContext.role,
         details: { key: input.key },
       });
 
@@ -170,8 +170,8 @@ export const adminRouter = adminT.router({
       const row = await ctx.repo.updateTemplate(input.id, input);
       await ctx.repo.audit({
         action: 'template.updated',
-        actorUserId: ctx.admin.userId,
-        actorRole: ctx.admin.role,
+        actorUserId: ctx.adminContext.userId,
+        actorRole: ctx.adminContext.role,
         details: { key: row.key },
       });
       return { ok: true as const, template: toTemplate(row) };
@@ -205,8 +205,8 @@ export const adminRouter = adminT.router({
       });
       await ctx.repo.audit({
         action: 'version.draft.created',
-        actorUserId: ctx.admin.userId,
-        actorRole: ctx.admin.role,
+        actorUserId: ctx.adminContext.userId,
+        actorRole: ctx.adminContext.role,
         details: { templateKey: template.key, version: row.version },
       });
 
@@ -252,8 +252,8 @@ export const adminRouter = adminT.router({
 
       await ctx.repo.audit({
         action: 'version.published',
-        actorUserId: ctx.admin.userId,
-        actorRole: ctx.admin.role,
+        actorUserId: ctx.adminContext.userId,
+        actorRole: ctx.adminContext.role,
         details: { templateKey: template.key, version: row.version },
       });
 
@@ -327,8 +327,8 @@ export const adminRouter = adminT.router({
 
       await ctx.repo.audit({
         action: 'version.test-sent',
-        actorUserId: ctx.admin.userId,
-        actorRole: ctx.admin.role,
+        actorUserId: ctx.adminContext.userId,
+        actorRole: ctx.adminContext.role,
         details: { templateKey: template.key, to: input.to },
       });
 

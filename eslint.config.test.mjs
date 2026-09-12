@@ -59,10 +59,10 @@ describe('architectural import boundaries', () => {
 describe('module environment access', () => {
   it.each([
     ['modules/users/src/example.ts', 'export const value = process.env.DEMO;', 'no-restricted-properties'],
-    ['modules/app/web/src/example.tsx', 'export const value = import.meta.env.VITE_API_URL;', 'no-restricted-syntax'],
+    ['modules/web/src/example.tsx', 'export const value = import.meta.env.VITE_API_URL;', 'no-restricted-syntax'],
     ['modules/users/src/example.mts', 'export const value = process.env.DEMO;', 'no-restricted-properties'],
     ['modules/users/src/example.js', 'export const value = process.env.DEMO;', 'no-restricted-properties'],
-    ['modules/site/server/example.mjs', 'export const value = import.meta.env.DEMO;', 'no-restricted-syntax'],
+    ['modules/web/server/example.mjs', 'export const value = import.meta.env.DEMO;', 'no-restricted-syntax'],
   ])('rejects direct environment access in %s', async (file, source, ruleId) => {
     expect(await messages(file, source)).toEqual(expect.arrayContaining([expect.objectContaining({ ruleId })]));
   });
@@ -77,7 +77,7 @@ describe('module environment access', () => {
     'scripts/example.mjs',
     'modules/users/src/example.spec.ts',
     'modules/users/web/src/example.test.tsx',
-    'modules/site/vite.config.ts',
+    'modules/web/vite.config.ts',
   ])('allows environment access in composition, tooling and tests: %s', async (file) => {
     expect(await messages(file, 'export const value = process.env.DEMO;')).toEqual([]);
   });

@@ -8,6 +8,8 @@ import type { AdminRepository } from './repository.js';
 import { adminRouter } from './admin/router.js';
 import type { AdminRpcContext } from './admin/rpc.js';
 
+const owner = { userId: '00000000-0000-4000-8000-000000000001', email: 'owner@example.com', role: 'owner' as const };
+
 const env: AdminEnv = {
   databaseUrl: 'postgres://unused/configured_admin',
   sessionCookieName: 'configured_session',
@@ -28,7 +30,7 @@ function context(cookie: string) {
       headers: { cookie, 'x-csrf-token': 'csrf-value' },
     }),
     resHeaders: new Headers(),
-    admin: {
+    adminContext: {
       userId: '00000000-0000-4000-8000-000000000001',
       email: 'owner@example.com',
       role: 'owner',
@@ -79,7 +81,7 @@ describe('configuration passed to Admin', () => {
 
   it('issues the CSRF cookie from the settings supplied at creation', async () => {
     const { adminFetch } = createModule({ env, catalogue: [], modules: { auth: {} as AuthApi } });
-    const response = await adminFetch(new Request('http://admin/admin/csrf'));
+    const response = await adminFetch(new Request('http://admin/admin/csrf'), owner);
 
     expect(response.status).toBe(200);
     const { token } = await response.json() as { token: string };
@@ -88,9 +90,9 @@ describe('configuration passed to Admin', () => {
 
   it('keeps the first tab token valid when a second tab asks for CSRF', async () => {
     const { adminFetch } = createModule({ env, catalogue: [], modules: { auth: {} as AuthApi } });
-    const first = await adminFetch(new Request('http://admin/admin/csrf'));
+    const first = await adminFetch(new Request('http://admin/admin/csrf'), owner);
     const { token } = await first.json() as { token: string };
-    const second = await adminFetch(new Request('http://admin/admin/csrf', { headers: { cookie: `configured_csrf_panel=${token}` } }));
+    const second = await adminFetch(new Request('http://admin/admin/csrf', { headers: { cookie: `configured_csrf_panel=${token}` } }), owner);
     expect(await second.json()).toEqual({ token });
     const { ctx, revoke } = context(`configured_session=active; configured_csrf_panel=${token}`);
     ctx.request.headers.set('x-csrf-token', token);
@@ -109,7 +111,7 @@ describe('configuration passed to Admin', () => {
     for (const grant of ['uninstalled', 'operations', 'database']) {
       await expect(caller.addAdministrator({ email: 'user@example.com', role: 'admin', grants: [grant] }))
         .rejects.toMatchObject({ code: 'BAD_REQUEST' });
-      await expect(caller.updateAdministrator({ userId: ctx.admin!.userId, grants: [grant] }))
+      await expect(caller.updateAdministrator({ userId: ctx.adminContext!.userId, grants: [grant] }))
         .rejects.toMatchObject({ code: 'BAD_REQUEST' });
     }
   });
@@ -123,8 +125,8 @@ describe('configuration passed to Admin', () => {
     ];
     ctx.repo = {
       findByUserId: async () => ({
-        user_id: ctx.admin!.userId,
-        email: ctx.admin!.email,
+        user_id: ctx.adminContext!.userId,
+        email: ctx.adminContext!.email,
         role: 'admin',
         grants: ['billing', 'operations', 'uninstalled'],
       }),

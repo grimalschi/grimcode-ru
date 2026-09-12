@@ -14,7 +14,7 @@
       "dependsOn": ["^build"],
       "outputs": []
     },
-    "@template/site#typecheck": {
+    "@template/web#typecheck": {
       "dependsOn": ["build"],
       "outputs": []
     },

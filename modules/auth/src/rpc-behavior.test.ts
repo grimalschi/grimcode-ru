@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createModule } from './index.js';
 
+const administrator = {
+  userId: '00000000-0000-4000-8000-000000000002',
+  email: 'owner@example.com', role: 'owner' as const,
+};
+
 const query = vi.hoisted(() => vi.fn());
 vi.mock('./db/database.js', () => ({ createDatabase: () => async () => ({ query }) }));
 
@@ -13,8 +18,6 @@ const env = {
 function request(procedure: string, input: unknown, token: string | null = 'csrf-value') {
   const headers = new Headers({
     'content-type': 'application/json', cookie: 'auth_csrf=csrf-value',
-    'x-template-admin-user-id': '00000000-0000-4000-8000-000000000002',
-    'x-template-admin-email': 'owner@example.com', 'x-template-admin-role': 'owner',
   });
   if (token !== null) headers.set('x-csrf-token', token);
   return new Request(`https://example.test/admin/embed/module/auth/rpc/${procedure}`, {
@@ -53,7 +56,7 @@ describe('Auth RPC boundaries', () => {
     const emit = vi.fn();
     const module = createModule({ env, modules: { notifications: { emit } } });
     for (const token of [null, 'different-token']) {
-      const response = await module.adminFetch(request(procedure, input, token));
+      const response = await module.adminFetch(request(procedure, input, token), administrator);
       expect(response.status).toBe(403);
       expect(await response.json()).toMatchObject({ error: { message: expect.stringContaining('CSRF') } });
       expect(query).not.toHaveBeenCalled();
@@ -64,7 +67,7 @@ describe('Auth RPC boundaries', () => {
   it('validates administrative and internal inputs before repository calls', async () => {
     const emit = vi.fn();
     const module = createModule({ env, modules: { notifications: { emit } } });
-    const response = await module.adminFetch(request('sendRecovery', { id: 'invalid-id' }));
+    const response = await module.adminFetch(request('sendRecovery', { id: 'invalid-id' }), administrator);
     expect(response.status).toBe(400);
     await expect(module.internalCaller.getIdentityByEmail({ email: 'not-an-email' }))
       .rejects.toMatchObject({ code: 'BAD_REQUEST' });

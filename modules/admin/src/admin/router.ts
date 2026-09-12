@@ -70,13 +70,13 @@ export const adminRouter = adminT.router({
       }),
     )
     .query(async ({ ctx }) => {
-    const row = await ctx.repo.findByUserId(ctx.admin.userId);
+    const row = await ctx.repo.findByUserId(ctx.adminContext.userId);
     if (!row) throw new TRPCError({ code: 'FORBIDDEN', message: 'Не администратор' });
 
     const modules = visibleModules(row.role, row.grants ?? [], ctx.catalogue);
     return {
       userId: row.user_id,
-      email: ctx.admin.email,
+      email: ctx.adminContext.email,
       role: row.role,
       // Hiding a menu item is interface only — the direct URL passes the very same Router check.
       modules,
@@ -163,7 +163,7 @@ export const adminRouter = adminT.router({
         const row = await repo.add(identity.id, identity.email, input.role, input.grants);
         await repo.audit({
           action: 'administrator.added',
-          actorUserId: ctx.admin.userId,
+          actorUserId: ctx.adminContext.userId,
           subjectUserId: identity.id,
           details: { role: input.role, grants: input.grants },
         });
@@ -183,38 +183,40 @@ export const adminRouter = adminT.router({
     )
     .output(z.object({ ok: z.literal(true), administrator: administratorSchema }))
     .mutation(async ({ input, ctx }) => {
-    if (input.grants) validateGrants(input.grants, ctx.catalogue);
-    const existing = await ctx.repo.findByUserId(input.userId);
-    if (!existing) throw new TRPCError({ code: 'NOT_FOUND', message: 'Администратор не найден' });
+      if (input.grants) validateGrants(input.grants, ctx.catalogue);
+      return ctx.repo.withRegistryLock(async (repo) => {
+        await requireCurrentOwner(ctx, repo);
+        const existing = await repo.findByUserId(input.userId);
+        if (!existing) throw new TRPCError({ code: 'NOT_FOUND', message: 'Администратор не найден' });
 
-    const row = await ctx.repo.withRegistryLock(async (repo) => {
-      await requireCurrentOwner(ctx, repo);
-      const eligible = await ownersAbleToSignIn(await repo.otherActiveOwnerIds(input.userId), ctx.auth);
-      return repo.update(input.userId, input, lastOwnerGuard(input.userId), eligible);
-    });
-    const { identities } = await ctx.auth.getIdentitiesByIds({ ids: [row.user_id] });
-    row.email = identities[0]?.email ?? row.email;
+        const { identities } = await ctx.auth.getIdentitiesByIds({ ids: [input.userId] });
+        const eligible = await ownersAbleToSignIn(await repo.otherActiveOwnerIds(input.userId), ctx.auth);
+        const row = await repo.update(input.userId, input, lastOwnerGuard(input.userId), eligible);
+        await repo.audit({
+          action: 'administrator.updated',
+          actorUserId: ctx.adminContext.userId,
+          subjectUserId: input.userId,
+          details: {
+            role: input.role ?? null,
+            enabled: input.enabled ?? null,
+            grants: input.grants ?? null,
+          },
+        });
 
-    await ctx.repo.audit({
-      action: 'administrator.updated',
-      actorUserId: ctx.admin.userId,
-      subjectUserId: input.userId,
-      details: {
-        role: input.role ?? null,
-        enabled: input.enabled ?? null,
-        grants: input.grants ?? null,
-      },
-    });
-
-    return { ok: true as const, administrator: toAdministrator(row) };
-  }),
+        // Build and validate the response before commit, together with the update and audit.
+        const administrator = administratorSchema.parse(toAdministrator({
+          ...row, email: identities[0]?.email ?? row.email,
+        }));
+        return { ok: true as const, administrator };
+      });
+    }),
 
   setIdentityBlocked: ownerMutation
     .input(z.object({ userId: idSchema, blocked: z.boolean() }))
     .output(okSchema)
     .mutation(async ({ ctx, input }) => ctx.repo.withRegistryLock(async (repo) => {
       await requireCurrentOwner(ctx, repo);
-      if (input.blocked && input.userId === ctx.admin.userId) {
+      if (input.blocked && input.userId === ctx.adminContext.userId) {
         throw new TRPCError({ code: 'CONFLICT', message: 'Нельзя заблокировать собственный аккаунт' });
       }
       const target = await repo.findByUserId(input.userId);
@@ -223,7 +225,7 @@ export const adminRouter = adminT.router({
         lastOwnerGuard(input.userId)({ role: 'owner', enabled: false }, eligible.length);
       }
       await ctx.auth.setIdentityBlocked(input);
-      await repo.audit({ action: input.blocked ? 'identity.blocked' : 'identity.unblocked', actorUserId: ctx.admin.userId, subjectUserId: input.userId });
+      await repo.audit({ action: input.blocked ? 'identity.blocked' : 'identity.unblocked', actorUserId: ctx.adminContext.userId, subjectUserId: input.userId });
       return { ok: true as const };
     })),
 
@@ -279,11 +281,11 @@ function validateGrants(grants: readonly string[], catalogue: readonly Catalogue
 }
 
 /** Recheck the actor after acquiring the lock; another owner may have just removed their access. */
-async function requireCurrentOwner(ctx: AdminRpcContext & { admin: NonNullable<AdminRpcContext['admin']> }, repo: AdminRepository): Promise<void> {
-  const row = await repo.findByUserId(ctx.admin.userId);
+async function requireCurrentOwner(ctx: AdminRpcContext, repo: AdminRepository): Promise<void> {
+  const row = await repo.findByUserId(ctx.adminContext.userId);
   const token = parseCookies(ctx.request.headers.get('cookie'))[ctx.env.sessionCookieName];
   const { identity } = token ? await ctx.auth.resolveSession({ sessionToken: token }) : { identity: null };
-  if (!row?.enabled || row.role !== 'owner' || identity?.id !== ctx.admin.userId) {
+  if (!row?.enabled || row.role !== 'owner' || identity?.id !== ctx.adminContext.userId) {
     throw new TRPCError({ code: 'FORBIDDEN', message: 'Доступ владельца больше не действует' });
   }
 }

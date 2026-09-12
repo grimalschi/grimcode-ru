@@ -1,4 +1,5 @@
-import type { AdminContext, AdminTarget, AuthorizationResult } from '@template/contracts/modules/admin';
+import type { AdminContext } from '@template/contracts/module-instance';
+import type { AdminTarget, AuthorizationResult } from '@template/contracts/modules/admin';
 
 import { parseCookies } from './http/cookies.js';
 import { proxyRequest } from './proxy.js';
@@ -19,8 +20,7 @@ import {
  * | `/admin/embed/module/:name/**`  | admin panel of that module    | session, role and grant on `:name`   |
  * | `/admin/**`                      | admin                         | session and an admin role            |
  * | `/module/:name/**`              | module from the public list   | none — the module secures itself     |
- * | `/app/**`                        | app                           | none — App checks the user session   |
- * | everything else                  | site                          | none — public                        |
+ * | everything else                  | web                           | none — API modules secure their data |
  *
  * The path is preserved, and `:name` is looked up only in the configured handler maps.
  */
@@ -39,11 +39,7 @@ export async function routeRequest(
       return await routePublicModule(request, pathname, options.publicFetches);
     }
 
-    if (pathname === '/app' || pathname.startsWith('/app/')) {
-      return await proxyRequest(request, { target: options.publicFetches.app });
-    }
-
-    return await proxyRequest(request, { target: options.publicFetches.site });
+    return await proxyRequest(request, { target: options.publicFetches.web });
   } catch {
     return badGateway(request);
   }
@@ -84,7 +80,7 @@ async function routeAdmin(
 
   const destination = target.area === 'panel' ? adminFetches.admin : adminFetches[target.module]!;
 
-  return proxyRequest(request, { target: destination, adminContext });
+  return proxyRequest(request, { target: (forwarded) => destination(forwarded, adminContext) });
 }
 
 async function routePublicModule(

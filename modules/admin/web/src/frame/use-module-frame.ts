@@ -1,9 +1,5 @@
-import {
-  ADMIN_FRAME_MESSAGES,
-  normalizeModulePath,
-  type ShellFrameMessage,
-  type ChildFrameMessage,
-} from "./protocol"
+import type { ShellFrameMessage, ChildFrameMessage } from "@template/contracts/admin-frame"
+import { ADMIN_FRAME_MESSAGES, normalizeModulePath } from "./protocol"
 import { type ThemePreference } from "../theme"
 import * as React from "react"
 
@@ -80,7 +76,7 @@ export function useModuleFrame({
         return
       }
 
-      if (message.type === ADMIN_FRAME_MESSAGES.path) {
+      if (message.type === ADMIN_FRAME_MESSAGES.path && typeof message.path === "string") {
         const reported = normalizeModulePath(message.path)
         setChildPath(reported)
         onPathChange(reported)

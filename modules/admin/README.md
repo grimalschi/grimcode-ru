@@ -35,8 +35,9 @@ Role and grant changes take effect on the next request.
 
 Authorization results and denial reasons are defined in
 [`AdminApi`](../../contracts/src/modules/admin.ts); [Router](../router/README.md#administrative-authorization)
-turns them into HTTP responses. Module procedures validate Router's
-[administrator headers](../router/README.md#trusted-administrator-headers) and enforce any finer permissions.
+turns them into HTTP responses. Router passes the verified `AdminContext` as the second argument
+to `adminFetch(request, adminContext)`. Hono exposes module settings and this request's context
+through `c.env`; tRPC procedures receive `ctx.env` and `ctx.adminContext` and enforce any finer permissions.
 
 ### First owner
 
@@ -48,7 +49,8 @@ owner and one audit entry. With no registered identities, the panel asks for reg
 ### Managing access and preserving an owner
 
 Owners add registered users by email, assign roles and module grants, and enable or disable
-administrators. Each change is audited; disabling keeps the administrator's history.
+administrators. Administrator records, grants and their audit entry are saved in one transaction;
+a failed lookup or audit write leaves the previous access intact. Disabling keeps the administrator's history.
 
 Administrator additions, role changes and identity blocking share a registry lock. Inside it, Admin rechecks the actor's
 session and role and asks Auth which remaining owners can sign in. This preserves an accessible
@@ -72,7 +74,7 @@ Panel logout revokes the session through Auth before clearing the cookie, follow
 
 ## Embedded interfaces
 
-The shell owns navigation and theme preference. Links to Site and App open new tabs and use muted
+The shell owns navigation and theme preference. Links to the public site and application open new tabs and use muted
 styling to distinguish them from navigation within Admin. The mobile menu opens and closes at the same
 screen position, so the user can tap twice without moving their finger. Each embedded module owns its interface.
 For example, `/admin/module/email#/templates/123` opens the frame at
@@ -80,6 +82,7 @@ For example, `/admin/module/email#/templates/123` opens the frame at
 
 ### Frame protocol
 
+Message types are defined in [`@template/contracts/admin-frame`](../../contracts/README.md#admin-frames).
 Both ends send `postMessage` to their exact origin and check `event.origin` and `event.source`.
 The shell accepts messages from its current iframe; the module accepts messages from its parent.
 
@@ -106,6 +109,10 @@ Serve its assets and RPC through `adminFetch`; add a CSRF endpoint for mutations
 metadata and connect both through composition. The browser uses its own server's router type and administrative RPC
 prefix. Implement the frame protocol and verify direct links, navigation and access through Router.
 
+The panel and embedded SPA handlers serve `index.html` for navigation paths. Their `assets/`
+directories are reserved for static files; missing files there return `404` after Router checks
+administrator access.
+
 For an Admin-owned section, register its route in [`main.tsx`](web/src/main.tsx) and navigation in
 [`app-sidebar.tsx`](web/src/components/app-sidebar.tsx). Owner-only sections require a server owner
 check for every procedure as well as the browser guard.
@@ -117,9 +124,65 @@ check for every procedure as well as the browser guard.
 `insert`, `update` and `delete` modify rows. View settings are stored in the page URL.
 
 Every procedure requires owner; mutations also require Admin's CSRF token. Identifiers are checked
-against PostgreSQL's catalogue, values are SQL parameters, and updates and deletes require the
-complete primary key. JSON values travel as text to preserve numeric precision and distinguish
-JSON `null` from SQL NULL. PostgreSQL arrays also travel as their original text. System schemas and `schema_migrations` are excluded at the API boundary.
+against PostgreSQL's catalogue and values are SQL parameters. System schemas and `schema_migrations`
+are excluded at the API boundary.
+
+### Preservation comes first
+
+The editor must preserve data rather than guess a conversion. A type, value or table structure whose
+safe handling is unproven stays read-only until support and real PostgreSQL editing tests are added.
+This rule applies to the server as well as the interface.
+Editing currently requires a UTF8 database; other server encodings remain read-only until their
+text conversion is covered by tests.
+If column privileges hide any physical column from the catalogue, available fields remain readable
+but the entire table is read-only: a partial original row cannot prove preservation.
+
+Cells travel as PostgreSQL's native text or SQL NULL, using query-local text parsers. Numeric, date,
+JSON, array and binary values are never converted through JavaScript numbers, dates or objects on
+the write path. Connection formatting is fixed within the editor's transaction. The form distinguishes
+an empty string, the text `null`, SQL NULL and an omitted value that uses the column default.
+Control characters use a reversible JSON **string** wrapper; it does not parse the cell's JSON content.
+Paste captures the original clipboard text. Drag-and-drop is refused because browser text controls
+can normalize line endings before the editor receives the value.
+Copy uses the Clipboard API; if unavailable or denied, it reports failure.
+
+A write follows these conditions:
+
+1. Lock the relation and refresh its metadata. Accept only explicitly supported types and table
+   structures; apply operation-specific restrictions, including refusal of cascading deletion.
+2. For an update or delete, lock the row by its complete primary key and compare every cell with
+   the original row sent by the editor. A concurrent change is a conflict.
+3. Parse each proposed value through its PostgreSQL column type, including length and precision.
+   Its native output must equal the supplied text exactly. Rounding, truncation and normalization
+   cause an error; the editor never silently substitutes the converted value.
+4. Update only changed fields. Verify the returned row against the expected values, including all
+   untouched fields, and require exactly one affected row. Commit only after these checks pass;
+   otherwise roll back. An unchanged form performs no update.
+
+The update invariant is `stored row = original row + explicitly changed fields`, with exact
+string/NULL equality for every cell. Parsing must also satisfy `output(input(text)) = text` for
+each changed value. Tests exercise these conditions; the transaction enforces them on every write.
+
+For example, `numeric(5,2)` rejects `1.234` rather than saving `1.23`. A boolean uses `t` or `f`, as
+returned by PostgreSQL. JSONB must use PostgreSQL's canonical representation; a rejected spelling
+can be corrected explicitly. Textual JSON retains its original whitespace and numeric precision.
+
+Supported built-in types are listed in [`catalog.ts`](src/admin/database/catalog.ts); their arrays
+and enum labels are supported too. Unknown codecs, domains, composites and unsupported relation
+behavior are read-only. Foreign-key restrictions
+can disable deletion while permitting edits. The server checks these restrictions again when saving.
+
+These guarantees concern the editor's value transport and row operations. PostgreSQL and the schema's
+built-in constraints/default expressions are trusted; schema authors remain responsible for their
+effects. User-defined routines, triggers and operators require separate support before editing is
+enabled. Defaults are applied only when explicitly selected or supplied by a generated identity.
+
+To add a type, establish that its PostgreSQL text representation and accepted edits preserve values,
+then add real insert/update/delete and unchanged-neighbor checks to
+[`types.postgres.test.ts`](src/admin/database/types.postgres.test.ts). Include boundary values, SQL NULL,
+type modifiers and any normalization that must be refused. The catalogue inventory test requires an
+explicit decision for every built-in type, including read-only types. Browser tests cover the path
+from the original cell through the form to the stored value.
 
 ## Configuration and data
 
@@ -131,5 +194,21 @@ Administrator records refer to Auth identity IDs; identity lookups use Auth's AP
 belong in [`src/db/migrations/`](src/db/migrations), following the
 [migration instructions](../../docs/development.md#migrations).
 
-Run `pnpm --filter @template/admin test` for module checks. See
-[development guide](../../docs/development.md#checks) for application and browser checks.
+## Tests
+
+Run `pnpm --filter @template/admin test` for unit tests.
+
+Database editing tests exercise the module directly with their own PostgreSQL pools.
+Use a PostgreSQL 17 test database, matching CI, and pass `DATABASE_URL` in the process environment:
+
+```bash
+DATABASE_URL='postgres://postgres:postgres@127.0.0.1:5432/admin_tests' \
+  pnpm --filter @template/admin test:database
+```
+
+The database account needs `CREATE` on the database for test schemas. The two
+[column-visibility checks](src/admin/database/column-visibility.postgres.test.ts) also require
+`CREATEROLE`; Vitest reports them as skipped when it is unavailable. Tests remove their schemas
+and roles after execution.
+
+See the [development guide](../../docs/development.md#checks) for application and browser checks.

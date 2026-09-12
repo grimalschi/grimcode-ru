@@ -4,7 +4,7 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
 
 import { issueCsrfToken } from './csrf.js';
-import type { Hono } from 'hono';
+import type { Env, Hono } from 'hono';
 
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -40,8 +40,8 @@ interface SpaOptions {
  * `/admin/embed/module/email/templates/123` renders the app instead of a 404. Admin authorization has
  * already happened at Router — these assets are behind the very same check as the HTML.
  */
-export function mountSpa(
-  app: Hono,
+export function mountSpa<E extends Env>(
+  app: Hono<E>,
   options: SpaOptions,
 ): void {
   const root = resolve(options.rootDir);
@@ -55,6 +55,11 @@ export function mountSpa(
 
     const asset = relative === '' ? null : await resolveAsset(root, relative);
     if (asset) return fileResponse(asset.path, asset.immutable);
+
+    // Missing static files must not fall back to the SPA entry document.
+    if (relative === 'assets' || relative.startsWith('assets/')) {
+      return c.notFound();
+    }
 
     const index = join(root, 'index.html');
     try {
@@ -75,13 +80,12 @@ export function mountSpa(
  * The token is not a secret by itself — its point is that a cross-site page can make the browser
  * send the cookie but cannot read it to produce the matching header.
  */
-export function mountCsrfEndpoint(
-  app: Hono,
+export function mountCsrfEndpoint<E extends Env & { Bindings: { csrfCookieName: string } }>(
+  app: Hono<E>,
   path: string,
-  csrfCookieName: string,
 ): void {
   app.get(path, (c) => {
-    const { token, cookie } = issueCsrfToken(csrfCookieName, { path: '/' }, c.req.raw.headers);
+    const { token, cookie } = issueCsrfToken(c.env.csrfCookieName, { path: '/' }, c.req.raw.headers);
     c.header('set-cookie', cookie);
     c.header('cache-control', 'no-store');
     return c.json({ token });

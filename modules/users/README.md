@@ -17,10 +17,14 @@ concurrent first requests use the same profile, keeping registration independent
 | `/admin/embed/module/users/rpc` | `listProfiles`, `getProfile` for administrators granted Users |
 
 Every public call resolves the session through Auth before reading or changing a profile.
-App uses the [`UsersPublicRouter`](../../contracts/src/modules/users.ts) contract.
+Web uses the [`UsersPublicRouter`](../../contracts/src/modules/users.ts) contract.
 
 The administrative list gets sign-in addresses from Auth in one lookup per page. An absent identity
 or a failed lookup produces `email: null`; the profiles remain available in either case.
+Router supplies the verified [administrator context](../../contracts/README.md#http-context) through
+`adminFetch(request, adminContext)`. Hono bindings carry the context and module settings for each
+request. Administrative procedures require this context; HTTP headers cannot supply it. Public
+requests continue to resolve their own session through Auth.
 
 `env` supplies `databaseUrl` and `sessionCookieName`.
 The module's [migrations](src/db/migrations) define its schema; follow the

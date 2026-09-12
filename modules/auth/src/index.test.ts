@@ -6,6 +6,11 @@ import { createModule } from './index.js';
 import { createDatabase } from './db/database.js';
 import type { IdentityRow } from './repository.js';
 
+const administrator = {
+  userId: '00000000-0000-4000-8000-000000000002',
+  email: 'owner@example.com', role: 'owner' as const,
+};
+
 const { database, query } = vi.hoisted(() => {
   const query = vi.fn<(sql: string, values?: unknown[]) => Promise<{ rows: IdentityRow[] }>>(async () => ({ rows: [] }));
   return { database: vi.fn(async () => ({ query, connect: async () => ({ query, release() {} }) })), query };
@@ -68,17 +73,17 @@ describe('Auth module connection', () => {
     for (const path of ['/admin/embed/module/auth/csrf', '/admin/embed/module/auth/rpc/listIdentities', '/admin/embed/module/auth/']) {
       expect((await module.publicFetch(request(path))).status).toBe(404);
     }
-    expect((await module.adminFetch(request('/module/auth/rpc/currentSession'))).status).toBe(404);
+    expect((await module.adminFetch(request('/module/auth/rpc/currentSession'), administrator)).status).toBe(404);
     expect((await module.publicFetch(request('/internal/rpc'))).status).toBe(404);
-    expect((await module.adminFetch(request('/internal/rpc'))).status).toBe(404);
+    expect((await module.adminFetch(request('/internal/rpc'), administrator)).status).toBe(404);
     expect(database).not.toHaveBeenCalled();
   });
 
   it('captures independent configuration for separate module instances', async () => {
     const first = createModule({ env, modules });
     const second = createModule({ env: { ...env, csrfCookieName: 'other_csrf' }, modules });
-    const firstResponse = await first.adminFetch(request('/admin/embed/module/auth/csrf'));
-    const secondResponse = await second.adminFetch(request('/admin/embed/module/auth/csrf'));
+    const firstResponse = await first.adminFetch(request('/admin/embed/module/auth/csrf'), administrator);
+    const secondResponse = await second.adminFetch(request('/admin/embed/module/auth/csrf'), administrator);
     expect(firstResponse.headers.get('set-cookie')).toMatch(/^auth_csrf=/);
     expect(secondResponse.headers.get('set-cookie')).toMatch(/^other_csrf=/);
     expect(database).not.toHaveBeenCalled();

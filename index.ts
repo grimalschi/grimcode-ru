@@ -1,13 +1,12 @@
 import { serve } from '@hono/node-server';
 import type { ModuleInstance } from '@template/contracts/module-instance';
 import { createModule as createAdmin } from '@template/admin';
-import { createModule as createApp } from '@template/app';
 import { createModule as createAuth } from '@template/auth';
 import { createModule as createEmail } from '@template/email';
 import { createModule as createNotifications } from '@template/notifications';
 import { createModule as createRouter } from '@template/router';
-import { createModule as createSite } from '@template/site/server';
 import { createModule as createUsers } from '@template/users';
+import { createModule as createWeb } from '@template/web/server';
 
 const env = process.env;
 
@@ -62,8 +61,7 @@ const admin = createAdmin({
   modules: { auth: auth.internalCaller },
   catalogue: instances.flatMap(({ id, admin }) => admin ? [{ id, admin }] : []),
 });
-const app = createApp();
-const site = createSite({ env: { origin: session.publicOrigin } });
+const web = createWeb({ env: { origin: session.publicOrigin } });
 
 const router = createRouter({
   env: session,
@@ -71,8 +69,7 @@ const router = createRouter({
   publicFetches: {
     ...Object.fromEntries(instances.flatMap(({ id, publicFetch }) =>
       publicFetch ? [[id, publicFetch] as const] : [])),
-    site: site.publicFetch,
-    app: app.publicFetch,
+    web: web.publicFetch,
   },
   adminFetches: {
     ...Object.fromEntries(instances.flatMap(({ id, adminFetch }) =>
@@ -81,7 +78,7 @@ const router = createRouter({
   },
 });
 
-instances.push(admin, app, site, router);
+instances.push(admin, web, router);
 for (const instance of instances) {
   await instance.migrate?.();
 }

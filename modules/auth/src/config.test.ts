@@ -9,6 +9,11 @@ import { adminRouter, type AdminRpcContext } from './admin/router.js';
 import { publicRouter, type PublicContext } from './public/router.js';
 import { createRateLimiter } from './rate-limit.js';
 
+const administrator = {
+  userId: '00000000-0000-4000-8000-000000000002',
+  email: 'owner@example.com', role: 'owner' as const,
+};
+
 const env = {
   databaseUrl: 'postgres://unused/configured_auth',
   sessionTtlSeconds: 90,
@@ -63,7 +68,7 @@ function adminContext(deps: ReturnType<typeof dependencies>, cookie: string): Ad
     }),
     resHeaders: new Headers(),
     env,
-    admin: {
+    adminContext: {
       userId: '00000000-0000-4000-8000-000000000002',
       email: 'owner@example.com',
       role: 'owner',
@@ -93,15 +98,15 @@ describe('configuration passed to Auth', () => {
 
   it('keeps a CSRF token valid when another tab requests one', async () => {
     const module = createModule({ env, modules: { notifications: { emit: vi.fn() } } });
-    const first = await module.adminFetch(new Request('http://auth/admin/embed/module/auth/csrf'));
+    const first = await module.adminFetch(new Request('http://auth/admin/embed/module/auth/csrf'), administrator);
     const body = await first.json() as { token: string };
     const second = await module.adminFetch(new Request('http://auth/admin/embed/module/auth/csrf', {
       headers: { cookie: `${env.csrfCookieName}=${body.token}` },
-    }));
+    }), administrator);
     expect(await second.json()).toEqual(body);
     const invalid = await module.adminFetch(new Request('http://auth/admin/embed/module/auth/csrf', {
       headers: { cookie: `${env.csrfCookieName}=invalid` },
-    }));
+    }), administrator);
     expect((await invalid.json() as { token: string }).token).toMatch(/^[A-Za-z0-9_-]{32}$/);
   });
 
@@ -174,7 +179,7 @@ describe('configuration passed to Auth', () => {
 
   it('issues the CSRF cookie from settings captured when the module is created', async () => {
     const module = createModule({ env, modules: { notifications: { emit: vi.fn() } } });
-    const response = await module.adminFetch(new Request('http://auth/admin/embed/module/auth/csrf'));
+    const response = await module.adminFetch(new Request('http://auth/admin/embed/module/auth/csrf'), administrator);
     expect(response.status).toBe(200);
     const { token } = await response.json() as { token: string };
     expect(response.headers.get('set-cookie')).toContain(`configured_csrf_auth=${token};`);

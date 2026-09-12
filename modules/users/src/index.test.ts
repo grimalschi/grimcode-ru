@@ -2,6 +2,11 @@ import type { AuthApi } from '@template/contracts/modules/auth';
 import { describe, expect, it, vi } from 'vitest';
 import { createModule } from './index.js';
 
+const administrator = {
+  userId: '00000000-0000-4000-8000-000000000002',
+  email: 'owner@example.com', role: 'owner' as const,
+};
+
 const env = {
   databaseUrl: 'postgres://unused/test_users',
   sessionCookieName: 'users_session',
@@ -17,7 +22,7 @@ describe('Users module surfaces', () => {
     for (const path of ['/admin/embed/module/users/rpc/listProfiles', '/admin/embed/module/users/']) {
       expect((await module.publicFetch(request(path))).status).toBe(404);
     }
-    expect((await module.adminFetch(request('/module/users/rpc/getOwnProfile'))).status).toBe(404);
+    expect((await module.adminFetch(request('/module/users/rpc/getOwnProfile'), administrator)).status).toBe(404);
     expect(resolveSession).not.toHaveBeenCalled();
   });
 

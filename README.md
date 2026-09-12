@@ -38,8 +38,7 @@ pnpm dev
 | Модуль | Ответственность |
 | --- | --- |
 | [Router](modules/router/README.md) | Внешняя маршрутизация и проверка административного доступа |
-| [Site](modules/site/README.md) | Публичный сайт с SSR |
-| [App](modules/app/README.md) | Пользовательское SPA |
+| [Web](modules/web/README.md) | Публичный сайт с SSR и пользовательский интерфейс `/app/` |
 | [Auth](modules/auth/README.md) | Identity, способы входа и сессии |
 | [Users](modules/users/README.md) | Продуктовые профили |
 | [Admin](modules/admin/README.md) | Администраторы, права и панель управления |

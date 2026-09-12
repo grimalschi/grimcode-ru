@@ -111,25 +111,19 @@ export function selectRows(
   return { rows, total };
 }
 
-/** JSON travels as text so JavaScript cannot round numbers or collapse JSON null into SQL NULL. */
-function returnedColumns(table: Table): string {
-  return table.columns.map((column) => /^jsonb?$/.test(column.type) || column.type === 'ARRAY'
-    ? `${quote(column.name)}::text AS ${quote(column.name)}`
-    : quote(column.name)).join(', ');
+/** Return native values; query-local parsers keep every PostgreSQL text representation intact. */
+export function returnedColumns(table: Table): string {
+  return table.columns.map((column) => quote(column.name)).join(', ');
 }
 
-function valueOf(column: Column, value: unknown): unknown {
-  if (/^jsonb?$/.test(column.type)) {
-    if (value !== null && typeof value !== 'string') {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: `${column.name}: передайте JSON текстом или SQL NULL.` });
-    }
-    return value;
+function valueOf(column: Column, value: unknown): string | null {
+  if (value !== null && typeof value !== 'string') {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: `${column.name}: передайте исходный текст или SQL NULL.` });
   }
-  if (typeof value !== 'string' || !/^null$/i.test(value.trim()) || /char|text|name/i.test(column.type)) return value;
-  if (!column.nullable) {
-    throw new TRPCError({ code: 'BAD_REQUEST', message: `${column.name} cannot be empty, and "null" is not a value of type ${column.type}.` });
+  if (value === null && !column.nullable) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: `${column.name} cannot be empty (SQL NULL).` });
   }
-  return null;
+  return value;
 }
 
 /**
@@ -148,7 +142,7 @@ export function insertRow(table: Table, body: { values?: unknown }): Statement {
 
   for (const name of given) {
     const column = findColumn(table, name);
-    if (column.generated) {
+    if (column.generated || column.readOnlyReason) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: `${column.name} is filled in by the database, so a new row cannot carry it.` });
     }
   }
@@ -193,7 +187,7 @@ function describeTable(table: Table): string {
  * primary key is refused here rather than addressed by its contents — matching on every column would
  * hit both of two identical rows, and there is no honest way to tell them apart.
  */
-function keyClause(table: Table, key: unknown, parameters: Parameters): string {
+export function keyClause(table: Table, key: unknown, parameters: Parameters): string {
   if (table.primaryKey.length === 0) {
     throw new TRPCError({ code: 'CONFLICT', message: `${table.schema}.${table.name} has no primary key, so a single row cannot be addressed. ` +
         'Rows here can be read but not changed.' });
@@ -251,6 +245,7 @@ export function updateRow(
   const assignments = names
     .map((name) => {
       const column = findColumn(table, name);
+      if (column.generated || column.readOnlyReason) throw new TRPCError({ code: 'BAD_REQUEST', message: `${column.name} доступна только для чтения.` });
       return `${quote(column.name)} = ${parameters.add(valueOf(column, values[name]))}`;
     })
     .join(', ');
@@ -258,7 +253,7 @@ export function updateRow(
   const where = keyClause(table, body.key, parameters);
 
   return {
-    text: `UPDATE ${qualify(table)} SET ${assignments} WHERE ${where}`,
+    text: `UPDATE ONLY ${qualify(table)} SET ${assignments} WHERE ${where} RETURNING ${returnedColumns(table)}`,
     values: parameters.values,
   };
 }
@@ -269,7 +264,7 @@ export function deleteRow(table: Table, body: { key?: unknown }): Statement {
   const where = keyClause(table, body.key, parameters);
 
   return {
-    text: `DELETE FROM ${qualify(table)} WHERE ${where}`,
+    text: `DELETE FROM ONLY ${qualify(table)} WHERE ${where}`,
     values: parameters.values,
   };
 }

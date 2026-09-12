@@ -16,6 +16,9 @@ Administrators granted Email open the editor and delivery log at `/admin/module/
 The embedded screen and API live under `/admin/embed/module/email/`.
 Mutations require the module's [CSRF token](../admin/README.md#csrf).
 [`EmailEnv`](src/env.ts) supplies `databaseUrl`, `csrfCookieName` and `mail` settings.
+Router passes the verified administrator as `adminFetch(request, adminContext)`.
+Hono bindings carry the module settings and this request's `adminContext`; the tRPC context uses
+them for CSRF validation and the actor recorded in Email's audit.
 
 ## Templates
 

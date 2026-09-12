@@ -10,8 +10,10 @@ import { defineConfig, loadEnv } from 'vite';
  * Served by this module under its protected path, so the base must match: assets have to resolve
  * both inside the Admin shell's iframe and when the protected URL is opened directly.
  */
-export default defineConfig(({ mode }) => {
-  const env = { ...loadEnv(mode, fileURLToPath(new URL('../../..', import.meta.url)), ''), ...process.env };
+export default defineConfig(({ command, mode }) => {
+  const env = command === 'serve'
+    ? { ...loadEnv(mode, fileURLToPath(new URL('../../..', import.meta.url)), ''), ...process.env }
+    : process.env;
   const target = `http://127.0.0.1:${env.PORT || 63000}`;
   return {
     root: fileURLToPath(new URL('.', import.meta.url)),

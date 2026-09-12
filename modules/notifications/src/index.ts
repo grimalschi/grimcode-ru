@@ -19,7 +19,7 @@ export function createModule({ env, modules }: {
   return {
     id: 'notifications',
     admin: { title: 'Notifications', icon: 'bell', assignable: true },
-    adminFetch: createAdminFetch({ repository }),
+    adminFetch: createAdminFetch({ env, repository }),
     internalCaller: createInternalCaller(async () => ({
       repo: await repository(),
       email: modules.email,

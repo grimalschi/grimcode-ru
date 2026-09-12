@@ -52,6 +52,7 @@ beforeAll(async () => {
     'x-template-admin-user-id': state.userId,
     'x-template-admin-email': state.email,
     'x-template-admin-role': 'owner',
+    adminContext: JSON.stringify({ userId: state.userId, email: state.email, role: 'owner' }),
   };
   restore = new RegistryRestore(owner);
 

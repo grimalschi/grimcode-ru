@@ -3,12 +3,12 @@ import { z } from 'zod';
 import { idSchema, pageOf, paginationInputSchema } from '../primitives.js';
 import type { NotificationEventType } from '@template/contracts/modules/notifications';
 import { notificationEventTypeSchema } from '../vocabulary.js';
-import type { AdminContext } from '../http/admin-context.js';
+import type { AdminContext } from '@template/contracts/module-instance';
 import type { EventRow, NotificationsRepository } from '../repository.js';
 import { storedNotificationEventSchema } from '../schemas.js';
 
 interface AdminRpcContext {
-  admin: AdminContext | null;
+  adminContext: AdminContext;
   repo: NotificationsRepository;
 }
 
@@ -35,9 +35,9 @@ const adminT = initTRPC.context<AdminRpcContext>().create({
 });
 
 const adminProcedure = adminT.procedure.use(({ ctx, next }) => {
-  if (!ctx.admin)
+  if (!ctx.adminContext)
     throw new TRPCError({ code: 'FORBIDDEN', message: 'Контекст администратора отсутствует' });
-  return next({ ctx: { admin: ctx.admin } });
+  return next({ ctx: { adminContext: ctx.adminContext } });
 });
 
 export const adminRouter = adminT.router({

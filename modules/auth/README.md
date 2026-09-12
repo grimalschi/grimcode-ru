@@ -61,8 +61,11 @@ send recovery or verification links, revoke sessions and read the security audit
 with administrator rights to preserve an enabled owner. Its internal `setIdentityBlocked` call
 changes Auth state and revokes sessions and account links atomically. The call waits for the
 transaction to finish so Admin keeps its owner-preservation lock until the change completes.
-Administrative reads validate [Router context](../router/README.md#trusted-administrator-headers);
-mutations require Auth's own [CSRF token](../admin/README.md#csrf) and are audited.
+Router passes the verified [administrator context](../../contracts/README.md#http-context) as
+`adminFetch(request, adminContext)`. Each request's Hono bindings carry that context and the module
+settings; administrative identity does not come from HTTP headers. Administrative reads require
+the context; mutations also require Auth's own [CSRF token](../admin/README.md#csrf) and are audited
+with the actor from that context.
 The embedded interface follows the [Admin frame protocol](../admin/README.md#frame-protocol).
 
 ## Account messages

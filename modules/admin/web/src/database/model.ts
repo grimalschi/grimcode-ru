@@ -7,7 +7,39 @@ export type TableInfo = Outputs['tables']['tables'][number];
 export type Column = TableInfo['columns'][number];
 export type Filter = NonNullable<Inputs['rows']['filters']>[number];
 export type Order = NonNullable<Inputs['rows']['order']>[number];
-export type Row = Record<string, unknown>;
+export type Row = Outputs['rows']['rows'][number];
+
+export interface FieldDraft {
+  mode: 'value' | 'null' | 'default';
+  text: string;
+  escaped: boolean;
+}
+
+export function hasControlCharacters(value: string): boolean {
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (code < 32 || (code >= 127 && code <= 159)) return true;
+  }
+  return false;
+}
+
+export function fieldDraft(value: string | null | undefined): FieldDraft {
+  const text = value ?? '';
+  const escaped = hasControlCharacters(text);
+  return { mode: value === undefined ? 'default' : value === null ? 'null' : 'value', text: escaped ? JSON.stringify(text) : text, escaped };
+}
+
+/** JSON wraps the PostgreSQL text as a string; the database value itself is never parsed. */
+export function fieldValue(field: FieldDraft): string | null | undefined {
+  if (field.mode === 'default') return undefined;
+  if (field.mode === 'null') return null;
+  if (!field.escaped) return field.text;
+  let value: unknown;
+  try { value = JSON.parse(field.text); }
+  catch { throw new Error('Введите JSON-строку в двойных кавычках. Спецсимволы записываются как \\r, \\n, \\t.'); }
+  if (typeof value !== 'string') throw new Error('Ожидается JSON-строка в двойных кавычках.');
+  return value;
+}
 
 export interface View {
   schema: string;
@@ -67,10 +99,7 @@ export function isFilterReady(filter: Filter): boolean {
   return filter.value !== undefined && filter.value !== null && String(filter.value) !== '';
 }
 
-export function cellText(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  return typeof value === 'object' ? JSON.stringify(value) : String(value);
-}
+export const cellText = (value: string | null | undefined): string => value ?? '';
 
 export function rowCountLabel(rows: TableInfo['rows']): string {
   return `${rows.kind === 'estimate' ? '~' : rows.kind === 'more' ? '>' : ''}${rows.count}`;

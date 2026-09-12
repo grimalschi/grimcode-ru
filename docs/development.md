@@ -55,6 +55,7 @@ startup. The platform routes external traffic to the application's `PORT`.
 | Command | Use |
 | --- | --- |
 | `pnpm --filter @template/<module> test` | Run that module's tests, if it defines a test script |
+| `pnpm --filter @template/admin test:database` | [Admin's PostgreSQL editing tests](../modules/admin/README.md#tests); pass `DATABASE_URL` in the process environment |
 | `pnpm lint` | Check code and module boundaries |
 | `pnpm typecheck` | Check TypeScript and module contracts |
 | `pnpm check` | Lint, types, unit tests and production build |
@@ -83,7 +84,7 @@ Implement procedures with local `.input()` and `.output()` validation. For an AP
 another module, update the [contract and its type checks](../contracts/README.md) along with the provider.
 Test changed behavior and access rules, including CSRF refusal for administrative mutations.
 
-Protocol definitions belong to their owners: [Router headers](../modules/router/README.md#trusted-administrator-headers),
+Protocol definitions belong to their owners: [HTTP context](../contracts/README.md#http-context),
 [Auth cookies](../modules/auth/README.md#session-cookies), and
 [Admin frames](../modules/admin/README.md#frame-protocol) and [CSRF](../modules/admin/README.md#csrf).
 A protocol change needs corresponding changes in its consumers.

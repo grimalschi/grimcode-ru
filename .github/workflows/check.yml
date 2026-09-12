@@ -33,7 +33,11 @@ jobs:
           node-version: '22.13.0'
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - run: pnpm check
+      - name: Check production builds with local development settings
+        run: |
+          printf 'NODE_ENV=development\n' > .env
+          pnpm check
+      - run: pnpm --filter @template/admin test:database
       - run: pnpm --filter @template/tests exec playwright install --with-deps chromium
       - name: Start and initialize the test installation
         run: |

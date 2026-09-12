@@ -6,7 +6,8 @@ import { idSchema, pageOf, paginationInputSchema } from '../primitives.js';
 import { adminUserProfileSchema } from '../schemas.js';
 import { toProfile, type ProfileRow, type UsersRepository } from '../repository.js';
 import type { RpcContext } from '../trpc/context.js';
-import type { AdminContext } from '../http/admin-context.js';
+import type { UsersEnv } from '../env.js';
+import type { AdminContext } from '@template/contracts/module-instance';
 
 /**
  * Fills in the sign-in address for a page of profiles.
@@ -33,7 +34,8 @@ async function withEmails(rows: ProfileRow[], auth: AuthApi) {
 }
 
 export interface AdminRpcContext extends RpcContext {
-  admin: AdminContext | null;
+  adminContext: AdminContext;
+  env: UsersEnv;
   repo: UsersRepository;
   /** Ready Auth API; the profile list reads sign-in addresses through it. */
   auth: AuthApi;
@@ -48,8 +50,8 @@ const adminT = initTRPC.context<AdminRpcContext>().create({
 });
 
 const adminProcedure = adminT.procedure.use(({ ctx, next }) => {
-  if (!ctx.admin) throw new TRPCError({ code: 'FORBIDDEN', message: 'Контекст администратора отсутствует' });
-  return next({ ctx: { admin: ctx.admin } });
+  if (!ctx.adminContext) throw new TRPCError({ code: 'FORBIDDEN', message: 'Контекст администратора отсутствует' });
+  return next({ ctx: { adminContext: ctx.adminContext } });
 });
 
 /**

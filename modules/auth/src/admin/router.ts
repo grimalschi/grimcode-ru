@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { newToken, sha256 } from '../crypto.js';
 import { isCsrfValid } from '../http/csrf.js';
 import type { RpcContext } from '../trpc/context.js';
-import type { AdminContext } from '../http/admin-context.js';
+import type { AdminContext } from '@template/contracts/module-instance';
 import { initTRPC, TRPCError } from '@trpc/server';
 
 import type { AuthEnv } from '../env.js';
@@ -12,7 +12,7 @@ import type { AuthRepository, IdentityRow } from '../repository.js';
 import { adminIdentitySchema, authAuditEntrySchema } from '../schemas.js';
 
 export interface AdminRpcContext extends RpcContext {
-  admin: AdminContext | null;
+  adminContext: AdminContext;
   repo: AuthRepository;
   notifier: Notifier;
   env: Pick<AuthEnv, 'publicOrigin' | 'csrfCookieName'>;
@@ -36,8 +36,8 @@ const t = initTRPC.context<AdminRpcContext>().create({
  * refused here on purpose.
  */
 const adminProcedure = t.procedure.use(({ ctx, next }) => {
-  if (!ctx.admin) throw new TRPCError({ code: 'FORBIDDEN', message: 'Контекст администратора отсутствует' });
-  return next({ ctx: { admin: ctx.admin } });
+  if (!ctx.adminContext) throw new TRPCError({ code: 'FORBIDDEN', message: 'Контекст администратора отсутствует' });
+  return next({ ctx: { adminContext: ctx.adminContext } });
 });
 
 const adminMutation = adminProcedure.use(({ ctx, next }) => {
@@ -120,8 +120,8 @@ export const adminRouter = t.router({
       await ctx.repo.audit({
         identityId: row.id,
         action: 'admin.recovery.sent',
-        actorUserId: ctx.admin.userId,
-        actorRole: ctx.admin.role,
+        actorUserId: ctx.adminContext.userId,
+        actorRole: ctx.adminContext.role,
       });
 
       await ctx.notifier.emit(
@@ -159,8 +159,8 @@ export const adminRouter = t.router({
       await ctx.repo.audit({
         identityId: row.id,
         action: 'admin.verification.resent',
-        actorUserId: ctx.admin.userId,
-        actorRole: ctx.admin.role,
+        actorUserId: ctx.adminContext.userId,
+        actorRole: ctx.adminContext.role,
       });
 
       await ctx.notifier.emit(
@@ -192,8 +192,8 @@ export const adminRouter = t.router({
       await ctx.repo.audit({
         identityId: row.id,
         action: 'admin.sessions.revoked',
-        actorUserId: ctx.admin.userId,
-        actorRole: ctx.admin.role,
+        actorUserId: ctx.adminContext.userId,
+        actorRole: ctx.adminContext.role,
         details: { revoked },
       });
 

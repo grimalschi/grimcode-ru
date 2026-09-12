@@ -1,9 +1,5 @@
-import {
-  ADMIN_FRAME_MESSAGES,
-  normalizeModulePath,
-  type ShellFrameMessage,
-  type ChildFrameMessage,
-} from "./protocol"
+import type { ShellFrameMessage, ChildFrameMessage } from "@template/contracts/admin-frame"
+import { ADMIN_FRAME_MESSAGES, normalizeModulePath } from "./protocol"
 import { isThemePreference, type ThemePreference } from "../theme"
 import * as React from "react"
 
@@ -54,7 +50,7 @@ export function useFrameChild({ path, onNavigate }: FrameChildOptions): FrameChi
         return
       }
 
-      if (message.type === ADMIN_FRAME_MESSAGES.navigate) {
+      if (message.type === ADMIN_FRAME_MESSAGES.navigate && typeof message.path === "string") {
         onNavigate(normalizeModulePath(message.path))
       }
     }

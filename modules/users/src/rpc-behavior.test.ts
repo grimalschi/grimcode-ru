@@ -2,6 +2,11 @@ import type { AuthApi } from '@template/contracts/modules/auth';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createModule } from './index.js';
 
+const administrator = {
+  userId: '00000000-0000-4000-8000-000000000002',
+  email: 'owner@example.com', role: 'owner' as const,
+};
+
 const query = vi.hoisted(() => vi.fn());
 vi.mock('./db/database.js', () => ({ createDatabase: () => async () => ({ query }) }));
 
@@ -32,8 +37,6 @@ function request(path: string, input: unknown, method = 'GET') {
     method, body: method === 'POST' ? JSON.stringify(input) : undefined,
     headers: {
       'content-type': 'application/json', cookie: 'session=active',
-      'x-template-admin-user-id': id, 'x-template-admin-email': 'owner@example.com',
-      'x-template-admin-role': 'owner',
     },
   });
 }
@@ -43,10 +46,39 @@ beforeEach(() => {
 });
 
 describe('Users RPC validation', () => {
+  it('requires a handler context, ignores forged admin headers and keeps public sessions independent', async () => {
+    const { module, auth } = setup();
+    const forged = request('/admin/embed/module/users/rpc/listProfiles', {});
+    forged.headers.set('x-template-admin-user-id', administrator.userId);
+    forged.headers.set('x-template-admin-email', administrator.email);
+    forged.headers.set('x-template-admin-role', administrator.role);
+
+    const denied: Response = await Reflect.apply(module.adminFetch, module, [forged.clone()]);
+    expect(denied.status).toBe(403);
+    expect(await denied.json()).toMatchObject({ error: { data: { code: 'FORBIDDEN' } } });
+    expect(query).not.toHaveBeenCalled();
+
+    const allowed = await module.adminFetch(request('/admin/embed/module/users/rpc/listProfiles', {}), administrator);
+    expect(allowed.status).toBe(200);
+    expect(await allowed.json()).toMatchObject({ result: { data: { items: [], total: 0 } } });
+    query.mockClear();
+
+    const later: Response = await Reflect.apply(module.adminFetch, module, [forged.clone()]);
+    expect(later.status).toBe(403);
+    const publicRequest = new Request('https://example.test/module/users/rpc/getOwnProfile?input={}', {
+      headers: forged.headers,
+    });
+    publicRequest.headers.delete('cookie');
+    const publicResponse = await module.publicFetch(publicRequest);
+    expect(publicResponse.status).toBe(401);
+    expect(query).not.toHaveBeenCalled();
+    expect(auth.resolveSession).not.toHaveBeenCalled();
+  });
+
   it('rejects malformed profile edits and admin lookups before accessing profiles', async () => {
     const { module, auth } = setup();
     const edited = await module.publicFetch(request('/module/users/rpc/updateOwnProfile', { displayName: 'x'.repeat(121) }, 'POST'));
-    const lookup = await module.adminFetch(request('/admin/embed/module/users/rpc/getProfile', { id: 'invalid' }));
+    const lookup = await module.adminFetch(request('/admin/embed/module/users/rpc/getProfile', { id: 'invalid' }), administrator);
     expect(edited.status).toBe(400);
     expect(lookup.status).toBe(400);
     expect(query).not.toHaveBeenCalled();

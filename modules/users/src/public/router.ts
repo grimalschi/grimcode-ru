@@ -5,10 +5,12 @@ import { initTRPC, TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import type { RpcContext } from '../trpc/context.js';
+import type { UsersEnv } from '../env.js';
 import { userProfileSchema } from '../schemas.js';
 import { toProfile, type UsersRepository } from '../repository.js';
 
 export interface PublicContext extends RpcContext {
+  env: UsersEnv;
   repo: UsersRepository;
   /** Resolved through Auth on every call; `null` means no valid session. */
   identity: Identity | null;

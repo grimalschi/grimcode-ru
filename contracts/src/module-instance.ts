@@ -1,8 +1,14 @@
+export interface AdminContext {
+  userId: string;
+  email: string;
+  role: 'owner' | 'admin';
+}
+
 /** The ready module returned by createModule; settings are already captured. */
 export interface ModuleInstance<Api = unknown> {
   id: string;
   publicFetch?: (request: Request) => Response | Promise<Response>;
-  adminFetch?: (request: Request) => Response | Promise<Response>;
+  adminFetch?: (request: Request, adminContext: AdminContext) => Response | Promise<Response>;
   internalCaller?: Api;
   admin?: {
     title: string;

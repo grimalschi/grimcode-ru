@@ -37,10 +37,13 @@ Playwright retains a trace on failure; browser helpers collect console errors an
 | Administrator menus, direct links, revoked access and cross-origin requests | [admin-access.spec.ts](browser/admin-access.spec.ts) |
 | Database filters, URL state and row editing | [database.spec.ts](browser/database.spec.ts) |
 | Email source editing, draft isolation, preview, publication and test sends | [email-admin.spec.ts](browser/email-admin.spec.ts) |
-| Sign-in flows, application navigation and Site rendering | [app.spec.ts](browser/app.spec.ts) |
+| Sign-in flows, application navigation and public SSR pages | [app.spec.ts](browser/app.spec.ts) |
 
 Keep local validation and business rules in module tests; use these suites for behavior that crosses
 module boundaries or depends on a browser. General checks are in the [development guide](../docs/development.md#checks).
+
+PostgreSQL type and preservation checks belong to [Admin's database tests](../modules/admin/README.md#tests).
+The database browser suite here verifies form input, exact strings, SQL NULL and escaped control characters.
 
 ## Test data
 

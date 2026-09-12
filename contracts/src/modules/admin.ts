@@ -1,14 +1,10 @@
-export type AdminRole = 'owner' | 'admin';
+import type { AdminContext } from '../module-instance.js';
+
+export type AdminRole = AdminContext['role'];
 
 export type AdminTarget =
   | { area: 'panel' }
   | { area: 'module'; module: string };
-
-export interface AdminContext {
-  userId: string;
-  email: string;
-  role: AdminRole;
-}
 
 export type AuthorizationResult =
   | { state: 'allowed'; userId: string; email: string; role: AdminRole }

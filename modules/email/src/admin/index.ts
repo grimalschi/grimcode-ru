@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
 import type { EmailEnv } from '../env.js';
 import type { ModuleContext } from '../context.js';
-import { readAdminContext } from '../http/admin-context.js';
+import type { AdminContext } from '@template/contracts/module-instance';
 import { mountCsrfEndpoint, mountSpa } from '../http/spa.js';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { adminRouter } from './router.js';
@@ -14,7 +14,7 @@ export function createAdminFetch(options: {
   context: () => Promise<ModuleContext>;
 }) {
   const { env, context } = options;
-  const app = new Hono();
+  const app = new Hono<{ Bindings: EmailEnv & { adminContext: AdminContext } }>();
   app.get('/healthz', (c) => c.json({ ok: true, module: 'email' }));
   app.use('/admin/embed/module/email/rpc/*', (c) =>
     fetchRequestHandler({
@@ -25,9 +25,9 @@ export function createAdminFetch(options: {
       allowMethodOverride: true,
       createContext: async ({ req }) => ({
         ...(await context()),
-        env,
+        env: c.env,
         request: req,
-        admin: readAdminContext(req.headers),
+        adminContext: c.env.adminContext,
       }),
       onError: ({ error, path, type }) => {
         console.error(
@@ -37,10 +37,10 @@ export function createAdminFetch(options: {
       },
     }),
   );
-  mountCsrfEndpoint(app, '/admin/embed/module/email/csrf', env.csrfCookieName);
+  mountCsrfEndpoint(app, '/admin/embed/module/email/csrf');
   mountSpa(app, {
     basePath: '/admin/embed/module/email',
     rootDir: join(dirname(fileURLToPath(import.meta.url)), '../../web/dist'),
   });
-  return (request: Request) => app.fetch(request);
+  return (request: Request, adminContext: AdminContext) => app.fetch(request, { ...env, adminContext });
 }

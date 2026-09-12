@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./module-instance": { "types": "./dist/module-instance.d.ts", "import": "./dist/module-instance.js" },
+    "./admin-frame": { "types": "./dist/admin-frame.d.ts" },
     "./modules/*": { "types": "./dist/modules/*.d.ts", "import": "./dist/modules/*.js" }
   },
   "files": ["dist"],

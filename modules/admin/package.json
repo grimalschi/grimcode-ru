@@ -18,7 +18,8 @@
   "scripts": {
     "build": "tsc -b tsconfig.json && vite build --config web/vite.config.ts",
     "typecheck": "tsc -b tsconfig.json && tsc -p web/tsconfig.json",
-    "test": "vitest run",
+    "test": "vitest run --project unit",
+    "test:database": "vitest run --project database",
     "lint": "eslint src web/src",
     "dev:web": "vite --config web/vite.config.ts"
   },
