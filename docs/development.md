@@ -52,6 +52,12 @@ startup. The platform routes external traffic to the application's `PORT`.
 
 ## Checks
 
+Acceptance, browser and manual checks that write data require a separate disposable test installation;
+the user creates the first account in the installation handed to them. Verify both the HTTP target
+and its actual database before any test registration. A separate worktree or port is not sufficient.
+Follow [test isolation](../tests/README.md#test-isolation); if isolation cannot be established, report
+the missing setup instead of testing against the user's database.
+
 | Command | Use |
 | --- | --- |
 | `pnpm --filter @template/<module> test` | Run that module's tests, if it defines a test script |

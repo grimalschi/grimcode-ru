@@ -1,19 +1,47 @@
 # Application tests
 
 The HTTP suite checks module interactions through Router. Playwright checks the browser flows.
-Run both against a development worktree with `EMAIL_PROVIDER=log`: the tests create accounts and
-modify application data.
+Run both against a dedicated disposable test installation with `EMAIL_PROVIDER=log`: the tests
+create accounts and modify application data. A worktree alone does not establish database isolation.
+
+## Test isolation
+
+The first account in the installation handed to the user belongs to that user. Do not register a
+test or demonstration account there, even if its database is empty. A request to start or test the
+application does not authorize creating its first owner.
+
+Before any acceptance, browser or manual write test:
+
+1. Prepare a separate disposable database and a separate application process on a test port.
+   Do not reuse the user-facing installation's database, even if its name contains `test`.
+2. Explicitly supply the test process's `DATABASE_URL`, `PORT`, `PROJECT_SLUG`, `PUBLIC_SITE_URL`
+   and `EMAIL_PROVIDER=log`. Keep the user-facing installation's configuration unchanged.
+3. Supply the tests with `ACCEPTANCE_BASE_URL` pointing to that process, the same test `DATABASE_URL`,
+   and that test installation's `ACCEPTANCE_OWNER_EMAIL` and `ACCEPTANCE_OWNER_PASSWORD`.
+   Register a fixture owner only in this test installation.
+4. Verify the effective configuration of both processes, including environment overrides: the HTTP
+   target must actually use the disposable database. Compare database server and database identity
+   with the user-facing installation; do not print connection passwords. Different ports or email
+   prefixes do not isolate data. Different connection strings may still address the same database.
+5. If the target or its database cannot be verified, stop before writing and report the missing setup.
+   After the run, stop the test process and remove only the disposable database created for the run.
+
+These are operating requirements, not an implemented automatic safety gate. The suites currently
+load the root `.env` as a fallback. In addition, acceptance `resolveOwner()` registers a candidate
+owner when credentials are absent: on an empty database that account becomes the owner. Never rely
+on missing credentials or an empty database to prevent test writes.
 
 ## Setup and running
 
-Start the application, register its first account and open `/admin/` to initialize the owner.
-For an existing database, use its owner's credentials. Set these in the root `.env` or process environment:
+After verifying isolation, start the test application, register its fixture owner and open `/admin/`
+to initialize the test registry. For an existing disposable test installation, use its test owner's
+credentials. Pass the following through the test process environment:
 
 | Variable | Value |
 | --- | --- |
-| `ACCEPTANCE_OWNER_EMAIL`, `ACCEPTANCE_OWNER_PASSWORD` | Existing owner credentials |
-| `ACCEPTANCE_BASE_URL` | Application address; defaults to loopback on `PORT`. |
-| `DATABASE_URL` | The same database used by the application; the HTTP suite inspects module schemas |
+| `ACCEPTANCE_OWNER_EMAIL`, `ACCEPTANCE_OWNER_PASSWORD` | Test installation owner credentials |
+| `ACCEPTANCE_BASE_URL` | Explicit address of the isolated test application |
+| `DATABASE_URL` | The same disposable database used by that application; the HTTP suite inspects module schemas |
 
 Process environment values take precedence over `.env`. Install the browser once, then run either suite:
 
