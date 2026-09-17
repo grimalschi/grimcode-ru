@@ -92,3 +92,16 @@ describe('Auth RPC boundaries', () => {
       .rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR', message: 'Output validation failed' });
   });
 });
+
+describe('Auth error responses carry no stack', () => {
+  it('omits the stack from an anonymous refusal on both surfaces', async () => {
+    const module = createModule({ env, modules: { notifications: { emit: vi.fn() } } });
+    const anonymous = await module.publicFetch(new Request('https://example.test/module/auth/rpc/listOwnSessions?input={}'));
+    expect(anonymous.status).toBe(401);
+    expect((await anonymous.json()).error.data).not.toHaveProperty('stack');
+
+    const refused = await module.adminFetch(request('revokeSessions', { userId: id }, null), administrator);
+    expect(refused.status).toBe(403);
+    expect((await refused.json()).error.data).not.toHaveProperty('stack');
+  });
+});

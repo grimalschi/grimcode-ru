@@ -59,3 +59,24 @@ describe('Notifications RPC validation', () => {
     expect(await invalid.json()).toMatchObject({ error: { message: 'Internal server error', data: { code: 'INTERNAL_SERVER_ERROR' } } });
   });
 });
+
+describe('Notifications error responses carry no stack', () => {
+  it('omits the stack from a rejected input and from an internal failure', async () => {
+    const module = createModule({ env, modules: { email: { send: vi.fn() } } });
+    const malformed = await module.adminFetch(request('invalid-id'), adminContext);
+    expect(malformed.status).toBe(400);
+    expect((await malformed.json()).error.data).not.toHaveProperty('stack');
+
+    query.mockRejectedValue(new Error('private database detail'));
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const failed = await module.adminFetch(request(id), adminContext);
+      expect(failed.status).toBe(500);
+      const body = await failed.json();
+      expect(body.error.message).toBe('Internal server error');
+      expect(body.error.data).not.toHaveProperty('stack');
+    } finally {
+      log.mockRestore();
+    }
+  });
+});

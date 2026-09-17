@@ -26,11 +26,14 @@ function toStored(row: EventRow) {
   };
 }
 
+// No stack in any answer — tRPC adds one outside production — and generic wording only for internal failures.
 const adminT = initTRPC.context<AdminRpcContext>().create({
-  errorFormatter({ shape, error }) {
-    return error.code === 'INTERNAL_SERVER_ERROR'
-      ? { ...shape, message: 'Internal server error', data: { ...shape.data, stack: undefined } }
-      : shape;
+  errorFormatter({ shape, error }): typeof shape {
+    return {
+      ...shape,
+      message: error.code === 'INTERNAL_SERVER_ERROR' ? 'Internal server error' : shape.message,
+      data: { ...shape.data, stack: undefined },
+    };
   },
 });
 

@@ -115,3 +115,24 @@ describe('Admin RPC boundaries', () => {
       .rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR', message: 'Output validation failed' });
   });
 });
+
+describe('Admin error responses carry no stack', () => {
+  it('omits the stack from a CSRF refusal and from an internal failure', async () => {
+    const { module } = setup();
+    const refused = await module.adminFetch(request('logout', {}, null), owner);
+    expect(refused.status).toBe(403);
+    expect((await refused.json()).error.data).not.toHaveProperty('stack');
+
+    query.mockRejectedValue(new Error('private database detail'));
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const failed = await module.adminFetch(request('listAdministrators', {}), owner);
+      expect(failed.status).toBe(500);
+      const body = await failed.json();
+      expect(body.error.message).toBe('Внутренняя ошибка');
+      expect(body.error.data).not.toHaveProperty('stack');
+    } finally {
+      log.mockRestore();
+    }
+  });
+});

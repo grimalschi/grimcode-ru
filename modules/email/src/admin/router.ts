@@ -85,7 +85,17 @@ function renderVersion(version: VersionRow, variables: Record<string, VariableVa
   return renderMessage(version.source, version.subject, variables);
 }
 
-const adminT = initTRPC.context<AdminRpcContext>().create();
+// No stack in any answer — tRPC adds one outside production — and generic wording for internal
+// failures, whose original message may quote the database.
+const adminT = initTRPC.context<AdminRpcContext>().create({
+  errorFormatter({ shape, error }): typeof shape {
+    return {
+      ...shape,
+      message: error.code === 'INTERNAL_SERVER_ERROR' ? 'Internal server error' : shape.message,
+      data: { ...shape.data, stack: undefined },
+    };
+  },
+});
 
 const adminProcedure = adminT.procedure.use(({ ctx, next }) => {
   if (!ctx.adminContext)

@@ -16,11 +16,19 @@ export interface PublicContext extends RpcContext {
   identity: Identity | null;
 }
 
+/*
+ * The stack never leaves the process: tRPC adds it to every error outside production, and a stack
+ * names files and functions of this server. The generic message is only for internal failures — an
+ * expected refusal keeps its own wording.
+ */
 const publicT = initTRPC.context<PublicContext>().create({
-  errorFormatter({ shape, error }) {
-    return error.code === 'INTERNAL_SERVER_ERROR'
-      ? { ...shape, message: 'Internal server error', data: { ...shape.data, stack: undefined } }
-      : shape;
+  // The return type keeps the router's error shape the default one, which the public contract expects.
+  errorFormatter({ shape, error }): typeof shape {
+    return {
+      ...shape,
+      message: error.code === 'INTERNAL_SERVER_ERROR' ? 'Internal server error' : shape.message,
+      data: { ...shape.data, stack: undefined },
+    };
   },
 });
 

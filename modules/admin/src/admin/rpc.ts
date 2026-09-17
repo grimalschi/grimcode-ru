@@ -11,10 +11,13 @@ export interface AdminRpcContext extends ModuleContext {
   env: Pick<AdminEnv, 'sessionCookieName' | 'publicOrigin' | 'csrfCookieName'>;
 }
 
+// No stack in any answer — tRPC adds one outside production — and generic wording only for internal failures.
 export const adminT = initTRPC.context<AdminRpcContext>().create({
-  errorFormatter: ({ shape, error }) => error.code === 'INTERNAL_SERVER_ERROR'
-    ? { ...shape, message: 'Внутренняя ошибка', data: { ...shape.data, stack: undefined } }
-    : shape,
+  errorFormatter: ({ shape, error }): typeof shape => ({
+    ...shape,
+    message: error.code === 'INTERNAL_SERVER_ERROR' ? 'Внутренняя ошибка' : shape.message,
+    data: { ...shape.data, stack: undefined },
+  }),
 });
 
 /** Procedures declare their required role and whether they need CSRF. */

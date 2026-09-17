@@ -84,3 +84,24 @@ describe('Email RPC boundaries', () => {
     expect(send).not.toHaveBeenCalled();
   });
 });
+
+describe('Email error responses carry no stack', () => {
+  it('omits the stack from a CSRF refusal and hides the cause of an internal failure', async () => {
+    const module = createModule({ env });
+    const refused = await module.adminFetch(request('publishDraft', { id }, null), adminContext);
+    expect(refused.status).toBe(403);
+    expect((await refused.json()).error.data).not.toHaveProperty('stack');
+
+    query.mockRejectedValue(new Error('private database detail'));
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const failed = await module.adminFetch(request('listTemplates', {}), adminContext);
+      expect(failed.status).toBe(500);
+      const body = await failed.json();
+      expect(body.error.message).toBe('Internal server error');
+      expect(body.error.data).not.toHaveProperty('stack');
+    } finally {
+      log.mockRestore();
+    }
+  });
+});
