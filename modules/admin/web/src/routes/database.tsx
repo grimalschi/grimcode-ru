@@ -40,6 +40,7 @@ export function DatabasePage() {
   const columns = page?.columns ?? selected?.columns ?? [];
   const readOnlyReason = page ? page.readOnlyReason : selected?.readOnlyReason ?? null;
   const deleteReadOnlyReason = readOnlyReason ?? (page ? page.deleteReadOnlyReason : selected?.deleteReadOnlyReason ?? null);
+  const notice = page ? page.notice : selected?.notice ?? null;
   const currentTable = selected ? { ...selected, primaryKey: page?.primaryKey ?? selected.primaryKey, readOnlyReason, deleteReadOnlyReason } : null;
   const blockedInsert = columns.some((column) => column.readOnlyReason && !column.generated && !column.hasDefault && !column.nullable);
   const shown = view.columns.length ? columns.filter((column) => view.columns.includes(column.name)) : columns;
@@ -133,6 +134,7 @@ export function DatabasePage() {
             <Button className="ml-auto" size="sm" disabled={!page || loading || !currentTable || !!readOnlyReason || blockedInsert} onClick={() => currentTable && setEditor({ table: currentTable, columns, row: null })}>Добавить строку</Button>
           </div>
           {filtersOpen && <Filters columns={columns} filters={view.filters} combine={view.combine} onChange={(filters, combine) => setView({ ...view, filters, combine, page: 1 })} />}
+          {notice && <p role="note" data-testid="database-notice" className="rounded-md border px-3 py-2 text-sm">{notice}</p>}
           {readOnlyReason && <p role="status" className="text-sm text-muted-foreground">Только чтение: {readOnlyReason}</p>}
           {!readOnlyReason && blockedInsert && <p className="text-xs text-muted-foreground">Добавление недоступно: обязательная колонка имеет неподдержанный тип.</p>}
           {!readOnlyReason && deleteReadOnlyReason && <p className="text-xs text-muted-foreground">Удаление недоступно: {deleteReadOnlyReason}</p>}
@@ -183,7 +185,7 @@ export function DatabasePage() {
         </>}
       </section>
     </div>}
-    {editor && <RowEditor schema={editor.table.schema} table={editor.table.name} columns={editor.columns} primaryKey={editor.table.primaryKey} readOnlyReason={editor.table.readOnlyReason} row={editor.row} onClose={() => setEditor(null)} onSave={save} />}
+    {editor && <RowEditor schema={editor.table.schema} table={editor.table.name} columns={editor.columns} primaryKey={editor.table.primaryKey} readOnlyReason={editor.table.readOnlyReason} notice={notice} row={editor.row} onClose={() => setEditor(null)} onSave={save} />}
     <Dialog open={!!deleting} onOpenChange={(open) => { if (!open && !busy) setDeleting(null); }}>
       <DialogContent><DialogHeader><DialogTitle>Удалить строку?</DialogTitle><DialogDescription>Это нельзя отменить.</DialogDescription></DialogHeader>
         <DialogFooter><Button variant="ghost" disabled={busy} onClick={() => setDeleting(null)}>Отмена</Button><Button variant="destructive" disabled={busy} onClick={() => void remove()}>Удалить</Button></DialogFooter>

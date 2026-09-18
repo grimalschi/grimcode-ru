@@ -90,7 +90,7 @@ beforeEach(() => {
 });
 
 function deps(auth: AuthApi) {
-  return { repo: repo as unknown as AdminRepository, auth, catalogue, databaseBrowser: createDatabaseBrowser(async () => { throw new Error('Unexpected database access'); }) };
+  return { repo: repo as unknown as AdminRepository, auth, catalogue, databaseBrowser: createDatabaseBrowser(async () => { throw new Error('Unexpected database access'); }, { ownersAbleToSignIn: async (ids) => [...ids] }) };
 }
 
 describe('one internal caller', () => {

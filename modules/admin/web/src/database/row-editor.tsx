@@ -6,12 +6,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { fieldDraft, fieldValue, hasControlCharacters, messageOf, newUuid, shortType, type Column, type FieldDraft, type Row } from './model';
 
-export function RowEditor({ schema, table, columns, primaryKey, readOnlyReason, row, onClose, onSave }: {
+export function RowEditor({ schema, table, columns, primaryKey, readOnlyReason, notice = null, row, onClose, onSave }: {
   schema: string;
   table: string;
   columns: Column[];
   primaryKey: string[];
   readOnlyReason: string | null;
+  /** A warning about the table that leaves it editable; shown again here, where the save button is. */
+  notice?: string | null;
   row: Row | null;
   onClose: () => void;
   onSave: (values: Row) => Promise<void>;
@@ -84,6 +86,7 @@ export function RowEditor({ schema, table, columns, primaryKey, readOnlyReason, 
       <form onSubmit={(event) => void submit(event)} className="space-y-5">
         <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
           {readOnlyReason && <p role="status" className="text-sm text-muted-foreground">Только чтение: {readOnlyReason}</p>}
+          {!readOnlyReason && notice && <p role="note" className="rounded-md border px-3 py-2 text-sm">{notice}</p>}
           {!readOnlyReason && <p className="text-xs text-muted-foreground">Значения записываются в исходном текстовом формате PostgreSQL. Пустая строка, SQL NULL и значение по умолчанию выбираются отдельно.</p>}
           {!inserting && primaryKey.length > 0 && <p className="text-xs text-muted-foreground">Ключ — только чтение: {primaryKey.join(', ')}</p>}
           {blockedInsert && <p role="alert" className="text-sm text-destructive">Добавление недоступно: обязательная колонка имеет неподдержанный тип.</p>}

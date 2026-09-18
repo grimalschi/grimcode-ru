@@ -46,7 +46,7 @@ describe('database editor with column-level PostgreSQL privileges', () => {
         onConnect: async (client) => { await client.query(`SET ROLE ${quote(role)}`); },
       });
       const restrictedPool = pool;
-      const editor = createDatabaseBrowser(async () => restrictedPool);
+      const editor = createDatabaseBrowser(async () => restrictedPool, { ownersAbleToSignIn: async (ids) => [...ids] });
       const target = { schema, table: 'records' };
       const metadata = (await editor.tables({ schema })).tables[0]!;
       expect(metadata.primaryKey).toEqual(['id']);

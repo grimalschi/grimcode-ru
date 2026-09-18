@@ -184,6 +184,31 @@ SQL NULL) on insert and any change on update, even when the column is not part o
 PostgreSQL itself would accept a hand-typed number, but the sequence would not advance and the next
 automatic row would collide with it; a deliberate manual number belongs in `psql`, not here.
 
+The editor reaches Admin's own `administrators` table without the registry screen, so the screen's
+rule is asked again there. The screen shows a notice above that table and in its row dialog, and the
+table stays editable. After an update or delete of that table, and before the commit, the remaining
+enabled owners are checked with Auth through the same helper the screen uses: at least one must be
+an identity Auth knows and has not blocked, or the write is rolled back. Counting rows would not do:
+a `user_id` pointing at nobody, or a row inserted by hand, looks like an owner and lets nobody in.
+Auth is asked while the table lock is held, as the registry procedures already do. Deleting an
+administrator row is refused anyway, because grants cascade from it.
+The same owner can be locked out through Auth's `identities` table: blocking the account, replacing
+its password hash or its e-mail. The editor knows that table only by Auth's module id and its key,
+not by its columns, so the rule is drawn around the row: the account of an enabled owner is not
+changed or deleted here unless another owner can still sign in, as Auth answers before the write.
+Asking Auth after the write would not do, because Auth reads committed rows and would not see the
+transaction. The editor takes the registry table's lock first — before the identity's table and row —
+in the mode it uses for its own writes, which conflicts with the registry screen's lock and with editor
+writes to `administrators`: disabling an owner there and blocking one here are serialized, not raced.
+The order matters: the screen locks the registry and then has Auth update the identity row, so the
+editor must lock in the same order. Row first would leave the editor holding the row while waiting for
+the registry, the screen holding the registry while waiting for Auth, and Auth waiting for the row — a
+cycle PostgreSQL cannot detect, because the screen's wait happens in the application.
+The screen shows a notice above `auth.identities` as well.
+[`registry.postgres.test.ts`](src/admin/database/registry.postgres.test.ts) builds the real `admin`
+schema from the module's migration in the test database, a stand-in `auth.identities` with Auth's
+schema, table and key names, and steers a stub Auth through these cases, including the lock wait.
+
 To add a type, establish that its PostgreSQL text representation and accepted edits preserve values,
 then add real insert/update/delete and unchanged-neighbor checks to
 [`types.postgres.test.ts`](src/admin/database/types.postgres.test.ts). Include boundary values, SQL NULL,

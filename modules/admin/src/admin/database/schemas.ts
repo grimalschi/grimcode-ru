@@ -24,10 +24,12 @@ const column = z.object({
 export const tablesOutputSchema = z.object({ tables: z.array(z.object({
   schema: name, name, primaryKey: z.array(name), columns: z.array(column),
   naturalOrder: name.nullable(), readOnlyReason: z.string().nullable(), deleteReadOnlyReason: z.string().nullable(),
+  // A warning shown above a table that stays editable, unlike the reasons that lock it.
+  notice: z.string().nullable(),
   rows: z.object({ count: z.number().int().nonnegative(), kind: z.enum(['exact', 'estimate', 'more']) }),
 })) });
 export const rowsOutputSchema = z.object({
   columns: z.array(column), primaryKey: z.array(name), rows: z.array(valuesSchema),
-  readOnlyReason: z.string().nullable(), deleteReadOnlyReason: z.string().nullable(),
+  readOnlyReason: z.string().nullable(), deleteReadOnlyReason: z.string().nullable(), notice: z.string().nullable(),
   total: z.number().int().nonnegative(),
 });

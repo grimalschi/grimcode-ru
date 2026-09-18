@@ -61,7 +61,7 @@ function fixture(role: 'owner' | 'admin' = 'owner') {
   const release = vi.fn();
   const database = vi.fn(async () => ({ connect: async () => ({ query, release }) }) as unknown as Pool);
   const context: AdminRpcContext = {
-    databaseBrowser: createDatabaseBrowser(database),
+    databaseBrowser: createDatabaseBrowser(database, { ownersAbleToSignIn: async (ids) => [...ids] }),
     repo: { findByUserId: vi.fn(async () => ({ role, grants: ['database'] })) } as unknown as AdminRepository,
     auth: {} as AuthApi, catalogue: [],
     env: { sessionCookieName: 'session', csrfCookieName: 'admin_csrf', publicOrigin: 'https://example.test' },

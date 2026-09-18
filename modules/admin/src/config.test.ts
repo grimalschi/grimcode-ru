@@ -22,7 +22,7 @@ function context(cookie: string) {
   const ctx: AdminRpcContext = {
     env,
     catalogue: [],
-    databaseBrowser: createDatabaseBrowser(async () => { throw new Error('Unexpected database access'); }),
+    databaseBrowser: createDatabaseBrowser(async () => { throw new Error('Unexpected database access'); }, { ownersAbleToSignIn: async (ids) => [...ids] }),
     // Logout needs Auth, and never reads the administrator repository.
     repo: {} as AdminRepository,
     auth: { revokeSessionByToken: revoke } as unknown as AuthApi,

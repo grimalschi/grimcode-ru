@@ -6,6 +6,7 @@ import { conditionsFor } from './filters.js';
 import { findColumn, findTable, Parameters, qualify, quote, type Table } from './identifiers.js';
 import { deleteRow, insertRow, keyClause, returnedColumns, selectRows, updateRow, type Statement } from './statements.js';
 import type { rowsInputSchema, tableInputSchema } from './schemas.js';
+import { SCHEMA } from '../../db/migrator.js';
 
 type Row = Record<string, string | null>;
 type TableInput = z.infer<typeof tableInputSchema>;
@@ -24,8 +25,92 @@ function writable(table: Table, deleting = false): void {
   if (reason) throw new TRPCError({ code: 'FORBIDDEN', message: reason });
 }
 
+/** What the editor asks the registry's neighbours; the module wires the real Auth in, tests a stub. */
+export interface RegistryGuards {
+  /** Of these registry owners, the ones Auth knows and has not blocked — the same question the registry screen asks. */
+  ownersAbleToSignIn(userIds: readonly string[]): Promise<string[]>;
+}
+
+const isRegistry = (table: Table) => table.schema === SCHEMA && table.name === 'administrators';
+
+const REGISTRY_NOTICE = 'Администраторов меняют на экране «Администраторы»: там журнал и правило последнего владельца. '
+  + 'Здесь редактор пропустит только правку, после которой хотя бы один владелец сможет войти.';
+
+/**
+ * Auth's identities are the accounts the registry's owners sign in with. The editor knows that table
+ * by the module's id and its key column and nothing more about it: which column blocks an account,
+ * which holds the password, is Auth's business. So the rule is drawn around the whole row — the
+ * account of the last owner who can sign in is not changed here at all. Blocking it, replacing its
+ * password hash or its e-mail would lock the panel as surely as disabling the owner in the registry.
+ */
+const isIdentities = (table: Table) => table.schema === 'auth' && table.name === 'identities';
+
+const IDENTITIES_NOTICE = 'Здесь аккаунты, под которыми входят владельцы панели. Строку последнего владельца, который может войти, '
+  + 'редактор не меняет: иначе в панель никто не попадёт. Блокировать администраторов — на экране «Администраторы».';
+
+/**
+ * The registry screen refuses to demote or disable the last owner who can still sign in; this editor
+ * reaches the same table without that screen, so the same rule is asked here, after the write and
+ * before the commit. Counting `role = 'owner' AND enabled` is not enough: a `user_id` pointing at
+ * nobody, or a row inserted by hand, looks like an owner and lets nobody in. So the remaining owners
+ * are checked with Auth, as the screen checks them — under the table lock, the price the registry
+ * already pays for the same answer.
+ */
+async function registryKeepsAnOwner(client: PoolClient, table: Table, guards: RegistryGuards): Promise<void> {
+  if (!isRegistry(table)) return;
+  const { rows } = await client.query<{ user_id: string }>(
+    `SELECT user_id FROM ${qualify(table)} WHERE role = 'owner' AND enabled`,
+  );
+  if (rows.length === 0) {
+    throw new TRPCError({ code: 'CONFLICT', message: 'После этой правки в реестре не останется включённого владельца. Запись отменена.' });
+  }
+  const eligible = await guards.ownersAbleToSignIn(rows.map((row) => row.user_id));
+  if (eligible.length === 0) {
+    throw new TRPCError({ code: 'CONFLICT', message: 'После этой правки ни один включённый владелец не сможет войти: '
+      + 'Auth не знает такого аккаунта или он заблокирован. Запись отменена.' });
+  }
+}
+
+/**
+ * Lock order, and it is the whole of the deadlock question. The registry screen locks
+ * `administrators` and then has Auth update the identity row. A write here to an identity must take
+ * the same locks in the same order: registry first, then the identity's table and row. Taken the
+ * other way round, the editor would hold the row and wait for the registry while the screen holds
+ * the registry and waits for Auth, whose update waits for that row — and PostgreSQL cannot break the
+ * cycle, because the screen's wait for Auth happens in the application, not in a lock queue.
+ * The mode is the one the editor uses for its own table writes: it conflicts with the screen's lock
+ * and with editor writes to `administrators`, so disabling an owner there and blocking one here are
+ * serialized. Called before the catalogue is read, so the check needs only the request's names.
+ */
+async function lockRegistryBeforeIdentity(client: PoolClient, input: TableInput): Promise<void> {
+  if (input.schema !== 'auth' || input.table !== 'identities') return;
+  await client.query(`LOCK TABLE ONLY ${quote(SCHEMA)}.administrators IN SHARE UPDATE EXCLUSIVE MODE`);
+}
+
+/**
+ * Before a write to an Auth identity: if it belongs to an enabled owner, another owner must still be
+ * able to sign in. The answer cannot come from Auth after the write — Auth reads committed rows and
+ * would not see this transaction — so the row is protected as a whole, before anything is written.
+ * Runs under the registry lock taken by `lockRegistryBeforeIdentity`.
+ */
+async function keepsLastOwnerAbleToSignIn(
+  client: PoolClient, table: Table, key: Record<string, string | null | undefined>, guards: RegistryGuards,
+): Promise<void> {
+  if (!isIdentities(table)) return;
+  const { rows } = await client.query<{ user_id: string }>(
+    `SELECT user_id FROM ${quote(SCHEMA)}.administrators WHERE role = 'owner' AND enabled`,
+  );
+  const identityId = table.primaryKey.length === 1 ? key[table.primaryKey[0]!] : undefined;
+  const owners = rows.map((row) => row.user_id);
+  if (typeof identityId !== 'string' || !owners.includes(identityId)) return;
+  const eligible = await guards.ownersAbleToSignIn(owners.filter((id) => id !== identityId));
+  if (eligible.length === 0) {
+    throw new TRPCError({ code: 'CONFLICT', message: 'Это аккаунт последнего владельца, который может войти в панель. Правка отменена.' });
+  }
+}
+
 /** The browser changes only values whose exact native PostgreSQL representation it can preserve. */
-export function createDatabaseBrowser(database: () => Promise<Pool>) {
+export function createDatabaseBrowser(database: () => Promise<Pool>, guards: RegistryGuards) {
   async function session<T>(handler: (client: PoolClient) => Promise<T>): Promise<T> {
     const client = await (await database()).connect();
     try {
@@ -119,7 +204,10 @@ export function createDatabaseBrowser(database: () => Promise<Pool>) {
   }
 
   const columns = (table: Table) => table.columns.map((column) => ({ ...column, conditions: [...conditionsFor(column.type)] }));
-  const access = (table: Table) => ({ readOnlyReason: table.readOnlyReason, deleteReadOnlyReason: table.deleteReadOnlyReason });
+  const access = (table: Table) => ({
+    readOnlyReason: table.readOnlyReason, deleteReadOnlyReason: table.deleteReadOnlyReason,
+    notice: isRegistry(table) ? REGISTRY_NOTICE : isIdentities(table) ? IDENTITIES_NOTICE : null,
+  });
 
   return {
     schemas: () => session(schemas),
@@ -153,8 +241,10 @@ export function createDatabaseBrowser(database: () => Promise<Pool>) {
       return { inserted: result.rows[0] };
     }),
     update: (input: TableInput & { original: Row; values: Row }) => session(async (client) => {
+      await lockRegistryBeforeIdentity(client, input);
       const table = await lockedTable(client, input);
       const key = await existingRow(client, table, input.original);
+      await keepsLastOwnerAbleToSignIn(client, table, key, guards);
       // Validate even a redundant patch, including attempted changes to generated/key columns.
       if (Object.keys(input.values).length) updateRow(table, { key, values: input.values });
       const values = Object.fromEntries(Object.entries(input.values).filter(([name, value]) => value !== input.original[name]));
@@ -164,15 +254,20 @@ export function createDatabaseBrowser(database: () => Promise<Pool>) {
       if (result.rowCount !== 1 || !result.rows[0] || !sameRow(result.rows[0], { ...input.original, ...values })) {
         throw new TRPCError({ code: 'CONFLICT', message: 'PostgreSQL изменил другие значения строки. Сохранение отменено.' });
       }
+      await registryKeepsAnOwner(client, table, guards);
       return { updated: 1 };
     }),
     delete: (input: TableInput & { original: Row }) => session(async (client) => {
+      await lockRegistryBeforeIdentity(client, input);
       const table = await lockedTable(client, input, true);
       const key = await existingRow(client, table, input.original);
+      await keepsLastOwnerAbleToSignIn(client, table, key, guards);
       const result = await rawQuery(client, deleteRow(table, { key }));
       if (result.rowCount !== 1) {
         throw new TRPCError({ code: 'CONFLICT', message: 'Число удаляемых строк изменилось. Удаление отменено.' });
       }
+      // Today the grants' foreign key already refuses this delete; the rule holds if that key changes.
+      await registryKeepsAnOwner(client, table, guards);
       return { deleted: 1 };
     }),
   };

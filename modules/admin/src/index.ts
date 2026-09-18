@@ -7,6 +7,7 @@ import { createDatabase } from './db/database.js';
 import { AdminRepository } from './repository.js';
 import { validateCatalogue, type CatalogueEntry } from './vocabulary.js';
 import { createAdminFetch } from './admin/index.js';
+import { ownersAbleToSignIn } from './admin/router.js';
 import { createInternalCaller } from './internal/index.js';
 
 export type { AdminEnv } from './env.js';
@@ -19,7 +20,10 @@ export function createModule({ env, modules, catalogue: installed }: {
 }) {
   const catalogue = validateCatalogue(installed);
   const database = createDatabase(env);
-  const databaseBrowser = createDatabaseBrowser(database);
+  // The editor asks Auth the registry screen's question about the remaining owners, through the same helper.
+  const databaseBrowser = createDatabaseBrowser(database, {
+    ownersAbleToSignIn: (userIds) => ownersAbleToSignIn(userIds, modules.auth),
+  });
   const context = async () => ({
     repo: new AdminRepository(await database()),
     auth: modules.auth,

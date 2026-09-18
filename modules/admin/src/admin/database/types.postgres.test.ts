@@ -33,7 +33,7 @@ if (!connectionString) throw new Error('DATABASE_URL is required to run the Admi
 const database = new pg.Client({ connectionString });
 const pool = new pg.Pool({ connectionString, max: 3 });
 const api = databaseRouter.createCaller({
-  databaseBrowser: createDatabaseBrowser(async () => pool),
+  databaseBrowser: createDatabaseBrowser(async () => pool, { ownersAbleToSignIn: async (ids) => [...ids] }),
   // The database router does not call repository or Auth methods.
   repo: {} as AdminRpcContext['repo'], auth: {} as AdminRpcContext['auth'], catalogue: [],
   env: { sessionCookieName: 'session', csrfCookieName: 'admin_csrf', publicOrigin: 'https://example.test' },
