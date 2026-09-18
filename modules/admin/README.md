@@ -175,7 +175,14 @@ can disable deletion while permitting edits. The server checks these restriction
 These guarantees concern the editor's value transport and row operations. PostgreSQL and the schema's
 built-in constraints/default expressions are trusted; schema authors remain responsible for their
 effects. User-defined routines, triggers and operators require separate support before editing is
-enabled. Defaults are applied only when explicitly selected or supplied by a generated identity.
+enabled. Defaults are applied only when explicitly selected or supplied by a generated column.
+
+Columns the database numbers itself — `IDENTITY`, `serial`/`bigserial` and any default whose
+expression calls `nextval(...)`, wrapped in arithmetic or not — are never written by the editor. A new row leaves them out so PostgreSQL assigns the value, the
+screen shows them locked with that explanation, and the server refuses a supplied value (including
+SQL NULL) on insert and any change on update, even when the column is not part of the primary key.
+PostgreSQL itself would accept a hand-typed number, but the sequence would not advance and the next
+automatic row would collide with it; a deliberate manual number belongs in `psql`, not here.
 
 To add a type, establish that its PostgreSQL text representation and accepted edits preserve values,
 then add real insert/update/delete and unchanged-neighbor checks to

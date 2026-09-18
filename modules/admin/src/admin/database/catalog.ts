@@ -125,11 +125,20 @@ export async function readCatalogue(pool: Queryable, schema: string): Promise<Ca
     const supported = supportedType(row.type_name, row.type_schema, row.type_kind)
       || (row.element_name !== null && row.element_schema !== null && row.element_kind !== null
         && supportedType(row.element_name, row.element_schema, row.element_kind));
+    /*
+     * `serial`, `bigserial`, a hand-written `DEFAULT nextval(...)` and an expression around one
+     * (`nextval('seq') + 100`) all number rows from a sequence. PostgreSQL would accept a number
+     * typed by hand, but the sequence would not move, and the next automatic row would collide with
+     * it — so the editor treats a sequence-backed column exactly like an identity: the database, and
+     * only the database, supplies the value. The match is textual, so a text default that merely
+     * spells out `nextval(` in a string would be locked too; that errs towards not writing.
+     */
+    const sequenced = /\bnextval\(/.test(row.column_default ?? '');
     const column: Column = {
       name: row.column_name, type: row.data_type,
       nullable: row.is_nullable === 'YES',
       hasDefault: row.column_default !== null || row.is_identity === 'YES',
-      generated: row.is_identity === 'YES' || row.is_generated === 'ALWAYS',
+      generated: row.is_identity === 'YES' || row.is_generated === 'ALWAYS' || sequenced,
       sqlType: row.sql_type,
       readOnlyReason: !supported ? `Тип ${row.sql_type} пока не поддерживает безопасное редактирование.`
         : row.is_generated === 'ALWAYS' ? 'Вычисляемые колонки доступны только для чтения.' : null,
@@ -147,7 +156,7 @@ export async function readCatalogue(pool: Queryable, schema: string): Promise<Ca
     };
     table.columns.push(column);
     table.readOnlyReason ??= column.readOnlyReason;
-    if (!table.naturalOrder && (row.is_identity === 'YES' || row.column_default?.startsWith('nextval(')
+    if (!table.naturalOrder && (row.is_identity === 'YES' || sequenced
       || (/^(timestamp|date)/.test(row.data_type) && /now\(\)|CURRENT_TIMESTAMP|CURRENT_DATE/i.test(row.column_default ?? '')))) {
       table.naturalOrder = row.column_name;
     }

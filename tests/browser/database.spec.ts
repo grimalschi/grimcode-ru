@@ -48,6 +48,8 @@ test.beforeAll(async () => {
     "__proto__" text
   )`);
   await database.query(`INSERT INTO "${fixtureSchema}"."values" (id, label) VALUES (1, 'cancel-delete')`);
+  // A serial key: PostgreSQL numbers the rows, and the editor must never offer to.
+  await database.query(`CREATE TABLE "${fixtureSchema}".numbered (id serial PRIMARY KEY, label text NOT NULL)`);
   await database.query(`CREATE TYPE "${fixtureSchema}".compound AS (part text)`);
   await database.query(`CREATE TABLE "${fixtureSchema}".unsupported (id integer PRIMARY KEY, value "${fixtureSchema}".compound NOT NULL)`);
   await database.query(`INSERT INTO "${fixtureSchema}".unsupported VALUES (1, ROW('source'))`);
@@ -378,6 +380,48 @@ async function storedRow(id: number) {
 }
 
 const editor = (page: Page) => page.getByRole('dialog', { name: 'Строка', exact: true });
+
+test.describe('columns numbered by the database', () => {
+  test('leaves a serial key to PostgreSQL and says so in the form', async ({ page }) => {
+    const problems = collectPageErrors(page);
+    await openFixture(page, 'numbered');
+
+    const sent: unknown[] = [];
+    page.on('request', (request) => {
+      if (request.url().includes('/admin/rpc/database.insert')) sent.push(request.postDataJSON());
+    });
+
+    for (const label of ['first automatic', 'second automatic']) {
+      await page.getByRole('button', { name: 'Добавить строку', exact: true }).click();
+      const create = page.getByRole('dialog', { name: 'Новая строка', exact: true });
+      const id = create.getByLabel('id', { exact: true });
+      await expect(id).toBeDisabled();
+      await expect(id).toHaveAttribute('placeholder', 'Автоматически');
+      await expect(create.locator('[data-testid="database-field"][data-column="id"]')).toContainText('PostgreSQL назначит значение при сохранении');
+      await create.getByLabel('label', { exact: true }).fill(label);
+      await create.getByRole('button', { name: 'Добавить', exact: true }).click();
+      await expect(create).toBeHidden();
+      await expect(rows(page).filter({ hasText: label })).toBeVisible();
+    }
+
+    expect(sent).toHaveLength(2);
+    for (const body of sent) {
+      expect(JSON.stringify(body)).not.toMatch(/"id"/);
+    }
+    const numbered = await database.query<{ id: string; label: string }>({
+      text: `SELECT id, label FROM "${fixtureSchema}".numbered ORDER BY id`, types: { getTypeParser: () => (value: string) => value },
+    });
+    expect(numbered.rows).toEqual([{ id: '1', label: 'first automatic' }, { id: '2', label: 'second automatic' }]);
+
+    await rows(page).filter({ hasText: 'first automatic' }).getByRole('button', { name: 'Открыть строку', exact: true }).click();
+    const edit = page.getByRole('dialog', { name: 'Строка', exact: true });
+    await expect(edit.getByLabel('id', { exact: true })).toBeDisabled();
+    await expect(edit.getByLabel('id', { exact: true })).toHaveValue('1');
+    await expect(edit.getByLabel('label', { exact: true })).toBeEnabled();
+    await edit.getByRole('button', { name: 'Отмена', exact: true }).click();
+    expectNoPageErrors(problems);
+  });
+});
 
 test.describe('lossless database editing in the browser', () => {
   test('copies control-bearing text without changing its line endings', async ({ page, context }) => {

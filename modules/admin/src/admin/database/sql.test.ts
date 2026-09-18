@@ -72,6 +72,19 @@ const ESTIMATES: Record<string, string> = {
 const DEFAULTS: Record<string, string> = {
   'identities.created_at': 'now()',
   'auth_audit.id': 'identity',
+  // How `information_schema` spells a `serial`: a plain default that draws from a sequence.
+  'numbered.id': "nextval('auth.numbered_id_seq'::regclass)",
+};
+
+/** A `serial` key next to an ordinary integer: only the first is the database's to fill in. */
+const numbered: Table = {
+  schema: 'auth',
+  name: 'numbered',
+  columns: [
+    { name: 'id', type: 'integer', nullable: false, hasDefault: true, generated: true },
+    { name: 'position', type: 'integer', nullable: true, hasDefault: false, generated: false },
+  ],
+  primaryKey: ['id'],
 };
 
 /** A value no uuid column can hold, which the fake pool refuses the way PostgreSQL would. */
@@ -654,6 +667,23 @@ describe('table metadata', () => {
     expect(tables.find((table) => table.name === 'identities')?.naturalOrder).toBe('created_at');
     expect(tables.find((table) => table.name === 'auth_audit')?.naturalOrder).toBe('id');
     expect(tables.find((table) => table.name === 'sessions')?.naturalOrder).toBeUndefined();
+  });
+
+  /*
+   * A `serial` is a sequence behind a default, not an identity, and PostgreSQL would take a number
+   * typed by hand without moving the sequence. The catalogue marks it as the database's to fill in,
+   * so the same refusals that guard an identity guard it too.
+   */
+  it('treats a sequence-backed default like an identity, and leaves plain integers editable', async () => {
+    const { tables } = await readCatalogue(fakePool([numbered]), 'auth');
+    const table = tables.find((item) => item.name === 'numbered')!;
+    expect(table.columns.map(({ name, generated, hasDefault, readOnlyReason }) => ({ name, generated, hasDefault, readOnlyReason }))).toEqual([
+      { name: 'id', generated: true, hasDefault: true, readOnlyReason: null },
+      { name: 'position', generated: false, hasDefault: false, readOnlyReason: null },
+    ]);
+    expect(table.naturalOrder).toBe('id');
+    expect(() => insertRow(table, { values: { id: '7', position: '1' } })).toThrow(/filled in by the database/);
+    expect(insertRow(table, { values: { position: '1' } }).text).toMatch(/INSERT INTO "auth"\."numbered" \("position"\) VALUES/);
   });
 
   it.each([

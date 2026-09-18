@@ -23,9 +23,10 @@ export interface Column {
    */
   hasDefault: boolean;
   /**
-   * Whether the database, and only the database, decides this value: an identity column or one
-   * computed from others. A new row must not carry one — PostgreSQL refuses `GENERATED ALWAYS`
-   * outright, and a value written into a `BY DEFAULT` identity quietly desynchronises its sequence.
+   * Whether the database, and only the database, decides this value: an identity column, a
+   * sequence-backed one (`serial`, `DEFAULT nextval(...)`) or one computed from others. A new row
+   * must not carry one — PostgreSQL refuses `GENERATED ALWAYS` outright, and a value written into
+   * a `BY DEFAULT` identity or a `serial` quietly desynchronises its sequence.
    */
   generated: boolean;
   /** Native SQL type including constraints, supplied by PostgreSQL itself. */

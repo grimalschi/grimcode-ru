@@ -22,7 +22,8 @@ export function RowEditor({ schema, table, columns, primaryKey, readOnlyReason, 
   ])));
   const [busy, setBusy] = React.useState(false);
   const editable = columns.filter((column) => !readOnlyReason && !column.readOnlyReason && !column.generated && (inserting || !primaryKey.includes(column.name)));
-  const fields = inserting ? columns.filter((column) => !column.generated) : columns;
+  // A column the database fills in is shown locked rather than hidden, so a new row explains where its number comes from.
+  const fields = columns;
   const blockedInsert = inserting && columns.some((column) => column.readOnlyReason && !column.generated && !column.hasDefault && !column.nullable);
   const changed = inserting || editable.some((column) => {
     try { return fieldValue(draft[column.name]!) !== row[column.name]; }
@@ -87,12 +88,15 @@ export function RowEditor({ schema, table, columns, primaryKey, readOnlyReason, 
           {!inserting && primaryKey.length > 0 && <p className="text-xs text-muted-foreground">Ключ — только чтение: {primaryKey.join(', ')}</p>}
           {blockedInsert && <p role="alert" className="text-sm text-destructive">Добавление недоступно: обязательная колонка имеет неподдержанный тип.</p>}
           {fields.map((column) => {
-            const reason = readOnlyReason ?? column.readOnlyReason ?? (column.generated ? 'Вычисляется PostgreSQL' : !inserting && primaryKey.includes(column.name) ? 'Первичный ключ' : null);
+            const automatic = inserting && column.generated;
+            const reason = readOnlyReason ?? column.readOnlyReason
+              ?? (automatic ? 'Автоматически — PostgreSQL назначит значение при сохранении'
+                : column.generated ? 'Вычисляется PostgreSQL' : !inserting && primaryKey.includes(column.name) ? 'Первичный ключ' : null);
             const locked = !!reason;
             const current = draft[column.name]!;
             const disabled = locked || busy || current.mode !== 'value';
             const input = { id: `database-field-${column.name}`, disabled, value: current.mode === 'value' ? current.text : '',
-              placeholder: current.mode === 'null' ? 'SQL NULL' : current.mode === 'default' ? 'По умолчанию' : undefined,
+              placeholder: automatic ? 'Автоматически' : current.mode === 'null' ? 'SQL NULL' : current.mode === 'default' ? 'По умолчанию' : undefined,
               autoCorrect: 'off', autoCapitalize: 'none', spellCheck: false,
               onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => changeText(column.name, event.target.value),
               onPaste: (event: React.ClipboardEvent<HTMLInputElement | HTMLTextAreaElement>) => paste(event, column.name),
