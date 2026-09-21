@@ -81,9 +81,10 @@ export class Session {
     prefix: string,
     procedure: string,
     input: unknown = {},
-    options: { csrf?: boolean } = {},
+    /** `headers` lets a test add what an attacker would — forged administrator headers, say. */
+    options: { csrf?: boolean; headers?: Record<string, string> } = {},
   ): Promise<{ status: number; body: T }> {
-    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    const headers: Record<string, string> = { 'content-type': 'application/json', ...options.headers };
     if (options.csrf) headers['x-csrf-token'] = await this.csrfToken(prefix);
 
     const response = await this.fetch(`${prefix}/rpc/${procedure}`, {
@@ -106,7 +107,7 @@ export class Session {
     prefix: string,
     procedure: string,
     input: unknown = {},
-    options: { csrf?: boolean } = {},
+    options: { csrf?: boolean; headers?: Record<string, string> } = {},
   ): Promise<T> {
     const result = await this.rpc<T>(prefix, procedure, input, options);
     if (result.status !== 200) {

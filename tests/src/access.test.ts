@@ -26,6 +26,8 @@ let grantedAdmin: TestUser;
 let emptyAdmin: TestUser;
 let emailAdmin: TestUser;
 let disabledAdmin: TestUser;
+/** An administrator with the Auth grant only: enough to act in Auth's admin, not to be an owner. */
+let authAdmin: TestUser;
 let templateId: string;
 
 beforeAll(async () => {
@@ -46,7 +48,8 @@ beforeAll(async () => {
   emptyAdmin = await createUser('no-grants');
   emailAdmin = await createUser('email-only');
   disabledAdmin = await createUser('disabled');
-  for (const [user, grants] of [[emptyAdmin, []], [emailAdmin, ['email']], [disabledAdmin, ['users', 'email']]] as const) {
+  authAdmin = await createUser('auth-only');
+  for (const [user, grants] of [[emptyAdmin, []], [emailAdmin, ['email']], [disabledAdmin, ['users', 'email']], [authAdmin, ['auth']]] as const) {
     await restore.remember(user.userId);
     await owner.call(ADMIN, 'addAdministrator', { email: user.email, role: 'admin', grants }, { csrf: true });
   }
@@ -533,23 +536,42 @@ describe('public routing', () => {
     expect(users.status).toBe(401);
   });
 
+  /*
+   * The administrator context reaches a module as an argument Router builds from the registry; the
+   * request's own headers never take part. This is only worth checking where forged headers would
+   * change the answer if they were read: an owner-only procedure, a module the person lacks a grant
+   * for, and the actor a module writes into its audit. An anonymous call that would be refused
+   * anyway proves nothing about the boundary.
+   */
   it('never lets a client supply its own admin context', async () => {
-    const forged = new Session();
+    const { userId: ownerId } = await owner.call<{ userId: string }>(ADMIN, 'session');
+    const forged = {
+      'x-template-admin-user-id': ownerId,
+      'x-template-admin-email': 'owner@forged.test',
+      'x-template-admin-role': 'owner',
+      'x-template-admin-grants': 'auth,users,notifications,email',
+    };
 
-    const response = await forged.fetch('/module/auth/rpc/currentSession', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        // HTTP headers cannot supply the handler's internal administrator context.
-        'x-template-admin-user-id': '00000000-0000-4000-8000-000000000001',
-        'x-template-admin-role': 'owner',
-        'x-template-admin-grants': 'auth,users,notifications,email',
-      },
-      body: JSON.stringify({}),
-    });
+    // A person who is not an administrator stays outside, whatever the headers claim.
+    expect((await plainUser.session.rpc(ADMIN, 'session', {}, { headers: forged })).status).toBe(403);
+    expect((await plainUser.session.rpc(moduleAdmin('auth'), 'listIdentities', {}, { headers: forged })).status).toBe(403);
 
-    const body = (await response.json()) as { result: { data: { identity: unknown } } };
-    expect(body.result.data.identity).toBeNull();
+    // An administrator keeps the role and the grants the registry gives, not the ones in the headers.
+    const claimed = await emailAdmin.session.rpc<{ role: string; modules: string[] }>(ADMIN, 'session', {}, { headers: forged });
+    expect(claimed.status).toBe(200);
+    expect(claimed.body).toMatchObject({ role: 'admin', modules: ['email'] });
+    expect((await emailAdmin.session.rpc(ADMIN, 'listAdministrators', {}, { headers: forged })).status).toBe(403);
+    expect((await emailAdmin.session.rpc(moduleAdmin('auth'), 'listIdentities', {}, { headers: forged })).status).toBe(403);
+
+    // A module writes the actor Router verified into its audit, not the one the headers name.
+    const auth = moduleAdmin('auth');
+    await authAdmin.session.call(auth, 'revokeSessions', { id: plainUser.userId }, { csrf: true, headers: forged });
+    const { items } = await owner.call<{ items: { action: string; identityId: string | null; actorUserId: string | null; actorRole: string | null }[] }>(
+      auth, 'listAudit', { limit: 20, offset: 0 },
+    );
+    const entry = items.find((item) => item.action === 'admin.sessions.revoked' && item.identityId === plainUser.userId);
+    expect(entry).toMatchObject({ actorUserId: authAdmin.userId, actorRole: 'admin' });
+    expect(entry?.actorUserId).not.toBe(ownerId);
   });
 });
 
