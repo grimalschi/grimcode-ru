@@ -114,16 +114,19 @@ export const adminRouter = t.router({
       const row = await loadIdentity(ctx.repo, input.id);
 
       const token = newToken(32);
-      if (!await ctx.repo.issueToken(row.id, 'password-reset', token, RESET_TTL_SECONDS, { email: row.email })) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Аккаунт изменился или заблокирован' });
-      }
-      await ctx.repo.audit({
-        identityId: row.id,
-        action: 'admin.recovery.sent',
-        actorUserId: ctx.adminContext.userId,
-        actorRole: ctx.adminContext.role,
+      await ctx.repo.withTransaction(async (repo) => {
+        if (!await repo.issueToken(row.id, 'password-reset', token, RESET_TTL_SECONDS, { email: row.email })) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Аккаунт изменился или заблокирован' });
+        }
+        await repo.audit({
+          identityId: row.id,
+          action: 'admin.recovery.sent',
+          actorUserId: ctx.adminContext.userId,
+          actorRole: ctx.adminContext.role,
+        });
       });
 
+      // Committed above; the hand-off cannot be rolled back, so it comes last.
       await ctx.notifier.emit(
         {
           type: 'auth.password.reset_requested',
@@ -153,14 +156,16 @@ export const adminRouter = t.router({
       }
 
       const token = newToken(32);
-      if (!await ctx.repo.issueToken(row.id, 'email-verification', token, VERIFICATION_TTL_SECONDS, { email: row.email })) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Аккаунт изменился или заблокирован' });
-      }
-      await ctx.repo.audit({
-        identityId: row.id,
-        action: 'admin.verification.resent',
-        actorUserId: ctx.adminContext.userId,
-        actorRole: ctx.adminContext.role,
+      await ctx.repo.withTransaction(async (repo) => {
+        if (!await repo.issueToken(row.id, 'email-verification', token, VERIFICATION_TTL_SECONDS, { email: row.email })) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Аккаунт изменился или заблокирован' });
+        }
+        await repo.audit({
+          identityId: row.id,
+          action: 'admin.verification.resent',
+          actorUserId: ctx.adminContext.userId,
+          actorRole: ctx.adminContext.role,
+        });
       });
 
       await ctx.notifier.emit(
@@ -188,13 +193,15 @@ export const adminRouter = t.router({
     async ({ input, ctx }) => {
       const row = await loadIdentity(ctx.repo, input.id);
 
-      const revoked = await ctx.repo.revokeAllSessions(row.id);
-      await ctx.repo.audit({
-        identityId: row.id,
-        action: 'admin.sessions.revoked',
-        actorUserId: ctx.adminContext.userId,
-        actorRole: ctx.adminContext.role,
-        details: { revoked },
+      await ctx.repo.withTransaction(async (repo) => {
+        const revoked = await repo.revokeAllSessions(row.id);
+        await repo.audit({
+          identityId: row.id,
+          action: 'admin.sessions.revoked',
+          actorUserId: ctx.adminContext.userId,
+          actorRole: ctx.adminContext.role,
+          details: { revoked },
+        });
       });
 
       return { ok: true as const };

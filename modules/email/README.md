@@ -105,4 +105,12 @@ Additional transports implement [`Transport`](src/transport.ts).
 
 The `email` schema contains `templates`, `template_versions`, `deliveries` and `email_audit`.
 The audit records template administration, publication and test sends with the administrator's
-identity and role. Schema changes use [module migrations](../../docs/development.md#migrations).
+identity and role. A change and its audit entry commit together or not at all: the procedure asks
+the repository for a transaction (`repo.withTransaction`) and writes both through the repository
+bound to it; repository methods that would open their own transaction join the open one. A failed
+audit write rolls the change back and the caller sees the error, instead of a template or a
+publication without its record. A test send is different, because a message once sent is outside any
+rollback: the delivery row and the audit entry are written together *before* the transport runs, as
+the record of the decision to send, and the delivery row then carries the outcome.
+[`transactions.test.ts`](src/transactions.test.ts) reads the statement order on a recording pool.
+Schema changes use [module migrations](../../docs/development.md#migrations).

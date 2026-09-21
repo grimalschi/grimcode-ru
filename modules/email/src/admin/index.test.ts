@@ -34,6 +34,7 @@ function setup() {
       created_at: new Date('2026-01-01T00:00:00Z'), updated_at: new Date('2026-01-01T00:00:00Z'),
     })),
     audit: vi.fn<EmailRepository['audit']>().mockResolvedValue(undefined),
+    withTransaction: (operation: (bound: unknown) => Promise<unknown>) => operation(repo),
   };
   const adminFetch = createAdminFetch({
     env,

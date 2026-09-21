@@ -150,17 +150,15 @@ export const adminRouter = adminT.router({
         throw new TRPCError({ code: 'CONFLICT', message: 'Шаблон с таким ключом уже есть' });
       }
 
-      const row = await ctx.repo.createTemplate(
-        input.key,
-        input.name,
-        input.description,
-        input.variables,
-      );
-      await ctx.repo.audit({
-        action: 'template.created',
-        actorUserId: ctx.adminContext.userId,
-        actorRole: ctx.adminContext.role,
-        details: { key: input.key },
+      const row = await ctx.repo.withTransaction(async (repo) => {
+        const created = await repo.createTemplate(input.key, input.name, input.description, input.variables);
+        await repo.audit({
+          action: 'template.created',
+          actorUserId: ctx.adminContext.userId,
+          actorRole: ctx.adminContext.role,
+          details: { key: input.key },
+        });
+        return created;
       });
 
       return { ok: true as const, template: toTemplate(row) };
@@ -177,12 +175,15 @@ export const adminRouter = adminT.router({
     )
     .output(z.object({ ok: z.literal(true), template: templateSchema }))
     .mutation(async ({ input, ctx }) => {
-      const row = await ctx.repo.updateTemplate(input.id, input);
-      await ctx.repo.audit({
-        action: 'template.updated',
-        actorUserId: ctx.adminContext.userId,
-        actorRole: ctx.adminContext.role,
-        details: { key: row.key },
+      const row = await ctx.repo.withTransaction(async (repo) => {
+        const updated = await repo.updateTemplate(input.id, input);
+        await repo.audit({
+          action: 'template.updated',
+          actorUserId: ctx.adminContext.userId,
+          actorRole: ctx.adminContext.role,
+          details: { key: updated.key },
+        });
+        return updated;
       });
       return { ok: true as const, template: toTemplate(row) };
     }),
@@ -201,9 +202,10 @@ export const adminRouter = adminT.router({
       const template = await ctx.repo.findTemplateById(input.templateId);
       if (!template) throw new TRPCError({ code: 'NOT_FOUND', message: 'Шаблон не найден' });
 
-      const row = await ctx.repo.createDraft(template.id, {
-        subject: template.name,
-        source: `<mjml>
+      const row = await ctx.repo.withTransaction(async (repo) => {
+        const draft = await repo.createDraft(template.id, {
+          subject: template.name,
+          source: `<mjml>
   <mj-body>
     <mj-section>
       <mj-column>
@@ -212,12 +214,14 @@ export const adminRouter = adminT.router({
     </mj-section>
   </mj-body>
 </mjml>`,
-      });
-      await ctx.repo.audit({
-        action: 'version.draft.created',
-        actorUserId: ctx.adminContext.userId,
-        actorRole: ctx.adminContext.role,
-        details: { templateKey: template.key, version: row.version },
+        });
+        await repo.audit({
+          action: 'version.draft.created',
+          actorUserId: ctx.adminContext.userId,
+          actorRole: ctx.adminContext.role,
+          details: { templateKey: template.key, version: draft.version },
+        });
+        return draft;
       });
 
       return { ok: true as const, version: toVersion(row) };
@@ -252,20 +256,24 @@ export const adminRouter = adminT.router({
 
       let row;
       try {
-        row = await ctx.repo.publish(draft.id, async (current, variables) => {
-          assertDeclaredVariables(current.source, current.subject, variables);
-          return renderMessage(current.source, current.subject);
+        // The publication and its audit entry commit together: a version that letters already go
+        // out by is never missing from the log.
+        row = await ctx.repo.withTransaction(async (repo) => {
+          const published = await repo.publish(draft.id, async (current, variables) => {
+            assertDeclaredVariables(current.source, current.subject, variables);
+            return renderMessage(current.source, current.subject);
+          });
+          await repo.audit({
+            action: 'version.published',
+            actorUserId: ctx.adminContext.userId,
+            actorRole: ctx.adminContext.role,
+            details: { templateKey: template.key, version: published.version },
+          });
+          return published;
         });
       } catch (error) {
         renderFailure(error);
       }
-
-      await ctx.repo.audit({
-        action: 'version.published',
-        actorUserId: ctx.adminContext.userId,
-        actorRole: ctx.adminContext.role,
-        details: { templateKey: template.key, version: row.version },
-      });
 
       return { ok: true as const, version: toVersion(row) };
     }),
@@ -313,17 +321,28 @@ export const adminRouter = adminT.router({
       }
 
       // A test send is a real send: it goes through the transport and is recorded in the log with
-      // the exact content that left the system.
+      // the exact content that left the system. The delivery record and the audit entry are written
+      // together before the transport runs — a message is outside once sent, and no rollback reaches
+      // it, so the record is of the decision to send; the delivery row then carries the outcome.
       const dedupeKey = `test:${randomUUID()}`;
-      const { row } = await ctx.repo.openDelivery({
-        dedupeKey,
-        templateKey: template.key,
-        templateVersionId: version.id,
-        recipientEmail: input.to,
-        subject: redactOneTimeTokens(rendered.subject),
-        html: redactOneTimeTokens(rendered.html),
-        text: redactOneTimeTokens(rendered.text),
-        transport: ctx.transport.name,
+      const { row } = await ctx.repo.withTransaction(async (repo) => {
+        const opened = await repo.openDelivery({
+          dedupeKey,
+          templateKey: template.key,
+          templateVersionId: version.id,
+          recipientEmail: input.to,
+          subject: redactOneTimeTokens(rendered.subject),
+          html: redactOneTimeTokens(rendered.html),
+          text: redactOneTimeTokens(rendered.text),
+          transport: ctx.transport.name,
+        });
+        await repo.audit({
+          action: 'version.test-sent',
+          actorUserId: ctx.adminContext.userId,
+          actorRole: ctx.adminContext.role,
+          details: { templateKey: template.key, to: input.to, deliveryId: opened.row.id },
+        });
+        return opened;
       });
 
       let result;
@@ -334,13 +353,6 @@ export const adminRouter = adminT.router({
         throw new TRPCError({ code: 'BAD_GATEWAY', message: 'Провайдер не подтвердил отправку', cause: error });
       }
       await ctx.repo.markSent(row.id, result);
-
-      await ctx.repo.audit({
-        action: 'version.test-sent',
-        actorUserId: ctx.adminContext.userId,
-        actorRole: ctx.adminContext.role,
-        details: { templateKey: template.key, to: input.to },
-      });
 
       return { ok: true as const, deliveryId: row.id };
     }),

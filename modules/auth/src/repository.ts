@@ -59,12 +59,32 @@ const IDENTITY_COLUMNS = `
 /**
  * Data access for the Auth schema only. Auth never reads or writes another module's schema:
  * everything it needs from elsewhere comes through contracts.
+ *
+ * A repository runs on the pool, or on one transaction's connection when `withTransaction` handed
+ * it out. Every statement goes through `sql`, so the same method writes into whichever it was given.
  */
 export class AuthRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool, private readonly sql: Pool | PoolClient = pool) {}
+
+  /**
+   * A change and its audit entry commit together, or neither does — the record of a security
+   * action is part of the action, not a note added afterwards. The procedure gets a repository bound
+   * to one transaction; inside it, methods that would open their own transaction join this one.
+   * Anything the database cannot roll back — a notification hand-off — belongs after this returns.
+   */
+  async withTransaction<T>(operation: (repo: AuthRepository) => Promise<T>): Promise<T> {
+    if (this.sql !== this.pool) return operation(this);
+    return withTransaction(this.pool, (client) => operation(new AuthRepository(this.pool, client)));
+  }
+
+  /** The repository's own transactional methods: a new transaction on the pool, or the one already open. */
+  private inTransaction<T>(handler: (client: PoolClient) => Promise<T>): Promise<T> {
+    if (this.sql !== this.pool) return handler(this.sql as PoolClient);
+    return withTransaction(this.pool, handler);
+  }
 
   async findIdentityById(id: string): Promise<IdentityRow | null> {
-    const { rows } = await this.pool.query<IdentityRow>(
+    const { rows } = await this.sql.query<IdentityRow>(
       `SELECT ${IDENTITY_COLUMNS} FROM identities WHERE id = $1`,
       [id],
     );
@@ -75,7 +95,7 @@ export class AuthRepository {
   async findIdentitiesByIds(ids: readonly string[]): Promise<IdentityRow[]> {
     if (ids.length === 0) return [];
 
-    const { rows } = await this.pool.query<IdentityRow>(
+    const { rows } = await this.sql.query<IdentityRow>(
       `SELECT ${IDENTITY_COLUMNS} FROM identities WHERE id = ANY($1::uuid[])`,
       [ids],
     );
@@ -84,7 +104,7 @@ export class AuthRepository {
 
   /** Blocked identities are included: an owner may well be looking for one to unblock. */
   async searchIdentities(query: string, limit: number): Promise<IdentityRow[]> {
-    const { rows } = await this.pool.query<IdentityRow>(
+    const { rows } = await this.sql.query<IdentityRow>(
       `SELECT ${IDENTITY_COLUMNS} FROM identities
         WHERE lower(email) LIKE $1 ORDER BY email ASC LIMIT $2`,
       [`%${query.toLowerCase()}%`, limit],
@@ -93,7 +113,7 @@ export class AuthRepository {
   }
 
   async findIdentityByEmail(email: string): Promise<IdentityRow | null> {
-    const { rows } = await this.pool.query<IdentityRow>(
+    const { rows } = await this.sql.query<IdentityRow>(
       `SELECT ${IDENTITY_COLUMNS} FROM identities WHERE email = $1`,
       [email],
     );
@@ -107,14 +127,14 @@ export class AuthRepository {
    * resolution or row layout — it follows the identity sequence.
    */
   async findFirstIdentity(): Promise<IdentityRow | null> {
-    const { rows } = await this.pool.query<IdentityRow>(
+    const { rows } = await this.sql.query<IdentityRow>(
       `SELECT ${IDENTITY_COLUMNS} FROM identities ORDER BY sequence ASC LIMIT 1`,
     );
     return rows[0] ?? null;
   }
 
   async createIdentity(email: string, passwordHash: string): Promise<IdentityRow> {
-    const { rows } = await this.pool.query<IdentityRow>(
+    const { rows } = await this.sql.query<IdentityRow>(
       `INSERT INTO identities (id, email, password_hash) VALUES ($1, $2, $3)
        RETURNING ${IDENTITY_COLUMNS}`,
       [randomUUID(), email, passwordHash],
@@ -125,7 +145,7 @@ export class AuthRepository {
   }
 
   async changePassword(identityId: string, expectedHash: string, passwordHash: string): Promise<boolean> {
-    return withTransaction(this.pool, async (client) => {
+    return this.inTransaction(async (client) => {
       const identity = await this.lockIdentity(client, identityId);
       if (!identity || identity.blocked_at || identity.password_hash !== expectedHash) return false;
       await client.query('UPDATE identities SET password_hash = $2, updated_at = now() WHERE id = $1',
@@ -164,7 +184,7 @@ export class AuthRepository {
   }
 
   async setBlocked(identityId: string, blocked: boolean): Promise<boolean> {
-    return withTransaction(this.pool, async (client) => {
+    return this.inTransaction(async (client) => {
       if (!await this.lockIdentity(client, identityId)) return false;
       await client.query(
         `UPDATE identities SET blocked_at = CASE WHEN $2 THEN now() ELSE NULL END, updated_at = now()
@@ -175,7 +195,7 @@ export class AuthRepository {
   }
 
   async touchLogin(identityId: string): Promise<void> {
-    await this.pool.query('UPDATE identities SET last_login_at = now() WHERE id = $1', [identityId]);
+    await this.sql.query('UPDATE identities SET last_login_at = now() WHERE id = $1', [identityId]);
   }
 
   async listIdentities(
@@ -185,7 +205,7 @@ export class AuthRepository {
   ): Promise<{ rows: (IdentityRow & { active_session_count: string })[]; total: number }> {
     const filter = query ? `%${query.toLowerCase()}%` : null;
 
-    const { rows } = await this.pool.query<IdentityRow & { active_session_count: string }>(
+    const { rows } = await this.sql.query<IdentityRow & { active_session_count: string }>(
       `SELECT ${IDENTITY_COLUMNS},
               (SELECT count(*) FROM sessions s
                 WHERE s.identity_id = i.id AND s.revoked_at IS NULL AND s.expires_at > now())
@@ -197,7 +217,7 @@ export class AuthRepository {
       [filter, limit, offset],
     );
 
-    const { rows: countRows } = await this.pool.query<{ count: string }>(
+    const { rows: countRows } = await this.sql.query<{ count: string }>(
       `SELECT count(*)::text AS count FROM identities
         WHERE $1::text IS NULL OR lower(email) LIKE $1`,
       [filter],
@@ -214,7 +234,7 @@ export class AuthRepository {
     ttlSeconds: number,
     userAgent: string | null,
   ): Promise<string | null> {
-    return withTransaction(this.pool, async (client) => {
+    return this.inTransaction(async (client) => {
       const identity = await this.lockIdentity(client, expected.id);
       if (!identity || identity.blocked_at || identity.password_hash !== expected.password_hash || identity.email !== expected.email) return null;
       const id = randomUUID();
@@ -228,7 +248,7 @@ export class AuthRepository {
 
   /** Resolves a live session and refreshes its last-seen stamp in one statement. */
   async resolveSession(token: string): Promise<{ session: SessionRow; identity: IdentityRow } | null> {
-    const { rows } = await this.pool.query<SessionRow & IdentityRow & { session_id: string }>(
+    const { rows } = await this.sql.query<SessionRow & IdentityRow & { session_id: string }>(
       `UPDATE sessions s
           SET last_seen_at = now()
         FROM identities i
@@ -260,7 +280,7 @@ export class AuthRepository {
   }
 
   async listSessions(identityId: string): Promise<(SessionRow & { token_hash: string })[]> {
-    const { rows } = await this.pool.query<SessionRow & { token_hash: string }>(
+    const { rows } = await this.sql.query<SessionRow & { token_hash: string }>(
       `SELECT id, identity_id, token_hash, created_at, last_seen_at, expires_at, user_agent
          FROM sessions
         WHERE identity_id = $1 AND revoked_at IS NULL AND expires_at > now()
@@ -271,14 +291,14 @@ export class AuthRepository {
   }
 
   async revokeSessionByToken(token: string): Promise<void> {
-    await this.pool.query(
+    await this.sql.query(
       'UPDATE sessions SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL',
       [sha256(token)],
     );
   }
 
   async revokeAllSessions(identityId: string): Promise<number> {
-    const { rowCount } = await this.pool.query(
+    const { rowCount } = await this.sql.query(
       'UPDATE sessions SET revoked_at = now() WHERE identity_id = $1 AND revoked_at IS NULL',
       [identityId],
     );
@@ -299,7 +319,7 @@ export class AuthRepository {
       passwordHash?: string;
     } = {},
   ): Promise<boolean> {
-    return withTransaction(this.pool, async (client) => {
+    return this.inTransaction(async (client) => {
       const identity = await this.lockIdentity(client, identityId);
       if (!identity || identity.blocked_at ||
           (options.email !== undefined && identity.email !== options.email) ||
@@ -336,7 +356,7 @@ export class AuthRepository {
     purpose: TokenPurpose,
     apply: (client: PoolClient, consumed: AuthTokenRow, identity: IdentityRow) => Promise<T>,
   ): Promise<T | null> {
-    return withTransaction(this.pool, async (client) => {
+    return this.inTransaction(async (client) => {
       const hash = sha256(token);
       const { rows: candidates } = await client.query<{ identity_id: string }>(
         'SELECT identity_id FROM auth_tokens WHERE token_hash = $1 AND purpose = $2', [hash, purpose]);
@@ -367,10 +387,8 @@ export class AuthRepository {
       actorRole?: string | null;
       details?: Record<string, unknown>;
     },
-    client?: PoolClient,
   ): Promise<void> {
-    const runner = client ?? this.pool;
-    await runner.query(
+    await this.sql.query(
       `INSERT INTO auth_audit (id, identity_id, action, actor_user_id, actor_role, details)
        VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
       [
@@ -391,7 +409,7 @@ export class AuthRepository {
   ): Promise<{ rows: Record<string, unknown>[]; total: number }> {
     const filter = query ? `%${query.toLowerCase()}%` : null;
 
-    const { rows } = await this.pool.query(
+    const { rows } = await this.sql.query(
       `SELECT id, identity_id, action, actor_user_id, actor_role, details, created_at
          FROM auth_audit
         WHERE $1::text IS NULL OR lower(action) LIKE $1
@@ -400,7 +418,7 @@ export class AuthRepository {
       [filter, limit, offset],
     );
 
-    const { rows: countRows } = await this.pool.query<{ count: string }>(
+    const { rows: countRows } = await this.sql.query<{ count: string }>(
       `SELECT count(*)::text AS count FROM auth_audit
         WHERE $1::text IS NULL OR lower(action) LIKE $1`,
       [filter],

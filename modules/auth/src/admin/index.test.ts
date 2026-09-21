@@ -33,6 +33,7 @@ function setup() {
     })),
     revokeAllSessions: vi.fn(async (_id: string) => 1),
     audit: vi.fn(async (_entry: Parameters<AuthRepository['audit']>[0]) => undefined),
+    withTransaction: (operation: (bound: unknown) => Promise<unknown>) => operation(repo),
   };
   const adminFetch = createAdminFetch({
     env: {

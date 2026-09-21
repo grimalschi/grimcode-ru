@@ -18,6 +18,7 @@ function caller() {
     markFailed: vi.fn().mockResolvedValue(undefined),
     audit: vi.fn().mockResolvedValue(undefined),
     publish: vi.fn<EmailRepository['publish']>(),
+    withTransaction: (operation: (bound: unknown) => Promise<unknown>) => operation(repo),
   };
   const transport = { name: 'log', send: vi.fn().mockResolvedValue({ providerMessageId: null, providerStatus: 'logged' }) };
   const api = adminRouter.createCaller({

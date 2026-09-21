@@ -56,13 +56,33 @@ const DELIVERY_COLUMNS = `
   transport, status, provider_message_id, provider_status, error, created_at, sent_at
 `;
 
+/**
+ * A repository runs on the pool, or on one transaction's connection when `withTransaction` handed
+ * it out. Every statement goes through `sql`, so the same method writes into whichever it was given.
+ */
 export class EmailRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool, private readonly sql: Pool | PoolClient = pool) {}
+
+  /**
+   * A change and its audit entry commit together, or neither does. The procedure gets a repository
+   * bound to one transaction; inside it, methods that would open their own transaction join this
+   * one. What the database cannot roll back — the transport — belongs after this returns.
+   */
+  async withTransaction<T>(operation: (repo: EmailRepository) => Promise<T>): Promise<T> {
+    if (this.sql !== this.pool) return operation(this);
+    return withTransaction(this.pool, (client) => operation(new EmailRepository(this.pool, client)));
+  }
+
+  /** The repository's own transactional methods: a new transaction on the pool, or the one already open. */
+  private inTransaction<T>(handler: (client: PoolClient) => Promise<T>): Promise<T> {
+    if (this.sql !== this.pool) return handler(this.sql as PoolClient);
+    return withTransaction(this.pool, handler);
+  }
 
   // --- Templates ------------------------------------------------------------
 
   async findTemplateById(id: string): Promise<TemplateRow | null> {
-    const { rows } = await this.pool.query<TemplateRow>(
+    const { rows } = await this.sql.query<TemplateRow>(
       `SELECT ${TEMPLATE_COLUMNS} FROM templates WHERE id = $1`,
       [id],
     );
@@ -70,7 +90,7 @@ export class EmailRepository {
   }
 
   async findTemplateByKey(key: string): Promise<TemplateRow | null> {
-    const { rows } = await this.pool.query<TemplateRow>(
+    const { rows } = await this.sql.query<TemplateRow>(
       `SELECT ${TEMPLATE_COLUMNS} FROM templates WHERE key = $1`,
       [key],
     );
@@ -84,13 +104,13 @@ export class EmailRepository {
   ): Promise<{ rows: TemplateRow[]; total: number }> {
     const filter = query ? `%${query.toLowerCase()}%` : null;
 
-    const { rows } = await this.pool.query<TemplateRow>(
+    const { rows } = await this.sql.query<TemplateRow>(
       `SELECT ${TEMPLATE_COLUMNS} FROM templates
         WHERE $1::text IS NULL OR lower(key) LIKE $1 OR lower(name) LIKE $1
         ORDER BY key ASC LIMIT $2 OFFSET $3`,
       [filter, limit, offset],
     );
-    const { rows: countRows } = await this.pool.query<{ count: string }>(
+    const { rows: countRows } = await this.sql.query<{ count: string }>(
       `SELECT count(*)::text AS count FROM templates
         WHERE $1::text IS NULL OR lower(key) LIKE $1 OR lower(name) LIKE $1`,
       [filter],
@@ -105,7 +125,7 @@ export class EmailRepository {
     description: string | null,
     variables: readonly string[],
   ): Promise<TemplateRow> {
-    const { rows } = await this.pool.query<TemplateRow>(
+    const { rows } = await this.sql.query<TemplateRow>(
       `INSERT INTO templates (id, key, name, description, variables)
        VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING ${TEMPLATE_COLUMNS}`,
       [randomUUID(), key, name, description, JSON.stringify(variables)],
@@ -119,7 +139,7 @@ export class EmailRepository {
     id: string,
     patch: { name?: string; description?: string | null; variables?: readonly string[] },
   ): Promise<TemplateRow> {
-    const { rows } = await this.pool.query<TemplateRow>(
+    const { rows } = await this.sql.query<TemplateRow>(
       `UPDATE templates
           SET name        = COALESCE($2, name),
               description = CASE WHEN $3::boolean THEN $4 ELSE description END,
@@ -142,7 +162,7 @@ export class EmailRepository {
   // --- Versions -------------------------------------------------------------
 
   async findVersion(id: string): Promise<VersionRow | null> {
-    const { rows } = await this.pool.query<VersionRow>(
+    const { rows } = await this.sql.query<VersionRow>(
       `SELECT ${VERSION_COLUMNS} FROM template_versions WHERE id = $1`,
       [id],
     );
@@ -150,7 +170,7 @@ export class EmailRepository {
   }
 
   async listVersions(templateId: string): Promise<VersionRow[]> {
-    const { rows } = await this.pool.query<VersionRow>(
+    const { rows } = await this.sql.query<VersionRow>(
       `SELECT ${VERSION_COLUMNS} FROM template_versions
         WHERE template_id = $1 ORDER BY version DESC`,
       [templateId],
@@ -160,7 +180,7 @@ export class EmailRepository {
 
   /** The version runtime delivery must use: the published one for that template. */
   async findPublished(templateKey: string): Promise<VersionRow | null> {
-    const { rows } = await this.pool.query<VersionRow>(
+    const { rows } = await this.sql.query<VersionRow>(
       `SELECT v.id, v.template_id, v.version, v.status, v.subject,
               v.source, v.compiled_html, v.compiled_text, v.published_at,
               v.created_at, v.updated_at
@@ -177,7 +197,7 @@ export class EmailRepository {
     templateId: string,
     fallback: Pick<VersionRow, 'subject' | 'source'>,
   ): Promise<VersionRow> {
-    return withTransaction(this.pool, async (client) => {
+    return this.inTransaction(async (client) => {
       await client.query('SELECT id FROM templates WHERE id = $1 FOR UPDATE', [templateId]);
       const { rows: latest } = await client.query<VersionRow>(
         `SELECT ${VERSION_COLUMNS} FROM template_versions
@@ -209,7 +229,7 @@ export class EmailRepository {
   }
 
   async saveDraft(id: string, subject: string, source: string): Promise<VersionRow> {
-    const { rows } = await this.pool.query<VersionRow>(
+    const { rows } = await this.sql.query<VersionRow>(
       `UPDATE template_versions
           SET subject = $2, source = $3, updated_at = now()
         WHERE id = $1 AND status = 'draft'
@@ -231,7 +251,7 @@ export class EmailRepository {
     id: string,
     compile: (draft: VersionRow, variables: string[]) => Promise<{ html: string; text: string }>,
   ): Promise<VersionRow> {
-    return withTransaction(this.pool, async (client) => {
+    return this.inTransaction(async (client) => {
       const { rows: templates } = await client.query<TemplateRow>(
         `SELECT t.* FROM templates t JOIN template_versions v ON v.template_id = t.id
           WHERE v.id = $1 FOR UPDATE OF t`,
@@ -284,7 +304,7 @@ export class EmailRepository {
     text: string;
     transport: 'log' | 'unisender';
   }): Promise<{ row: DeliveryRow; created: boolean }> {
-    const { rows } = await this.pool.query<DeliveryRow>(
+    const { rows } = await this.sql.query<DeliveryRow>(
       `INSERT INTO deliveries
          (id, dedupe_key, template_key, template_version_id, recipient_email,
           subject, html, text, transport)
@@ -313,7 +333,7 @@ export class EmailRepository {
   }
 
   async findDeliveryByDedupeKey(dedupeKey: string): Promise<DeliveryRow | null> {
-    const { rows } = await this.pool.query<DeliveryRow>(
+    const { rows } = await this.sql.query<DeliveryRow>(
       `SELECT ${DELIVERY_COLUMNS} FROM deliveries WHERE dedupe_key = $1`,
       [dedupeKey],
     );
@@ -321,7 +341,7 @@ export class EmailRepository {
   }
 
   async findDelivery(id: string): Promise<DeliveryRow | null> {
-    const { rows } = await this.pool.query<DeliveryRow>(
+    const { rows } = await this.sql.query<DeliveryRow>(
       `SELECT ${DELIVERY_COLUMNS} FROM deliveries WHERE id = $1`,
       [id],
     );
@@ -332,7 +352,7 @@ export class EmailRepository {
     id: string,
     result: { providerMessageId: string | null; providerStatus: string | null },
   ): Promise<void> {
-    await this.pool.query(
+    await this.sql.query(
       `UPDATE deliveries
           SET status = 'sent', sent_at = now(), provider_message_id = $2, provider_status = $3,
               error = NULL
@@ -342,7 +362,7 @@ export class EmailRepository {
   }
 
   async markFailed(id: string, error: string): Promise<void> {
-    await this.pool.query(`UPDATE deliveries SET status = 'failed', error = $2 WHERE id = $1`, [
+    await this.sql.query(`UPDATE deliveries SET status = 'failed', error = $2 WHERE id = $1`, [
       id,
       error.slice(0, 2000),
     ]);
@@ -360,12 +380,12 @@ export class EmailRepository {
         AND ($2::text IS NULL OR status = $2)
     `;
 
-    const { rows } = await this.pool.query<DeliveryRow>(
+    const { rows } = await this.sql.query<DeliveryRow>(
       `SELECT ${DELIVERY_COLUMNS} FROM deliveries ${where}
         ORDER BY created_at DESC LIMIT $3 OFFSET $4`,
       [...params, limit, offset],
     );
-    const { rows: countRows } = await this.pool.query<{ count: string }>(
+    const { rows: countRows } = await this.sql.query<{ count: string }>(
       `SELECT count(*)::text AS count FROM deliveries ${where}`,
       params,
     );
@@ -382,9 +402,8 @@ export class EmailRepository {
       actorRole: string | null;
       details?: Record<string, unknown>;
     },
-    client?: PoolClient,
   ): Promise<void> {
-    await (client ?? this.pool).query(
+    await this.sql.query(
       `INSERT INTO email_audit (id, action, actor_user_id, actor_role, details)
        VALUES ($1, $2, $3, $4, $5::jsonb)`,
       [
@@ -414,7 +433,7 @@ export class EmailRepository {
     for (const seed of SEED_TEMPLATES) {
       if (await this.findTemplateByKey(seed.key)) continue;
       const compiled = await compile(seed.source, seed.subject);
-      created += await withTransaction(this.pool, async (client) => {
+      created += await this.inTransaction(async (client) => {
         const { rows } = await client.query<{ id: string }>(
           `INSERT INTO templates (id, key, name, description, variables)
            VALUES ($1, $2, $3, $4, $5::jsonb) ON CONFLICT (key) DO NOTHING RETURNING id`,

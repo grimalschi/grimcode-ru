@@ -41,6 +41,7 @@ function dependencies() {
     audit: vi.fn(async () => undefined),
     revokeSessionByToken: vi.fn(async () => undefined),
     issueToken: vi.fn(async () => true),
+    withTransaction: (operation: (bound: unknown) => Promise<unknown>) => operation(repo),
   };
   const notifier = { emit: vi.fn(async () => undefined) };
   return { repo, notifier };

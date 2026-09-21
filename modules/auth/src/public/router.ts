@@ -65,12 +65,18 @@ function appUrl(publicOrigin: string, path: string, token: string): string {
   return `${publicOrigin}/app/${path}?token=${encodeURIComponent(token)}`;
 }
 
-async function openSession(ctx: PublicContext, identity: IdentityRow): Promise<void> {
+/**
+ * Opens the session on the repository it is given — inside the caller's transaction — and returns
+ * the cookie for it. The caller sets the cookie only once the transaction has committed: a rollback
+ * takes the session row back, but not a header already added to the response, and a browser would
+ * replace its working cookie with the token of a session that does not exist.
+ */
+async function openSession(ctx: PublicContext, repo: AuthRepository, identity: IdentityRow): Promise<string> {
   const token = newToken();
   const ttl = ctx.env.sessionTtlSeconds;
-  const session = await ctx.repo.createSession(identity, token, ttl, ctx.request.headers.get('user-agent'));
+  const session = await repo.createSession(identity, token, ttl, ctx.request.headers.get('user-agent'));
   if (!session) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Данные входа изменились. Войдите снова' });
-  ctx.resHeaders.append('set-cookie', sessionCookie(token, ttl, ctx.env));
+  return sessionCookie(token, ttl, ctx.env);
 }
 
 export const publicRouter = t.router({
@@ -91,15 +97,18 @@ export const publicRouter = t.router({
         throw new TRPCError({ code: 'CONFLICT', message: 'Этот адрес уже занят' });
       }
 
-      const identity = await ctx.repo.createIdentity(
-        input.email,
-        await hashPassword(input.password),
-      );
-      await ctx.repo.audit({ identityId: identity.id, action: 'identity.registered' });
-
+      // Hashing is slow on purpose; it happens before a connection is held.
+      const passwordHash = await hashPassword(input.password);
       const token = newToken();
-      await ctx.repo.issueToken(identity.id, 'email-verification', token, VERIFICATION_TTL_SECONDS);
+      const { identity, cookie } = await ctx.repo.withTransaction(async (repo) => {
+        const created = await repo.createIdentity(input.email, passwordHash);
+        await repo.audit({ identityId: created.id, action: 'identity.registered' });
+        await repo.issueToken(created.id, 'email-verification', token, VERIFICATION_TTL_SECONDS);
+        return { identity: created, cookie: await openSession(ctx, repo, created) };
+      });
+      ctx.resHeaders.append('set-cookie', cookie);
 
+      // Committed above. The hand-off cannot be rolled back by the database, so it comes last.
       await ctx.notifier.emit(
         {
           type: 'auth.user.registered',
@@ -112,7 +121,6 @@ export const publicRouter = t.router({
         `auth.user.registered:${identity.id}`,
       );
 
-      await openSession(ctx, identity);
       return { ok: true, identity: toIdentity(identity) };
     },
   ),
@@ -144,9 +152,13 @@ export const publicRouter = t.router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Аккаунт заблокирован' });
     }
 
-    await openSession(ctx, identity);
-    await ctx.repo.touchLogin(identity.id);
-    await ctx.repo.audit({ identityId: identity.id, action: 'login.succeeded' });
+    const cookie = await ctx.repo.withTransaction(async (repo) => {
+      const opened = await openSession(ctx, repo, identity);
+      await repo.touchLogin(identity.id);
+      await repo.audit({ identityId: identity.id, action: 'login.succeeded' });
+      return opened;
+    });
+    ctx.resHeaders.append('set-cookie', cookie);
     // Signing in successfully means the failures before it were this person mistyping.
     ctx.loginAttempts.clear(attemptKey);
 
@@ -206,8 +218,10 @@ export const publicRouter = t.router({
     .mutation(
     async ({ ctx }) => {
       const { row } = await currentIdentity(ctx);
-      await ctx.repo.revokeAllSessions(row.id);
-      await ctx.repo.audit({ identityId: row.id, action: 'sessions.revoked.self' });
+      await ctx.repo.withTransaction(async (repo) => {
+        await repo.revokeAllSessions(row.id);
+        await repo.audit({ identityId: row.id, action: 'sessions.revoked.self' });
+      });
       ctx.resHeaders.append('set-cookie', expiredSessionCookie(ctx.env));
       return { ok: true as const };
     },
@@ -223,11 +237,14 @@ export const publicRouter = t.router({
 
       if (identity && identity.blocked_at === null) {
         const token = newToken();
-        const issued = await ctx.repo.issueToken(identity.id, 'password-reset', token, RESET_TTL_SECONDS, {
-          email: identity.email, resendAfterSeconds: RESET_REQUEST_WINDOW_SECONDS,
+        const issued = await ctx.repo.withTransaction(async (repo) => {
+          const done = await repo.issueToken(identity.id, 'password-reset', token, RESET_TTL_SECONDS, {
+            email: identity.email, resendAfterSeconds: RESET_REQUEST_WINDOW_SECONDS,
+          });
+          if (done) await repo.audit({ identityId: identity.id, action: 'password.reset.requested' });
+          return done;
         });
         if (!issued) return { ok: true as const };
-        await ctx.repo.audit({ identityId: identity.id, action: 'password.reset.requested' });
 
         await ctx.notifier.emit(
           {
@@ -251,9 +268,13 @@ export const publicRouter = t.router({
     .output(okSchema)
     .mutation(
     async ({ input, ctx }) => {
-      const identityId = await ctx.repo.resetPassword(input.token, await hashPassword(input.password));
+      const passwordHash = await hashPassword(input.password);
+      const identityId = await ctx.repo.withTransaction(async (repo) => {
+        const reset = await repo.resetPassword(input.token, passwordHash);
+        if (reset) await repo.audit({ identityId: reset, action: 'password.reset' });
+        return reset;
+      });
       if (!identityId) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Ссылка больше не действует' });
-      await ctx.repo.audit({ identityId, action: 'password.reset' });
 
       ctx.resHeaders.append('set-cookie', expiredSessionCookie(ctx.env));
       return { ok: true as const };
@@ -272,13 +293,16 @@ export const publicRouter = t.router({
       }
 
       const passwordHash = await hashPassword(input.password);
-      if (!await ctx.repo.changePassword(row.id, row.password_hash, passwordHash)) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Данные входа изменились. Войдите снова' });
-      }
-      await ctx.repo.audit({ identityId: row.id, action: 'password.changed' });
-
-      // The caller stays signed in on this device with a fresh session.
-      await openSession(ctx, { ...row, password_hash: passwordHash });
+      const cookie = await ctx.repo.withTransaction(async (repo) => {
+        if (!await repo.changePassword(row.id, row.password_hash, passwordHash)) {
+          throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Данные входа изменились. Войдите снова' });
+        }
+        await repo.audit({ identityId: row.id, action: 'password.changed' });
+        // The caller stays signed in on this device with a fresh session — or, if that fails, keeps
+        // the old password and the old sessions, since all of it rolls back together.
+        return openSession(ctx, repo, { ...row, password_hash: passwordHash });
+      });
+      ctx.resHeaders.append('set-cookie', cookie);
       return { ok: true as const };
     },
   ),
@@ -288,9 +312,12 @@ export const publicRouter = t.router({
     .output(okSchema)
     .mutation(
     async ({ input, ctx }) => {
-      const identityId = await ctx.repo.verifyEmail(input.token);
+      const identityId = await ctx.repo.withTransaction(async (repo) => {
+        const verified = await repo.verifyEmail(input.token);
+        if (verified) await repo.audit({ identityId: verified, action: 'email.verified' });
+        return verified;
+      });
       if (!identityId) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Ссылка больше не действует' });
-      await ctx.repo.audit({ identityId, action: 'email.verified' });
       return { ok: true as const };
     },
   ),
@@ -360,13 +387,18 @@ export const publicRouter = t.router({
     .output(okSchema)
     .mutation(
     async ({ input, ctx }) => {
-      const changed = await ctx.repo.confirmEmailChange(input.token);
-      if (!changed) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Ссылка больше не действует' });
-      await ctx.repo.audit({
-        identityId: changed.identityId,
-        action: 'email.changed',
-        details: { previousEmail: changed.previousEmail },
+      const changed = await ctx.repo.withTransaction(async (repo) => {
+        const result = await repo.confirmEmailChange(input.token);
+        if (result) {
+          await repo.audit({
+            identityId: result.identityId,
+            action: 'email.changed',
+            details: { previousEmail: result.previousEmail },
+          });
+        }
+        return result;
       });
+      if (!changed) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Ссылка больше не действует' });
       ctx.resHeaders.append('set-cookie', expiredSessionCookie(ctx.env));
 
       // The previous address is told about the change, so a hijacked account is noticed.

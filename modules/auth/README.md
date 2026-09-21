@@ -59,8 +59,11 @@ Administrators granted Auth access can search identities, inspect verification a
 send recovery or verification links, revoke sessions and read the security audit.
 [Admin](../admin/README.md#managing-access-and-preserving-an-owner) manages blocking together
 with administrator rights to preserve an enabled owner. Its internal `setIdentityBlocked` call
-changes Auth state and revokes sessions and account links atomically. The call waits for the
-transaction to finish so Admin keeps its owner-preservation lock until the change completes.
+changes Auth state, revokes sessions and account links, and writes `identity.blocked` or
+`identity.unblocked` to `auth_audit` — all in one transaction, with the actor Admin passes from its
+verified administrator context. Auth's audit is where these events are found; Admin writes nothing
+of its own for them (entries recorded there before this change stay where they are). The call waits
+for the transaction to finish so Admin keeps its owner-preservation lock until the change completes.
 Router passes the verified [administrator context](../../contracts/README.md#http-context) as
 `adminFetch(request, adminContext)`. Each request's Hono bindings carry that context and the module
 settings; administrative identity does not come from HTTP headers. Administrative reads require
@@ -95,6 +98,16 @@ Auth owns schema `auth`:
 | `sessions` | Session token hashes, expiry and revocation |
 | `auth_tokens` | Single-use token hashes, purpose and expiry |
 | `auth_audit` | Security actions and actors |
+
+A security action and its `auth_audit` entry commit together or not at all: a procedure that
+changes state asks the repository for a transaction (`repo.withTransaction`) and writes the change,
+the audit entry and whatever else belongs to the action — the new session on registration and
+password change, the login stamp on sign-in — through the repository bound to it. Repository methods
+that would open their own transaction join the one already open. A failed audit write therefore
+rolls the action back and the caller sees the error, instead of a change without its record. What the
+database cannot roll back — the hand-off to Notifications — comes after the commit, and its failure
+still leaves the action successful, as described above. [`transactions.test.ts`](src/transactions.test.ts)
+reads the statement order on a recording pool for both outcomes.
 
 The identity sequence defines registration order. Password hashing is in
 [`src/crypto.ts`](src/crypto.ts); session and one-time tokens are stored as hashes in Auth.
