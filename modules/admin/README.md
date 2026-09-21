@@ -55,7 +55,10 @@ a failed lookup or audit write leaves the previous access intact. Disabling keep
 Administrator additions, role changes and identity blocking share a registry lock. Inside it, Admin rechecks the actor's
 session and role and asks Auth which remaining owners can sign in. This preserves an accessible
 owner when requests overlap. The “Блокировка аккаунтов” dialog searches all Auth identities;
-blocking revokes their sessions and recovery tokens through Auth's internal API.
+blocking revokes their sessions and recovery tokens through Auth's internal API. Admin passes the
+verified actor along, and Auth records `identity.blocked` / `identity.unblocked` in its own audit in
+the same transaction as the change — so those events live in Auth's audit (its module admin), not in
+`admin_audit`; rows written there before this change remain as history.
 
 The administrator list and its email search resolve current addresses through Auth.
 

@@ -224,8 +224,12 @@ export const adminRouter = adminT.router({
         const eligible = await ownersAbleToSignIn(await repo.otherActiveOwnerIds(input.userId), ctx.auth);
         lastOwnerGuard(input.userId)({ role: 'owner', enabled: false }, eligible.length);
       }
-      await ctx.auth.setIdentityBlocked(input);
-      await repo.audit({ action: input.blocked ? 'identity.blocked' : 'identity.unblocked', actorUserId: ctx.adminContext.userId, subjectUserId: input.userId });
+      // Auth records `identity.blocked` / `identity.unblocked` in its own audit, in the transaction
+      // that changes the account — the one place where the change and its record can commit together.
+      // Nothing is written to admin_audit for this action; the actor comes from the verified context.
+      await ctx.auth.setIdentityBlocked({
+        ...input, actor: { userId: ctx.adminContext.userId, role: ctx.adminContext.role },
+      });
       return { ok: true as const };
     })),
 

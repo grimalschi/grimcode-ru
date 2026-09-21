@@ -33,8 +33,18 @@ export interface AuthAuditEntry {
   createdAt: string;
 }
 
+/** Who performed an administrative action, from the verified server-side admin context — never from a request body. */
+export interface AuthActor {
+  userId: string;
+  role: 'owner' | 'admin';
+}
+
 export interface AuthApi {
-  setIdentityBlocked: (input: { userId: string; blocked: boolean }) => Promise<{ ok: true }>;
+  /**
+   * Blocks or unblocks an account and records `identity.blocked` / `identity.unblocked` in Auth's own
+   * audit with this actor, in the same transaction as the change and the revocation of access.
+   */
+  setIdentityBlocked: (input: { userId: string; blocked: boolean; actor: AuthActor }) => Promise<{ ok: true }>;
   resolveSession: (input: { sessionToken: string }) => Promise<{ identity: Identity | null }>;
   revokeSessionByToken: (input: { sessionToken: string }) => Promise<{ ok: true }>;
   getFirstIdentity: (input: Record<string, never>) => Promise<{ identity: Identity | null }>;

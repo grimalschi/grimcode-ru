@@ -54,11 +54,14 @@ function fixture() {
     getIdentityByEmail: vi.fn(async () => ({ identity: { ...identities[0], id: '00000000-0000-4000-8000-000000000003', email: 'new@example.test' } })),
     resolveSession: async ({ sessionToken }: { sessionToken: string }) => ({ identity: identities.find((identity) => identity.id === sessionToken && !identity.blockedAt) ?? null }),
     getIdentitiesByIds: vi.fn(async ({ ids }: { ids: string[] }) => ({ identities: identities.filter((identity) => ids.includes(identity.id)) })),
-    setIdentityBlocked: async ({ userId, blocked }: { userId: string; blocked: boolean }) => {
+    setIdentityBlocked: async ({ userId, blocked, actor }: { userId: string; blocked: boolean; actor: { userId: string; role: string } }) => {
       identities.find((identity) => identity.id === userId)!.blockedAt = blocked ? new Date().toISOString() : null;
+      blockedBy.push({ userId, blocked, actor });
       return { ok: true as const };
     },
   };
+  /** What Auth was told about each blocking: Auth writes the audit from this, so the actor must be the verified one. */
+  const blockedBy: { userId: string; blocked: boolean; actor: { userId: string; role: string } }[] = [];
   function caller(id: string) {
     return adminRouter.createCaller({
       repo, auth, catalogue: [{ id: 'auth', admin: { title: 'Auth', icon: 'key-round' } }], env: { sessionCookieName: 'session', csrfCookieName: 'csrf', publicOrigin: 'https://test' },
@@ -66,7 +69,7 @@ function fixture() {
       resHeaders: new Headers(), adminContext: { userId: id, email: `${id}@current.test`, role: 'owner' },
     } as unknown as AdminRpcContext);
   }
-  return { rows, identities, caller, repo, auth, audit, auditEntries, commit };
+  return { rows, identities, caller, repo, auth, audit, auditEntries, commit, blockedBy };
 }
 
 describe('serialized access changes', () => {
@@ -79,6 +82,9 @@ describe('serialized access changes', () => {
     expect(results.map((result) => result.status)).toEqual(['fulfilled', 'rejected']);
     expect(results[1]).toMatchObject({ reason: { code: 'FORBIDDEN' } });
     expect(f.identities.filter((identity) => !identity.blockedAt)).toHaveLength(1);
+    // Auth got the verified actor, and Admin wrote no audit row of its own for the blocking.
+    expect(f.blockedBy).toEqual([{ userId: second, blocked: true, actor: { userId: first, role: 'owner' } }]);
+    expect(f.auditEntries.filter((entry) => /identity\./.test(String((entry as { action: string }).action)))).toEqual([]);
   });
 
   it('checks current Auth state when disabling another owner after a blocking operation', async () => {

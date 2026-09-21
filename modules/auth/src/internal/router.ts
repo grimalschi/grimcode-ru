@@ -17,13 +17,29 @@ export interface InternalContext {
 const t = initTRPC.context<InternalContext>().create();
 
 export const internalRouter = t.router({
+  /**
+   * The change, the revocation of the account's sessions and tokens, and the audit entry commit
+   * together. Admin decides who may block whom and holds its registry lock while this runs; Auth
+   * only records the actor Admin verified.
+   */
   setIdentityBlocked: t.procedure
-    .input(z.object({ userId: idSchema, blocked: z.boolean() }))
+    .input(z.object({
+      userId: idSchema, blocked: z.boolean(),
+      actor: z.object({ userId: idSchema, role: z.enum(['owner', 'admin']) }),
+    }))
     .output(okSchema)
     .mutation(async ({ input, ctx }) => {
-      if (!await ctx.repo.setBlocked(input.userId, input.blocked)) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Пользователь не найден' });
-      }
+      await ctx.repo.withTransaction(async (repo) => {
+        if (!await repo.setBlocked(input.userId, input.blocked)) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Пользователь не найден' });
+        }
+        await repo.audit({
+          identityId: input.userId,
+          action: input.blocked ? 'identity.blocked' : 'identity.unblocked',
+          actorUserId: input.actor.userId,
+          actorRole: input.actor.role,
+        });
+      });
       return { ok: true as const };
     }),
 
