@@ -34,6 +34,12 @@ To add an event, extend the [contract](../../contracts/src/modules/notifications
 and add its template to [Email's seed](../email/src/seed.ts).
 Template variables contain the recipient email and event payload.
 
+The event passed to Email retains its original account link. Only the copy stored in
+`events.payload` masks the URL's `token` parameter as `***`; the journal cannot be used to
+recover a password or confirm an address. Migration 002 replaces historical `verificationUrl`,
+`resetUrl` and `confirmUrl` values with `[redacted]`, keeping the rest of each event. Existing
+database backups are not rewritten by this migration. Events are not replayed from this payload.
+
 ## Delivery results
 
 `emit` stores the event, then calls Email within the same operation. A unique `dedupeKey` identifies

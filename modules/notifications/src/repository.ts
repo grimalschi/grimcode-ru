@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { type Pool } from './db/database.js';
+import { journalPayload } from './journal.js';
 
 export interface EventRow {
   id: string;
@@ -38,7 +39,7 @@ export class NotificationsRepository {
        VALUES ($1, $2, $3, $4, $5::jsonb)
        ON CONFLICT (dedupe_key) DO NOTHING
        RETURNING ${COLUMNS}`,
-      [randomUUID(), type, dedupeKey, recipientEmail, JSON.stringify(payload)],
+      [randomUUID(), type, dedupeKey, recipientEmail, JSON.stringify(journalPayload(payload))],
     );
 
     const inserted = rows[0];

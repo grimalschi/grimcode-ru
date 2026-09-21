@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
+import { createHash, randomUUID } from 'node:crypto';
 
 import {
   ADMIN,
@@ -35,12 +36,22 @@ let forgedOwnerHeaders: Record<string, string>;
 const database = new Pool({ connectionString: process.env.DATABASE_URL });
 
 async function notificationToken(email: string, type: string, field: string): Promise<string> {
-  const { rows } = await database.query<{ payload: Record<string, string> }>(
-    'SELECT payload FROM notifications.events WHERE recipient_email = $1 AND type = $2', [email, type],
+  const { rows } = await database.query<{ payload: Record<string, string>; dedupe_key: string }>(
+    'SELECT payload, dedupe_key FROM notifications.events WHERE recipient_email = $1 AND type = $2', [email, type],
   );
   expect(rows).toHaveLength(1);
-  const token = new URL(rows[0]!.payload[field]!).searchParams.get('token');
-  if (!token) throw new Error('The notification has no confirmation token');
+  expect(new URL(rows[0]!.payload[field]!).searchParams.get('token')).toBe('***');
+  // Test database only: substitute a known token's hash on the actual issued row, preserving its
+  // expiry and used_at. The event key identifies its original hash. Delivery of the original link
+  // is tested at the Notifications -> Email boundary; the journal must never reveal it.
+  const originalHash = rows[0]!.dedupe_key.split(':').at(-1)!;
+  expect(originalHash).toMatch(/^[a-f0-9]{64}$/);
+  const token = randomUUID();
+  const { rowCount } = await database.query(
+    'UPDATE auth.auth_tokens SET token_hash = $1 WHERE token_hash = $2',
+    [createHash('sha256').update(token).digest('hex'), originalHash],
+  );
+  expect(rowCount).toBe(1);
   return token;
 }
 
