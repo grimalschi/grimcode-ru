@@ -38,7 +38,10 @@ describe('architectural import boundaries', () => {
     expect(await messages(file, source)).toEqual(boundaryError);
   });
 
-  it('resolves a local alias and rejects a neighbour when invoked from a module directory', () => {
+  // Two cold eslint processes, each loading typescript-eslint and the TypeScript compiler: about
+  // 2.5 s apiece on a slow machine, so the default 5 s limit is met only by luck there. The same
+  // allowance the admin database tests use; the test itself stays slow (see BACKLOG.md).
+  it('resolves a local alias and rejects a neighbour when invoked from a module directory', { timeout: 30_000 }, () => {
     const run = (source) => spawnSync(process.execPath, [
       join(root, 'node_modules/eslint/bin/eslint.js'), '--stdin', '--stdin-filename', 'web/src/example.ts', '--format', 'json',
     ], { cwd: join(root, 'modules/notifications'), input: source, encoding: 'utf8', timeout: 10_000 });
