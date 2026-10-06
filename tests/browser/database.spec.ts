@@ -11,10 +11,13 @@ async function openDatabase(page: Page): Promise<void> {
   await expect(page.locator('iframe')).toHaveCount(0);
 }
 
+/** Schemas are sections that stay open; opening one changes nothing else on the page. */
+const schemaSection = (page: Page, schema: string) => page.getByRole('button', { name: `Схема ${schema}`, exact: true });
+
 async function chooseSchema(page: Page, schema: string): Promise<void> {
-  await page.getByRole('combobox', { name: 'Схема', exact: true }).click();
-  await page.getByRole('option', { name: schema, exact: true }).click();
-  await expect(page.getByRole('combobox', { name: 'Схема', exact: true })).toContainText(schema);
+  const section = schemaSection(page, schema);
+  if ((await section.getAttribute('aria-expanded')) !== 'true') await section.click();
+  await expect(section).toHaveAttribute('aria-expanded', 'true');
 }
 
 async function chooseTable(page: Page, schema: string, table: string): Promise<void> {
@@ -77,14 +80,13 @@ test.describe('the native database page', () => {
   for (const endpoint of ['tables', 'rows'] as const) {
     test(`ignores delayed ${endpoint} after switching schemas`, async ({ page }) => {
       const problems = collectPageErrors(page);
-      await openDatabase(page);
-      if (endpoint === 'rows') await chooseSchema(page, 'auth');
-
       let arrived!: () => void;
       let release!: () => void;
       const started = new Promise<void>((resolve) => { arrived = resolve; });
       const held = new Promise<void>((resolve) => { release = resolve; });
       const path = `/admin/rpc/database.${endpoint}`;
+      // Installed before the page loads: every schema's table list is requested as soon as the
+      // page opens, so a hold on `auth` has to be in place from the first request.
       await page.route(`**${path}`, async (route) => {
         const input = route.request().postDataJSON() as { schema?: string };
         if (input.schema !== 'auth') return route.continue();
@@ -93,6 +95,8 @@ test.describe('the native database page', () => {
         await held;
         await route.fulfill({ response });
       });
+      await openDatabase(page);
+      if (endpoint === 'rows') await chooseSchema(page, 'auth');
 
       try {
         if (endpoint === 'tables') await chooseSchema(page, 'auth');
@@ -111,9 +115,13 @@ test.describe('the native database page', () => {
           requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
         }));
 
-        await expect(page.getByRole('combobox', { name: 'Схема', exact: true })).toContainText('users');
+        // The late answer lands under its own schema and nowhere else: `auth` keeps its section open
+        // and now lists its tables, while the page on the right stays with users.profiles.
+        await expect(schemaSection(page, 'users')).toHaveAttribute('aria-expanded', 'true');
         await expect(page.getByRole('heading', { name: 'users.profiles', level: 2 })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Открыть таблицу auth.identities', exact: true })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Открыть таблицу auth.identities', exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Открыть таблицу auth.identities', exact: true })).not.toHaveAttribute('aria-current', 'page');
+        await expect(page.getByRole('button', { name: 'Открыть таблицу users.profiles', exact: true })).toHaveAttribute('aria-current', 'page');
         await expect(column(page, 'display_name')).toBeVisible();
         await expect(column(page, 'password_hash')).toHaveCount(0);
         expectNoPageErrors(problems);

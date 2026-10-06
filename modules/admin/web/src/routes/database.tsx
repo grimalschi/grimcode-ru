@@ -7,14 +7,16 @@ import { AdminPage, EmptyState, ErrorState } from '@/components/layout/admin-pag
 import { Pagination } from '@/components/layout/data-table';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Filters } from '@/database/filters';
-import { cellText, emptyView, isFilterReady, messageOf, PAGE_SIZES, readView, rowCountLabel, shortType, type Column, type Row, type TableInfo } from '@/database/model';
+import { cellText, emptyView, isFilterReady, messageOf, PAGE_SIZES, readView, shortType, type Column, type Row, type TableInfo } from '@/database/model';
 import { RowEditor } from '@/database/row-editor';
+import { SchemaTables, type SchemaCatalogue } from '@/database/schema-tables';
 import { useAsync } from '@/hooks/use-async';
 
 export function DatabasePage() {
@@ -24,10 +26,22 @@ export function DatabasePage() {
   const [deleting, setDeleting] = React.useState<{ table: TableInfo; row: Row } | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [counts, setCounts] = React.useState<Record<string, number>>({});
+  const [open, setOpen] = React.useState<string[]>(() => (view.schema ? [view.schema] : []));
   const schemas = useAsync(() => api.database.schemas.query({}), []);
-  const catalogue = useAsync(async () => ({ schema: view.schema, ...(view.schema
-    ? await api.database.tables.query({ schema: view.schema }) : { tables: [] as TableInfo[] }) }), [view.schema]);
-  const tables = catalogue.data?.schema === view.schema ? catalogue.data.tables : [];
+  /*
+   * Every schema's table list, loaded once and kept by schema name. A late answer can only land
+   * under its own schema, so switching schemas while a request is in flight cannot mix lists.
+   */
+  const [catalogues, setCatalogues] = React.useState<Record<string, SchemaCatalogue>>({});
+  const loadCatalogue = React.useCallback(async (schema: string) => {
+    try {
+      const { tables } = await api.database.tables.query({ schema });
+      setCatalogues((previous) => ({ ...previous, [schema]: { tables } }));
+    } catch (error) {
+      setCatalogues((previous) => ({ ...previous, [schema]: { error } }));
+    }
+  }, []);
+  const tables = catalogues[view.schema]?.tables ?? [];
   const selected = tables.find((table) => table.name === view.table);
   const query = {
     schema: view.schema, table: view.table, filters: view.filters.filter(isFilterReady), combine: view.combine,
@@ -52,12 +66,19 @@ export function DatabasePage() {
       setView({ ...emptyView(), schema: schemas.data.schemas[0]?.name ?? '' });
     }
   }, [schemas.data, view.schema]);
+  // Lists are small and few: reading them all up front is what makes opening a section instant.
+  React.useEffect(() => {
+    for (const { name } of schemas.data?.schemas ?? []) void loadCatalogue(name);
+  }, [schemas.data, loadCatalogue]);
   React.useEffect(() => {
     if (!page) return;
     const last = Math.max(1, Math.ceil(page.total / view.size));
     if (view.page > last) setView((previous) => ({ ...previous, page: last }));
   }, [page, view.page, view.size]);
-  React.useEffect(() => { setCounts({}); }, [catalogue.data]);
+  React.useEffect(() => { setCounts({}); }, [catalogues]);
+  React.useEffect(() => {
+    if (view.schema) setOpen((previous) => (previous.includes(view.schema) ? previous : [...previous, view.schema]));
+  }, [view.schema]);
   React.useEffect(() => { setFiltersOpen(false); setEditor(null); setDeleting(null); }, [view.schema, view.table]);
   React.useEffect(() => {
     const hash = `#${encodeURIComponent(JSON.stringify(view))}`;
@@ -110,20 +131,20 @@ export function DatabasePage() {
 
   return <AdminPage title="База данных" className="h-full min-h-0 max-w-none">
     {schemas.error ? <ErrorState error={schemas.error} retry={schemas.reload} /> : <div className="grid min-h-0 flex-1 gap-6 md:grid-cols-[13rem_minmax(0,1fr)]">
-      <aside className="flex min-h-0 flex-col gap-3">
-        <Select value={view.schema || undefined} onValueChange={(schema) => setView({ ...emptyView(), schema })}>
-          <SelectTrigger aria-label="Схема" className="w-full"><SelectValue placeholder="Схема" /></SelectTrigger>
-          <SelectContent>{schemas.data?.schemas.map(({ name }) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent>
-        </Select>
-        {catalogue.error ? <ErrorState error={catalogue.error} retry={catalogue.reload} /> : <nav aria-label="Таблицы" className="flex min-h-0 flex-col gap-1 overflow-y-auto">
-          {catalogue.loading ? <Skeleton className="h-32 w-full" /> : tables.map((table) => {
-            const count = table.rows.kind === 'exact' ? { ...table.rows, count: Math.max(0, table.rows.count + (counts[`${table.schema}.${table.name}`] ?? 0)) } : table.rows;
-            return <Button key={table.name} variant={view.table === table.name ? 'secondary' : 'ghost'} className="w-full shrink-0 justify-between gap-2 px-2" aria-label={`Открыть таблицу ${table.schema}.${table.name}`} aria-current={view.table === table.name ? 'page' : undefined} onClick={() => openTable(table)}>
-              <span className="truncate">{table.name}</span><span className="text-xs tabular-nums text-muted-foreground">{rowCountLabel(count)}</span>
-            </Button>;
-          })}
-          {!catalogue.loading && !tables.length && <p className="text-sm text-muted-foreground">Таблиц нет</p>}
-        </nav>}
+      <aside className="flex min-h-0 flex-col overflow-y-auto">
+        {/*
+          Any number of schemas open at once; opening and closing them is browsing and changes
+          nothing in the view. The schema of the shown table is always open, so a restored address
+          lands on a visible table. Each open section loads its own tables (see SchemaTables).
+        */}
+        <Accordion type="multiple" value={open} onValueChange={setOpen} aria-label="Схемы">
+          {schemas.data?.schemas.map(({ name }) => <AccordionItem key={name} value={name}>
+            <AccordionTrigger aria-label={`Схема ${name}`}><span className="truncate font-mono">{name}</span></AccordionTrigger>
+            <AccordionContent>
+              <SchemaTables schema={name} catalogue={catalogues[name]} selected={view.schema === name ? view.table : null} counts={counts} onOpen={openTable} onRetry={() => void loadCatalogue(name)} />
+            </AccordionContent>
+          </AccordionItem>)}
+        </Accordion>
       </aside>
       <section className="flex min-h-0 min-w-0 flex-col gap-4">
         {!view.table ? <EmptyState title="Выберите таблицу" /> : <>
