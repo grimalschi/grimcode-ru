@@ -72,8 +72,17 @@ module boundaries or depends on a browser. General checks are in the [developmen
 
 PostgreSQL type and preservation checks belong to [Admin's database tests](../modules/admin/README.md#tests).
 The database browser suite here verifies form input, exact strings, SQL NULL and escaped control characters.
+It edits microsecond timestamps, high-precision numbers and JSON containing large numbers directly
+through the form in UTC and Europe/Moscow. These checks compare the submitted patch and complete
+stored row, then reload the page to verify the value survives the full round trip unchanged.
 
 ## Test data
+
+Recovery-flow tests never extract a secret from the notification journal. They assert that its
+link is masked, then replace the hash on the issued Auth token row with a known test token's hash,
+preserving expiry and consumption state. This fixture writes only to the verified disposable
+test database. Notifications module tests separately check that Email receives the original link
+while SQL receives the masked copy.
 
 HTTP [fixtures](src/fixtures.ts) create accounts under a unique run prefix and reuse templates by
 stable keys. Created accounts remain in the database. Cleanup restores changed administrator rights;

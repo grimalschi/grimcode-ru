@@ -533,6 +533,59 @@ test.describe('lossless database editing in the browser', () => {
     expect(Object.getOwnPropertyDescriptor(await storedRow(20), '__proto__')?.value).toBe('changed own property');
   });
 
+  for (const [zoneIndex, timezoneId] of ['UTC', 'Europe/Moscow'].entries()) {
+    test.describe(`precise value edits in ${timezoneId}`, () => {
+      test.use({ timezoneId });
+
+      const cases = [
+        { column: 'precise', next: '2027-02-03 23:59:58.654321+00' },
+        { column: 'huge', next: '-9007199254740997.98765432109876543210' },
+        { column: 'document', next: ' { "big": 9007199254740997, "fraction": 0.12345678901234567890, "same": 3, "same": 4 } ' },
+      ];
+
+      for (const [caseIndex, { column: name, next }] of cases.entries()) {
+        test(`edits ${name} without changing its representation or neighbouring values`, async ({ page }) => {
+          const problems = collectPageErrors(page);
+          const id = 70 + zoneIndex * cases.length + caseIndex;
+          const label = `precise-edit-${id}`;
+          const initial = {
+            precise: '2026-09-12 04:05:06.123456+00',
+            huge: '9007199254740993.12345678901234567890',
+            document: '{ "big": 9007199254740993, "same": 1, "same": 2 }',
+            controls: 'first\r\nsecond\rthird\tend',
+          };
+          await database.query(`INSERT INTO "${fixtureSchema}"."values"
+            (id, label, precise, huge, document, controls) VALUES ($1, $2, $3, $4, $5, $6)`,
+          [id, label, initial.precise, initial.huge, initial.document, initial.controls]);
+          const before = await storedRow(id);
+          expect(before).toMatchObject(initial);
+
+          await openFixture(page);
+          await rows(page).filter({ hasText: label }).getByRole('button', { name: 'Открыть строку', exact: true }).click();
+          const field = editor(page).getByLabel(name, { exact: true });
+          await expect(field).toHaveValue(before![name]!);
+          await field.fill(next);
+          const request = page.waitForRequest((request) => new URL(request.url()).pathname === '/admin/rpc/database.update');
+          await editor(page).getByRole('button', { name: 'Сохранить', exact: true }).click();
+          const input = (await request).postDataJSON() as { values: Record<string, string | null>; original: Record<string, string | null> };
+          expect(input.values).toEqual({ [name]: next });
+          expect(input.original).toEqual(before);
+          await expect(editor(page)).toBeHidden();
+          const expected = { ...before, [name]: next };
+          expect(await storedRow(id)).toEqual(expected);
+
+          // Reload from the server: a correct local draft alone does not prove a lossless round trip.
+          await page.reload();
+          await rows(page).filter({ hasText: label }).getByRole('button', { name: 'Открыть строку', exact: true }).click();
+          await expect(editor(page).getByLabel(name, { exact: true })).toHaveValue(next);
+          await expect(editor(page).getByRole('button', { name: 'Сохранить', exact: true })).toBeDisabled();
+          expect(await storedRow(id)).toEqual(expected);
+          expectNoPageErrors(problems);
+        });
+      }
+    });
+  }
+
   test('edits escaped text and intercepts pasted CRLF without normalization', async ({ page }) => {
     await database.query(`INSERT INTO "${fixtureSchema}"."values" (id, label, controls, blank) VALUES (30, 'control-editing', $1, 'prefix-suffix')`, ['first\r\nsecond\rthird']);
     await openFixture(page);
