@@ -10,7 +10,7 @@ import { valuesSchema } from './schemas.js';
 function fixture(role: 'owner' | 'admin' = 'owner') {
   const state = {
     row: { id: '1', notes: 'stored' } as Record<string, string | null>,
-    empty: false, failure: '', invalidOutput: false, canonical: false, changedAfter: false,
+    empty: false, failure: '', failureMessage: '', failureDetail: '', invalidOutput: false, canonical: false, changedAfter: false,
     affected: 1, unsafe: false, cascade: false, encoding: 'UTF8', completeColumns: true as boolean | undefined,
   };
   const asked: { text: string; values: unknown[] }[] = [];
@@ -40,7 +40,10 @@ function fixture(role: 'owner' | 'admin' = 'owner') {
     };
     if (text.includes('pg_class')) return { rows: [{ estimate: '3' }], rowCount: 1 };
     if (text.includes('count(*)')) return { rows: [{ total: '3' }], rowCount: 1 };
-    if (state.failure) throw Object.assign(new Error('Database rejected the operation'), { code: state.failure });
+    if (state.failure) {
+      throw Object.assign(new Error(state.failureMessage || 'Database rejected the operation'),
+        { code: state.failure, detail: state.failureDetail || undefined });
+    }
     if (text.startsWith('SELECT $')) {
       const names = [...text.matchAll(/ AS "([^"]+)"/g)].map((match) => match[1]);
       return { rows: [Object.fromEntries(names.map((name, index) => [name, state.canonical ? 'normalized' : values[index]]))], rowCount: 1 };
@@ -229,7 +232,7 @@ describe('owner database procedures', () => {
     expect(mutated(f)).toEqual([]);
   });
 
-  it.each([['22P02', 'BAD_REQUEST'], ['23505', 'BAD_REQUEST'], ['ECONNRESET', 'INTERNAL_SERVER_ERROR'], ['3D000', 'NOT_FOUND']])(
+  it.each([['22P02', 'BAD_REQUEST'], ['23505', 'BAD_REQUEST'], ['42601', 'INTERNAL_SERVER_ERROR'], ['ECONNRESET', 'INTERNAL_SERVER_ERROR'], ['3D000', 'NOT_FOUND']])(
     'maps database failure %s to tRPC %s and rolls back', async (failure, code) => {
       const f = fixture();
       f.state.failure = failure;
@@ -238,4 +241,26 @@ describe('owner database procedures', () => {
       expect(f.release).toHaveBeenCalledOnce();
     },
   );
+
+  it('explains a refused value in plain words and keeps the original refusal as the cause', async () => {
+    const f = fixture();
+    f.state.failure = '22P02';
+    f.state.failureMessage = 'invalid input syntax for type integer: "abc"';
+    const failure = await f.api.rows({ ...table, filters: [{ column: 'id', condition: 'equals', value: 'abc' }] }).catch((error: unknown) => error);
+    expect(failure).toMatchObject({ code: 'BAD_REQUEST', message: 'Ожидается целое число, например 42. Получено: «abc»' });
+    expect((failure as { cause?: { message?: string } }).cause?.message).toBe('invalid input syntax for type integer: "abc"');
+  });
+
+  it('appends the duplicate key from detail and answers a malformed tsquery as a 400', async () => {
+    const f = fixture();
+    f.state.failure = '23505';
+    f.state.failureMessage = 'duplicate key value violates unique constraint "records_pkey"';
+    f.state.failureDetail = 'Key (id)=(1) already exists.';
+    await expect(f.api.insert({ ...table, values: { id: '1', notes: 'again' } })).rejects.toMatchObject({
+      code: 'BAD_REQUEST', message: 'duplicate key value violates unique constraint "records_pkey" Key (id)=(1) already exists.',
+    });
+    f.state.failure = '42601';
+    f.state.failureMessage = 'no operand in tsquery: "a &"';
+    await expect(f.api.rows(table)).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Неверная запись для типа tsquery. Получено: «a &»' });
+  });
 });

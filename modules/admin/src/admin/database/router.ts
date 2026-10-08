@@ -1,17 +1,16 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { adminT, ownerMutation, ownerProcedure } from '../rpc.js';
+import { explainPostgresError } from './errors.js';
 import { rowsInputSchema, rowsOutputSchema, tableInputSchema, tablesOutputSchema, valuesSchema } from './schemas.js';
 
+// A refusal of what a person typed is their 400, in their words; the original error stays as `cause`.
 const databaseErrors = adminT.middleware(async ({ next }) => {
   const result = await next();
   if (!result.ok && result.error.code === 'INTERNAL_SERVER_ERROR') {
     const cause = result.error.cause;
-    const code = cause && 'code' in cause ? cause.code : undefined;
-    if (typeof code === 'string' && /^(22|23)/.test(code)) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: cause?.message, cause });
-    }
-    if (code === '3D000') throw new TRPCError({ code: 'NOT_FOUND', message: cause?.message, cause });
+    const explained = explainPostgresError(cause);
+    if (explained) throw new TRPCError({ ...explained, cause });
   }
   return result;
 });

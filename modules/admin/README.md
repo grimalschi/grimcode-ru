@@ -130,6 +130,14 @@ Every procedure requires owner; mutations also require Admin's CSRF token. Ident
 against PostgreSQL's catalogue and values are SQL parameters. System schemas and `schema_migrations`
 are excluded at the API boundary.
 
+When PostgreSQL refuses a value a person typed — a data exception (class 22), a broken constraint
+(class 23) or a malformed `tsvector`/`tsquery` (`42601`, the one syntax error that is the value's
+fault) — the answer is 400. [`errors.ts`](src/admin/database/errors.ts) rewrites class-22 texts to say
+what the column takes and repeat the value (`Ожидается целое число, например 42. Получено: «abc»`);
+constraint texts stay PostgreSQL's, with the key from `detail` appended for duplicates and missing
+references. The original error remains the `cause`. Matching is against English messages; a server
+with another `lc_messages` falls back to the original text with the same status.
+
 ### Preservation comes first
 
 The editor must preserve data rather than guess a conversion. A type, value or table structure whose
