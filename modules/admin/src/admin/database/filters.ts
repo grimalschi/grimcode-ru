@@ -221,40 +221,60 @@ const WITH_RANGE = new Set<Condition>(['between', 'not-between']);
 /** A key (or dotted path) and a value: two strings, both needed. */
 const WITH_PAIR = new Set<Condition>(['key-equals', 'key-contains']);
 
+export type Join = 'and' | 'or';
+
 export interface Filter {
   column: string;
   condition: Condition;
   value?: unknown;
+  /** How this condition attaches to the one before it. The first condition has none. */
+  join?: Join;
 }
 
-export type Combine = 'and' | 'or';
-
-/** Every column is looked up, every condition is from the lists above, every value is a parameter. */
+/**
+ * Every column is looked up, every condition is from the lists above, every value is a parameter.
+ *
+ * Conditions form a chain, each joined to the previous one with `and` or `or`, and the chain reads
+ * the way SQL does: `and` binds tighter, so `a OR b AND c` is `a OR (b AND c)`. The clause makes
+ * that explicit — consecutive `and` conditions become one parenthesised group, `or` separates the
+ * groups — so what PostgreSQL evaluates is what the screen draws as blocks. The owner chose SQL's
+ * precedence over left-to-right reading (8 October 2026); the panel shows the blocks so nobody has
+ * to remember it.
+ *
+ * `caseSensitive` turns every `ILIKE` into `LIKE`; `=` and `IN` never ignore case anyway.
+ */
 export function whereClause(
   table: Table,
   filters: unknown,
-  combine: unknown,
+  caseSensitive: unknown,
   parameters: Parameters,
 ): string | null {
   if (filters === undefined || filters === null) return null;
   if (!Array.isArray(filters)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Filters are a list.' });
   if (filters.length === 0) return null;
 
-  const joiner = combineOf(combine);
-  const fragments = filters.map((filter) => fragmentOf(table, filter, parameters));
+  const like = caseSensitive === true ? 'LIKE' : 'ILIKE';
+  const groups: string[][] = [];
+  filters.forEach((filter, index) => {
+    const fragment = fragmentOf(table, filter, parameters, like);
+    if (index === 0 || joinOf(filter) === 'or') groups.push([fragment]);
+    else groups[groups.length - 1]!.push(fragment);
+  });
 
-  return fragments.join(` ${joiner.toUpperCase()} `);
+  if (groups.length === 1) return groups[0]!.join(' AND ');
+  return groups.map((group) => (group.length === 1 ? group[0]! : `(${group.join(' AND ')})`)).join(' OR ');
 }
 
-function combineOf(combine: unknown): Combine {
-  if (combine === undefined || combine === null) return 'and';
-  if (combine !== 'and' && combine !== 'or') {
-    throw new TRPCError({ code: 'BAD_REQUEST', message: 'Filters are combined with "and" or "or".' });
+function joinOf(filter: unknown): Join {
+  const join = typeof filter === 'object' && filter !== null ? (filter as Filter).join : undefined;
+  if (join === undefined || join === null) return 'and';
+  if (join !== 'and' && join !== 'or') {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'A condition joins the previous one with "and" or "or".' });
   }
-  return combine;
+  return join;
 }
 
-function fragmentOf(table: Table, filter: unknown, parameters: Parameters): string {
+function fragmentOf(table: Table, filter: unknown, parameters: Parameters, like: 'LIKE' | 'ILIKE'): string {
   if (typeof filter !== 'object' || filter === null) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'A filter is an object with a column and a condition.' });
   }
@@ -313,7 +333,7 @@ function fragmentOf(table: Table, filter: unknown, parameters: Parameters): stri
     const walked = `${target} #>> ${parameters.add(path.split('.'))}`;
     return condition === 'key-equals'
       ? `${walked} = ${parameters.add(text)}`
-      : `${walked} ILIKE ${parameters.add(`%${escapeLike(text)}%`)}`;
+      : `${walked} ${like} ${parameters.add(`%${escapeLike(text)}%`)}`;
   }
 
   switch (condition) {
@@ -334,25 +354,25 @@ function fragmentOf(table: Table, filter: unknown, parameters: Parameters): stri
     case 'at-most':
       return `${target} <= ${parameters.add(value)}`;
     /*
-     * `ILIKE` on the text of the column rather than on the column itself: a uuid or a json document
-     * has no `ILIKE`, and casting is what lets "contains" mean the same thing everywhere in the
-     * interface. The pattern is a parameter, and the wildcards are added to the value, not to the
-     * SQL — so a `%` a person typed is a literal `%`.
+     * `ILIKE` (or `LIKE`) on the text of the column rather than on the column itself: a uuid or a
+     * json document has no `ILIKE`, and casting is what lets "contains" mean the same thing
+     * everywhere in the interface. The pattern is a parameter, and the wildcards are added to the
+     * value, not to the SQL — so a `%` a person typed is a literal `%`.
      */
     case 'contains':
-      return `${target}::text ILIKE ${parameters.add(`%${escapeLike(value)}%`)}`;
+      return `${target}::text ${like} ${parameters.add(`%${escapeLike(value)}%`)}`;
     case 'not-contains':
-      return `${target}::text NOT ILIKE ${parameters.add(`%${escapeLike(value)}%`)}`;
+      return `${target}::text NOT ${like} ${parameters.add(`%${escapeLike(value)}%`)}`;
     case 'not-contains-or-empty':
-      return `(${target} IS NULL OR ${target}::text NOT ILIKE ${parameters.add(`%${escapeLike(value)}%`)})`;
+      return `(${target} IS NULL OR ${target}::text NOT ${like} ${parameters.add(`%${escapeLike(value)}%`)})`;
     case 'starts-with':
-      return `${target}::text ILIKE ${parameters.add(`${escapeLike(value)}%`)}`;
+      return `${target}::text ${like} ${parameters.add(`${escapeLike(value)}%`)}`;
     case 'not-starts-with':
-      return `${target}::text NOT ILIKE ${parameters.add(`${escapeLike(value)}%`)}`;
+      return `${target}::text NOT ${like} ${parameters.add(`${escapeLike(value)}%`)}`;
     case 'ends-with':
-      return `${target}::text ILIKE ${parameters.add(`%${escapeLike(value)}`)}`;
+      return `${target}::text ${like} ${parameters.add(`%${escapeLike(value)}`)}`;
     case 'not-ends-with':
-      return `${target}::text NOT ILIKE ${parameters.add(`%${escapeLike(value)}`)}`;
+      return `${target}::text NOT ${like} ${parameters.add(`%${escapeLike(value)}`)}`;
     // Length in characters, which is what a person counts; `octet_length` would count bytes.
     case 'length-over':
       return `length(${target}) > ${parameters.add(value)}`;

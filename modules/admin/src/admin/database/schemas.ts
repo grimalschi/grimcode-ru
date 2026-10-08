@@ -16,8 +16,10 @@ export const valuesSchema = z.custom<Record<string, string | null>>((value) =>
   'Values must be an object of PostgreSQL text values or SQL NULL.');
 export const tableInputSchema = z.strictObject({ schema: name, table: name });
 export const rowsInputSchema = tableInputSchema.extend({
-  filters: z.array(z.strictObject({ column: name, condition, value: z.unknown().optional() })).nullish(),
-  combine: z.enum(['and', 'or']).nullish(),
+  filters: z.array(z.strictObject({
+    column: name, condition, value: z.unknown().optional(), join: z.enum(['and', 'or']).optional(),
+  })).nullish(),
+  caseSensitive: z.boolean().nullish(),
   order: z.array(z.strictObject({ column: name, direction: z.enum(['asc', 'desc']) })).nullish(),
   limit: z.number().int().nullish(),
   offset: z.number().int().nullish(),

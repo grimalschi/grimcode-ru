@@ -161,3 +161,31 @@ describe('ranges and addresses', () => {
     expect(await names('age_range', 'equals', 'empty')).toEqual(['Гена']);
   });
 });
+
+describe('a chain of conditions and the case switch', () => {
+  const chain = async (filters: { column: string; condition: string; value?: unknown; join?: 'and' | 'or' }[], caseSensitive = false) => {
+    const { rows } = await api.rows({ schema, table, filters: filters as never, caseSensitive, order: [{ column: 'id', direction: 'asc' }] });
+    return rows.map((row) => row.name ?? null);
+  };
+
+  it('reads И before ИЛИ and parenthesises the groups, as the panel draws them', async () => {
+    // (city is empty string AND amount = 0) OR city is null: Гена from the first group, Вера from the second.
+    expect(await chain([
+      { column: 'city', condition: 'empty-string' },
+      { column: 'amount', condition: 'equals', value: '0', join: 'and' },
+      { column: 'city', condition: 'is-empty', join: 'or' },
+    ])).toEqual(['Вера', 'Гена']);
+    // city is null OR (city = 'Москва' AND amount > 50): the same three read in the other order.
+    expect(await chain([
+      { column: 'city', condition: 'is-empty' },
+      { column: 'city', condition: 'is', value: 'Москва', join: 'or' },
+      { column: 'amount', condition: 'greater-than', value: '50', join: 'and' },
+    ])).toEqual(['Аня', 'Вера']);
+  });
+
+  it('tells big letters from small only when asked', async () => {
+    expect(await chain([{ column: 'city', condition: 'contains', value: 'моск' }])).toEqual(['Аня', 'lisa']);
+    expect(await chain([{ column: 'city', condition: 'contains', value: 'моск' }], true)).toEqual(['lisa']);
+    expect(await chain([{ column: 'city', condition: 'starts-with', value: 'MOS' }], true)).toEqual(['LISA']);
+  });
+});

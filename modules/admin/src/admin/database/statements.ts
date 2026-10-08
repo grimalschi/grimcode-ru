@@ -68,12 +68,12 @@ function byKey(table: Table, alreadySorted: string[]): string[] {
 /** The rows of one page, and the statement that counts every row the same filters match. */
 export function selectRows(
   table: Table,
-  body: { filters?: unknown; combine?: unknown; order?: unknown; limit?: unknown; offset?: unknown },
+  body: { filters?: unknown; caseSensitive?: unknown; order?: unknown; limit?: unknown; offset?: unknown },
 ): { rows: Statement; total: Statement } {
   const page = pageOf(body);
 
   const rowParameters = new Parameters();
-  const where = whereClause(table, body.filters, body.combine, rowParameters);
+  const where = whereClause(table, body.filters, body.caseSensitive, rowParameters);
   const order = orderClause(table, body.order);
 
   const columns = returnedColumns(table);
@@ -99,7 +99,7 @@ export function selectRows(
    * of a table that shrank would be told the table is empty.
    */
   const countParameters = new Parameters();
-  const countWhere = whereClause(table, body.filters, body.combine, countParameters);
+  const countWhere = whereClause(table, body.filters, body.caseSensitive, countParameters);
 
   const total = {
     text: `SELECT count(*)::bigint AS total FROM ${qualify(table)}${

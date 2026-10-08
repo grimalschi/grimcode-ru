@@ -46,14 +46,19 @@ export function DatabasePage() {
   const selected = tables.find((table) => table.name === view.table);
   /*
    * Typing into a filter changes the view on every keystroke. The request waits until the typing
-   * pauses; the rest of the view — table, page, sorting — is asked for at once. The settled filters
-   * are remembered with their table, so a table opened mid-pause is never asked with the last
-   * table's conditions.
+   * pauses; the rest of the view — table, page, sorting — is asked for at once. While any condition
+   * is still unfilled nothing is asked at all and the table keeps its last page: in a chain, leaving
+   * one condition out would change what its neighbours' И and ИЛИ mean. The settled filters are
+   * remembered with their table, so a table opened mid-pause is never asked with the last table's
+   * conditions.
    */
-  const readyFilters = JSON.stringify({ schema: view.schema, table: view.table, filters: view.filters.filter(isFilterReady) });
-  const settled = JSON.parse(useDebounced(readyFilters, 300)) as { schema: string; table: string; filters: typeof view.filters };
+  const ready = view.filters.every(isFilterReady);
+  const wanted = JSON.stringify({ schema: view.schema, table: view.table, filters: view.filters, caseSensitive: view.caseSensitive });
+  const [held, setHeld] = React.useState(() => (ready ? wanted : JSON.stringify({ schema: view.schema, table: view.table, filters: [], caseSensitive: view.caseSensitive })));
+  React.useEffect(() => { if (ready) setHeld(wanted); }, [ready, wanted]);
+  const settled = JSON.parse(useDebounced(held, 300)) as { schema: string; table: string; filters: typeof view.filters; caseSensitive: boolean };
   const query = {
-    schema: view.schema, table: view.table, combine: view.combine,
+    schema: view.schema, table: view.table, caseSensitive: settled.caseSensitive,
     filters: settled.schema === view.schema && settled.table === view.table ? settled.filters : [],
     order: view.order, limit: view.size, offset: (view.page - 1) * view.size,
   };
@@ -167,11 +172,11 @@ export function DatabasePage() {
         {!view.table ? <EmptyState title="Выберите таблицу" /> : <>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="mr-2 font-medium" data-testid="database-table-title">{view.schema}.{view.table}</h2>
-            <Button variant="outline" size="sm" onClick={() => setFiltersOpen(!filtersOpen)} aria-expanded={filtersOpen}><FilterIcon />Фильтры{query.filters.length ? ` (${query.filters.length})` : ''}</Button>
+            <Button variant="outline" size="sm" onClick={() => setFiltersOpen(!filtersOpen)} aria-expanded={filtersOpen}><FilterIcon />Фильтры{view.filters.length ? ` (${view.filters.length})` : ''}</Button>
             {view.columns.length > 0 && <Button variant="ghost" size="sm" onClick={() => setView({ ...view, columns: [] })}>Показать все колонки</Button>}
             <Button className="ml-auto" size="sm" disabled={!page || loading || !currentTable || !!readOnlyReason || blockedInsert} onClick={() => currentTable && setEditor({ table: currentTable, columns, row: null })}>Добавить строку</Button>
           </div>
-          {filtersOpen && <Filters columns={columns} filters={view.filters} combine={view.combine} onChange={(filters, combine) => setView({ ...view, filters, combine, page: 1 })} />}
+          {filtersOpen && <Filters columns={columns} filters={view.filters} caseSensitive={view.caseSensitive} onChange={(filters, caseSensitive) => setView({ ...view, filters, caseSensitive, page: 1 })} />}
           {notice && <p role="note" data-testid="database-notice" className="rounded-md border px-3 py-2 text-sm">{notice}</p>}
           {readOnlyReason && <p role="status" className="text-sm text-muted-foreground">Только чтение: {readOnlyReason}</p>}
           {!readOnlyReason && blockedInsert && <p className="text-xs text-muted-foreground">Добавление недоступно: обязательная колонка имеет неподдержанный тип.</p>}

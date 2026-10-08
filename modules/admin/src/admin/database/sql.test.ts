@@ -133,13 +133,57 @@ describe('values never become SQL', () => {
         { column: 'email', condition: 'contains', value: "o'brien" },
         { column: 'attempts', condition: 'greater-than', value: 3 },
       ],
-      combine: 'and',
     });
 
     expect(statement.text).not.toContain("o'brien");
     expect(statement.values).toContain('%o\'brien%');
     expect(statement.values).toContain(3);
     expect(statement.text).toMatch(/ILIKE \$1 AND "attempts" > \$2/);
+  });
+
+  /*
+   * The chain reads as SQL does: И binds tighter than ИЛИ. The clause writes the groups out in
+   * parentheses, so the statement says the same thing the panel draws.
+   */
+  describe('a chain of conditions', () => {
+    const filter = (column: string, value: string, join?: 'and' | 'or') => ({ column, condition: 'contains', value, join });
+    const clause = (filters: unknown[]) => selectRows(rows, { filters }).rows.text.replace(/^.*WHERE /, '').replace(/ ORDER BY.*$/, '');
+
+    it('joins everything with AND when nothing says otherwise, without parentheses', () => {
+      expect(clause([filter('email', 'a'), filter('email', 'b'), filter('email', 'c', 'and')]))
+        .toBe('"email"::text ILIKE $1 AND "email"::text ILIKE $2 AND "email"::text ILIKE $3');
+    });
+
+    it('separates groups with OR and parenthesises every group of two or more', () => {
+      expect(clause([filter('email', 'a'), filter('email', 'b', 'and'), filter('email', 'c', 'or'), filter('email', 'd', 'or'), filter('email', 'e', 'and')]))
+        .toBe('("email"::text ILIKE $1 AND "email"::text ILIKE $2) OR "email"::text ILIKE $3 OR ("email"::text ILIKE $4 AND "email"::text ILIKE $5)');
+    });
+
+    it('ignores the join of the first condition and refuses any other word', () => {
+      expect(clause([filter('email', 'a', 'or'), filter('email', 'b', 'or')])).toBe('"email"::text ILIKE $1 OR "email"::text ILIKE $2');
+      expect(() => clause([filter('email', 'a'), { ...filter('email', 'b'), join: 'xor' }])).toThrow(/"and" or "or"/);
+    });
+  });
+
+  it('tells big letters from small only when asked, and only where the question is about text', () => {
+    const asked = (caseSensitive: unknown) => selectRows(rows, {
+      caseSensitive,
+      filters: [
+        { column: 'email', condition: 'contains', value: 'a' },
+        { column: 'email', condition: 'not-starts-with', value: 'a', join: 'and' },
+        { column: 'email', condition: 'not-contains-or-empty', value: 'a', join: 'and' },
+        { column: 'email', condition: 'is', value: 'a', join: 'and' },
+      ],
+    }).rows.text;
+    expect(asked(true)).toContain('"email"::text LIKE $1 AND "email"::text NOT LIKE $2 AND ("email" IS NULL OR "email"::text NOT LIKE $3) AND "email" = $4');
+    expect(asked(true)).not.toContain('ILIKE');
+    expect(asked(false)).toContain('ILIKE $1');
+    expect(asked(undefined)).toContain('ILIKE $1');
+    expect(asked('true')).toContain('ILIKE $1');
+    const key = selectRows({ ...rows, columns: [{ name: 'doc', type: 'jsonb', nullable: true }] }, {
+      caseSensitive: true, filters: [{ column: 'doc', condition: 'key-contains', value: ['city', 'x'] }],
+    }).rows.text;
+    expect(key).toContain('#>> $1 LIKE $2');
   });
 
   it('treats a wildcard the person typed as text, not as a pattern', () => {

@@ -44,8 +44,10 @@ export function fieldValue(field: FieldDraft): string | null | undefined {
 export interface View {
   schema: string;
   table: string;
+  /** A chain: each filter after the first carries `join`, how it attaches to the one before. */
   filters: Filter[];
-  combine: 'and' | 'or';
+  /** Whether "contains" and its kin tell big letters from small. */
+  caseSensitive: boolean;
   order: Order[];
   columns: string[];
   size: number;
@@ -53,16 +55,27 @@ export interface View {
 }
 
 export const PAGE_SIZES = [20, 50, 100, 200, 500];
-export const emptyView = (): View => ({ schema: '', table: '', filters: [], combine: 'and', order: [], columns: [], size: 20, page: 1 });
+export const emptyView = (): View => ({ schema: '', table: '', filters: [], caseSensitive: false, order: [], columns: [], size: 20, page: 1 });
+
+/** The first condition joins nothing; every other one joins with И unless it says ИЛИ. */
+export function chained(filters: Filter[]): Filter[] {
+  return filters.map((filter, index) => {
+    const { join, ...rest } = filter;
+    return index === 0 ? rest : { ...rest, join: join === 'or' ? 'or' : 'and' };
+  });
+}
 
 export function readView(): View {
   try {
-    const value = JSON.parse(decodeURIComponent(window.location.hash.slice(1))) as Partial<View>;
+    const value = JSON.parse(decodeURIComponent(window.location.hash.slice(1))) as Partial<View> & { combine?: unknown };
     if (typeof value.schema !== 'string' || typeof value.table !== 'string') return emptyView();
+    const filters = Array.isArray(value.filters)
+      ? value.filters.filter((entry) => entry && typeof entry.column === 'string' && typeof entry.condition === 'string') : [];
     return {
       ...emptyView(), schema: value.schema, table: value.table,
-      filters: Array.isArray(value.filters) ? value.filters.filter((entry) => entry && typeof entry.column === 'string' && typeof entry.condition === 'string') : [],
-      combine: value.combine === 'or' ? 'or' : 'and',
+      // An address from before the chain carried one word for the whole panel; it becomes every join.
+      filters: chained(value.combine === 'or' ? filters.map((entry) => ({ ...entry, join: 'or' as const })) : filters),
+      caseSensitive: value.caseSensitive === true,
       order: Array.isArray(value.order) ? value.order.filter((entry) => entry && typeof entry.column === 'string' && ['asc', 'desc'].includes(entry.direction)) : [],
       columns: Array.isArray(value.columns) ? value.columns.filter((entry) => typeof entry === 'string') : [],
       size: PAGE_SIZES.includes(value.size ?? 0) ? value.size! : 20,

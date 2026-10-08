@@ -190,20 +190,38 @@ test.describe('the native database page', () => {
     await expect(page.getByTestId('database-value-preview').locator('pre')).toHaveText(source ?? '');
   });
 
-  test('ignores empty filters and counts only completed conditions', async ({ page }) => {
+  test('holds the request while a condition is unfilled, marks it and keeps the rows', async ({ page }) => {
     const problems = collectPageErrors(page);
     await openDatabase(page);
     await chooseSchema(page, 'auth');
     await chooseTable(page, 'auth', 'identities');
+    await expect(rows(page).first()).toBeVisible();
+    const before = await rows(page).count();
+    const requests: string[] = [];
+    page.on('request', (request) => {
+      if (request.url().includes('/admin/rpc/database.rows')) requests.push(request.postData() ?? '');
+    });
     await page.getByRole('button', { name: /^Фильтры/ }).click();
     await filters(page).getByRole('button', { name: 'Добавить условие', exact: true }).click();
     await expect(page.getByTestId('database-filter')).toHaveCount(1);
-    await expect(rows(page).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: /^Фильтры/ })).toHaveText('Фильтры');
+    await expect(page.getByRole('button', { name: /^Фильтры/ })).toHaveText(/Фильтры\s*\(1\)/);
     await page.getByRole('combobox', { name: 'Колонка условия 1', exact: true }).click();
     await page.getByRole('option', { name: 'email', exact: true }).click();
-    await filters(page).getByLabel('Значение', { exact: true }).fill('probe');
-    await expect(page.getByRole('button', { name: /^Фильтры/ })).toHaveText(/Фильтры\s*\(1\)/);
+    const value = filters(page).getByLabel('Значение', { exact: true }).first();
+    // Not pointed at yet: the person has only just added it.
+    await expect(value).toHaveAttribute('aria-invalid', 'false');
+    // Long enough for the typing pause to have passed: an unfilled condition sends nothing at all.
+    await page.waitForTimeout(600);
+    expect(requests).toEqual([]);
+    await expect(rows(page)).toHaveCount(before);
+    // Adding another condition while this one is blank is what points at it.
+    await filters(page).getByRole('button', { name: 'Добавить условие', exact: true }).click();
+    await expect(value).toHaveAttribute('aria-invalid', 'true');
+    await filters(page).getByRole('button', { name: 'Убрать условие 2', exact: true }).click();
+    await value.fill('probe');
+    await expect(value).toHaveAttribute('aria-invalid', 'false');
+    await expect(rows(page).first()).toContainText('Строк нет');
+    expect(requests).toHaveLength(1);
     expectNoPageErrors(problems);
   });
 
@@ -276,7 +294,8 @@ test.describe('the native database page', () => {
     await page.getByRole('option', { name: 'от … до', exact: true }).click();
     await expect(filters(page).getByLabel('От', { exact: true })).toBeVisible();
     await expect(filters(page).getByLabel('До', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: /^Фильтры/ })).toHaveText('Фильтры');
+    // Both ends are still blank: the condition counts and asks the server for nothing.
+    await expect(page.getByRole('button', { name: /^Фильтры/ })).toHaveText(/Фильтры\s*\(1\)/);
     expectNoPageErrors(problems);
   });
 
@@ -327,6 +346,72 @@ test.describe('the native database page', () => {
     await page.getByRole('option', { name: 'содержит значение', exact: true }).click();
     await settled(() => filters(page).getByLabel('Значение', { exact: true }).fill('b'));
     await expectLabels(['filled']);
+    expectNoPageErrors(problems);
+  });
+
+  test('chains conditions with И and ИЛИ, draws the groups and reorders them', async ({ page }) => {
+    const problems = collectPageErrors(page);
+    await openDatabase(page);
+    await chooseSchema(page, fixtureSchema);
+    await chooseTable(page, fixtureSchema, 'blanks');
+    await page.getByRole('button', { name: /^Фильтры/ }).click();
+    const settled = async (action: () => Promise<void>) => {
+      const answered = page.waitForResponse((response) => response.url().includes('/admin/rpc/database.rows'));
+      await action();
+      await answered;
+    };
+    const condition = async (index: number, column: string, name: string) => {
+      await page.getByRole('combobox', { name: `Колонка условия ${index}`, exact: true }).click();
+      await page.getByRole('option', { name: column, exact: true }).click();
+      await page.getByRole('combobox', { name: `Условие ${index}`, exact: true }).click();
+      await page.getByRole('option', { name, exact: true }).click();
+    };
+    // The join is a switch: off is И, on is ИЛИ; its name says which.
+    const join = page.getByRole('switch', { name: /^Связка между условиями 1 и 2/ });
+
+    await filters(page).getByRole('button', { name: 'Добавить условие', exact: true }).click();
+    await settled(() => condition(1, 'blank', 'пустая строка'));
+    await filters(page).getByRole('button', { name: 'Добавить условие', exact: true }).click();
+    await settled(() => condition(2, 'blank', 'пусто'));
+    // Two conditions on one column joined with И: nothing is both an empty string and SQL NULL.
+    await expect(join).toHaveAttribute('aria-checked', 'false');
+    await expect(page.getByTestId('database-filter-block')).toHaveCount(1);
+    await expect(rows(page).first()).toContainText('Строк нет');
+
+    await settled(() => join.click());
+    await expect(join).toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByTestId('database-filter-block')).toHaveCount(2);
+    await expect(rows(page)).toHaveCount(2);
+
+    // Moving the second condition up by keyboard makes it the first; the join between them starts over as И.
+    await page.getByRole('button', { name: 'Переместить условие 2', exact: true }).focus();
+    await settled(() => page.keyboard.press('ArrowUp'));
+    await expect(page.getByRole('combobox', { name: 'Условие 1', exact: true })).toHaveText('пусто');
+    await expect(page.getByRole('combobox', { name: 'Условие 2', exact: true })).toHaveText('пустая строка');
+    await expect(page.getByRole('button', { name: 'Переместить условие 1', exact: true })).toBeFocused();
+    await expect(join).toHaveAttribute('aria-checked', 'false');
+    await expect(rows(page).first()).toContainText('Строк нет');
+    expectNoPageErrors(problems);
+  });
+
+  test('tells big letters from small only when the switch is on', async ({ page }) => {
+    const problems = collectPageErrors(page);
+    await openDatabase(page);
+    await chooseSchema(page, fixtureSchema);
+    await chooseTable(page, fixtureSchema, 'blanks');
+    await page.getByRole('button', { name: /^Фильтры/ }).click();
+    await filters(page).getByRole('button', { name: 'Добавить условие', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Колонка условия 1', exact: true }).click();
+    await page.getByRole('option', { name: 'label', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Условие 1', exact: true }).click();
+    await page.getByRole('option', { name: 'содержит', exact: true }).click();
+    await filters(page).getByLabel('Значение', { exact: true }).fill('FILLED');
+    await expect(rows(page)).toHaveCount(1);
+    await expect(rows(page).first()).toContainText('filled');
+    await page.getByRole('checkbox', { name: 'Учитывать регистр', exact: true }).click();
+    await expect(rows(page).first()).toContainText('Строк нет');
+    await page.getByRole('checkbox', { name: 'Учитывать регистр', exact: true }).click();
+    await expect(rows(page).first()).toContainText('filled');
     expectNoPageErrors(problems);
   });
 

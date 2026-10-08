@@ -141,6 +141,15 @@ cast to the element type). Values are always parameters; the only type names in 
 catalogue. [`filters.postgres.test.ts`](src/admin/database/filters.postgres.test.ts) runs every
 condition against real PostgreSQL.
 
+Conditions form a chain: each one after the first carries `join`, `and` or `or`, and the chain reads
+as SQL does — `and` binds tighter, so `a OR b AND c` is `a OR (b AND c)`. `whereClause` writes every
+group of `and`-joined conditions in parentheses, and the panel draws those groups as blocks, with a
+handle to reorder conditions. `caseSensitive` turns `ILIKE` into `LIKE` for the text-matching
+conditions; `=` and `IN` never ignore case. While any condition in the panel is unfilled the screen
+sends no request and keeps the last page: leaving one condition out of a chain would change what its
+neighbours' joins mean. Filters in the page URL carry `join` and `caseSensitive`; an address from
+before the chain (`combine`) is read as every join.
+
 When PostgreSQL refuses a value a person typed — a data exception (class 22), a broken constraint
 (class 23) or a malformed `tsvector`/`tsquery` (`42601`, the one syntax error that is the value's
 fault) — the answer is 400. [`errors.ts`](src/admin/database/errors.ts) rewrites class-22 texts to say

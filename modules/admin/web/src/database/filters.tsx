@@ -1,85 +1,181 @@
 import * as React from 'react';
-import { XIcon } from 'lucide-react';
+import { GripVerticalIcon, XIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CONDITION_LABELS, filterShape, groupConditions, type Column, type Filter } from './model';
+import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { CONDITION_LABELS, chained, filterShape, groupConditions, isFilterReady, type Column, type Filter } from './model';
 
-export function Filters({ columns, filters, combine, onChange }: {
+const JOIN_HINT = 'Условия через И выполняются вместе; ИЛИ разделяет такие группы.';
+const CASE_HINT = 'Действует на «содержит», «начинается с», «заканчивается на». «Равно» всегда различает большие и маленькие буквы.';
+/** How long a condition may stay unfilled before the panel points at it. */
+const IDLE_MS = 5000;
+
+/**
+ * The filter panel: a chain of conditions, each joined to the next with И or ИЛИ.
+ *
+ * The chain reads the way SQL does — И binds tighter — and the panel draws it that way: conditions
+ * joined with И form one block in the markup and nothing else: a tinted background came and went as
+ * the joins changed and read as flicker, a rule down the left read as debris, a wider gap made the
+ * panel jump — and the switch between the rows already says where a group ends. The join sits at
+ * the end of a row, between the two conditions it connects. Order matters, so every condition has a handle: drag it,
+ * or focus it and press the arrow keys. An unfilled condition is pointed at only once the person has
+ * moved on — added another condition after it, or stopped typing for a while — not the moment it
+ * appears (the owner's rule, 8 October 2026).
+ */
+export function Filters({ columns, filters, caseSensitive, onChange }: {
   columns: Column[];
   filters: Filter[];
-  combine: 'and' | 'or';
-  onChange: (filters: Filter[], combine: 'and' | 'or') => void;
+  caseSensitive: boolean;
+  onChange: (filters: Filter[], caseSensitive: boolean) => void;
 }) {
-  const conditions = (name: string) => columns.find((column) => column.name === name)?.conditions ?? [];
+  const [dragging, setDragging] = React.useState<number | null>(null);
+  const [idle, setIdle] = React.useState(false);
+  const columnOf = (name: string) => columns.find((column) => column.name === name);
+  const conditions = (name: string) => columnOf(name)?.conditions ?? [];
+  const update = (next: Filter[]) => onChange(chained(next), caseSensitive);
+
+  // Any change to the filters restarts the clock; after IDLE_MS of silence the unfilled ones light up.
+  const edition = JSON.stringify(filters);
+  React.useEffect(() => {
+    setIdle(false);
+    const timer = window.setTimeout(() => setIdle(true), IDLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [edition]);
+
   function change(index: number, patch: Partial<Filter>) {
-    onChange(filters.map((filter, at) => {
+    update(filters.map((filter, at) => {
       if (at !== index) return filter;
       const next = { ...filter, ...patch };
-      if (patch.column && !conditions(patch.column).includes(next.condition)) {
-        next.condition = conditions(patch.column)[0] ?? 'is';
+      if (patch.column) {
+        if (!conditions(patch.column).includes(next.condition)) next.condition = conditions(patch.column)[0] ?? 'is';
+        // A value typed for one kind of column rarely fits another: text on an array column travels as an array literal and is refused.
+        if (columnOf(patch.column)?.type !== columnOf(filter.column)?.type) next.value = undefined;
       }
       if (filterShape(next.condition) !== filterShape(filter.condition)) next.value = undefined;
       return next;
-    }), combine);
+    }));
   }
+  function move(from: number, to: number) {
+    if (to < 0 || to >= filters.length || from === to) return;
+    const next = [...filters];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved!);
+    update(next);
+    // Keep the keyboard on the handle that moved, so another press moves it again.
+    window.requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-handle="${to}"]`)?.focus());
+  }
+
+  // Blocks: a condition joined with ИЛИ starts a new one; everything joined with И stays in the current.
+  const blocks: number[][] = [];
+  filters.forEach((filter, index) => {
+    if (index === 0 || filter.join === 'or') blocks.push([index]);
+    else blocks[blocks.length - 1]!.push(index);
+  });
+  const pointedAt = (index: number) => !isFilterReady(filters[index]!) && (index < filters.length - 1 || idle);
+
+  // The join between condition `index` and the next one: it belongs to the next, the row shows it after this.
+  const joinToNext = (index: number) => {
+    const or = (filters[index + 1]!.join ?? 'and') === 'or';
+    const side = (active: boolean) => `text-sm ${active ? 'text-foreground' : 'text-muted-foreground'}`;
+    return <Tooltip>
+      <TooltipTrigger asChild>
+        <label className="flex items-center gap-2 px-1">
+          <span className={side(!or)}>и</span>
+          <Switch checked={or} onCheckedChange={(checked) => change(index + 1, { join: checked ? 'or' : 'and' })}
+            aria-label={`Связка между условиями ${index + 1} и ${index + 2}: ${or ? 'или' : 'и'}`} />
+          <span className={side(or)}>или</span>
+        </label>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-72">{JOIN_HINT}</TooltipContent>
+    </Tooltip>;
+  };
+
   return (
-    <section aria-label="Фильтры таблицы" className="space-y-3 rounded-lg border bg-muted/20 p-4">
-      {filters.length > 0 && <div className="flex gap-2" aria-label="Объединение условий">
-        <Button size="sm" variant={combine === 'and' ? 'default' : 'outline'} aria-pressed={combine === 'and'} onClick={() => onChange(filters, 'and')}>И</Button>
-        <Button size="sm" variant={combine === 'or' ? 'default' : 'outline'} aria-pressed={combine === 'or'} onClick={() => onChange(filters, 'or')}>ИЛИ</Button>
-      </div>}
-      {filters.map((filter, index) => {
-        const shape = filterShape(filter.condition);
-        return <div key={index} data-testid="database-filter" className="flex flex-wrap items-center gap-2">
-          <Select value={filter.column} onValueChange={(column) => change(index, { column })}>
-            <SelectTrigger aria-label={`Колонка условия ${index + 1}`} className="w-44"><SelectValue /></SelectTrigger>
-            <SelectContent>{columns.map((column) => <SelectItem key={column.name} value={column.name}>{column.name}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={filter.condition} onValueChange={(value) => {
-            const condition = conditions(filter.column).find((entry) => entry === value);
-            if (condition) change(index, { condition });
-          }}>
-            <SelectTrigger aria-label={`Условие ${index + 1}`} className="w-44"><SelectValue /></SelectTrigger>
-            <SelectContent>{(() => {
-              const groups = groupConditions(conditions(filter.column));
-              // Headings only where there is more than one group: a heading over the whole list says nothing.
-              return groups.map((group) => <SelectGroup key={group.label}>
-                {groups.length > 1 && group.label && <SelectLabel>{group.label}</SelectLabel>}
-                {group.conditions.map((condition) => <SelectItem key={condition} value={condition}>{CONDITION_LABELS[condition] ?? condition}</SelectItem>)}
-              </SelectGroup>);
-            })()}</SelectContent>
-          </Select>
-          {shape === 'none' ? <span className="w-48 text-muted-foreground">—</span> : shape === 'range' || shape === 'pair' ? <div className="flex w-56 items-center gap-2">
-            {([0, 1] as const).map((at) => {
-              const label = shape === 'range' ? (at === 0 ? 'От' : 'До') : (at === 0 ? 'Ключ' : 'Значение');
-              return <Input key={at} aria-label={label} placeholder={label.toLowerCase()} value={String((Array.isArray(filter.value) ? filter.value[at] : '') ?? '')} onChange={(event) => {
-                const pair = Array.isArray(filter.value) ? [...filter.value] : ['', ''];
-                pair[at] = event.target.value;
-                change(index, { value: pair });
-              }} />;
-            })}
-          </div> : shape === 'list' ? <ValueList values={Array.isArray(filter.value) ? filter.value.map(String) : []} onChange={(value) => change(index, { value })} />
-            : <Input className="w-56" aria-label="Значение" placeholder={shape === 'number' ? 'число' : 'значение'} inputMode={shape === 'number' ? 'numeric' : undefined} value={String(filter.value ?? '')} onChange={(event) => change(index, { value: event.target.value })} />}
-          <Button size="icon" variant="ghost" aria-label={`Убрать условие ${index + 1}`} onClick={() => onChange(filters.filter((_, at) => at !== index), combine)}><XIcon /></Button>
-        </div>;
-      })}
-      <div className="flex justify-between gap-2">
-        <Button size="sm" variant="outline" disabled={!columns.length} onClick={() => {
-          const column = columns[0]!;
-          onChange([...filters, { column: column.name, condition: column.conditions[0] ?? 'is', value: '' }], combine);
-        }}>Добавить условие</Button>
-        {filters.length > 0 && <Button size="sm" variant="ghost" onClick={() => onChange([], combine)}>Очистить всё</Button>}
-      </div>
-    </section>
+    <TooltipProvider delayDuration={250}>
+      <section aria-label="Фильтры таблицы" className="space-y-2 rounded-lg border bg-muted/20 p-4">
+        {filters.length > 0 && <Tooltip>
+          <TooltipTrigger asChild>
+            <label className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
+              <Checkbox checked={caseSensitive} onCheckedChange={(checked) => onChange(filters, checked === true)} aria-label="Учитывать регистр" />
+              Учитывать регистр
+            </label>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-72">{CASE_HINT}</TooltipContent>
+        </Tooltip>}
+        {blocks.map((block) => <div key={block[0]} data-testid="database-filter-block" className="space-y-2">
+          {block.map((index) => {
+            const filter = filters[index]!;
+            const shape = filterShape(filter.condition);
+            const invalid = pointedAt(index);
+            return <div key={index} data-testid="database-filter" className="flex flex-wrap items-center gap-2" aria-invalid={invalid}
+              onDragOver={(event) => { if (dragging !== null) event.preventDefault(); }}
+              onDrop={(event) => { event.preventDefault(); if (dragging !== null) move(dragging, index); setDragging(null); }}>
+              <button type="button" draggable data-handle={index} aria-label={`Переместить условие ${index + 1}`}
+                title="Перетащите или нажмите стрелки вверх и вниз, чтобы изменить порядок"
+                className="cursor-grab rounded text-muted-foreground hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing"
+                onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; setDragging(index); }} onDragEnd={() => setDragging(null)}
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowUp') { event.preventDefault(); move(index, index - 1); }
+                  if (event.key === 'ArrowDown') { event.preventDefault(); move(index, index + 1); }
+                }}>
+                <GripVerticalIcon className="size-4" />
+              </button>
+              <Select value={filter.column} onValueChange={(column) => change(index, { column })}>
+                <SelectTrigger aria-label={`Колонка условия ${index + 1}`} className="w-44"><SelectValue /></SelectTrigger>
+                <SelectContent>{columns.map((column) => <SelectItem key={column.name} value={column.name}>{column.name}</SelectItem>)}</SelectContent>
+              </Select>
+              <Select value={filter.condition} onValueChange={(value) => {
+                const condition = conditions(filter.column).find((entry) => entry === value);
+                if (condition) change(index, { condition });
+              }}>
+                <SelectTrigger aria-label={`Условие ${index + 1}`} className="w-44"><SelectValue /></SelectTrigger>
+                <SelectContent>{(() => {
+                  const groups = groupConditions(conditions(filter.column));
+                  // Headings only where there is more than one group: a heading over the whole list says nothing.
+                  return groups.map((group) => <SelectGroup key={group.label}>
+                    {groups.length > 1 && group.label && <SelectLabel>{group.label}</SelectLabel>}
+                    {group.conditions.map((condition) => <SelectItem key={condition} value={condition}>{CONDITION_LABELS[condition] ?? condition}</SelectItem>)}
+                  </SelectGroup>);
+                })()}</SelectContent>
+              </Select>
+              {shape === 'none' ? <span className="w-48 text-muted-foreground">—</span> : shape === 'range' || shape === 'pair' ? <div className="flex w-56 items-center gap-2">
+                {([0, 1] as const).map((half) => {
+                  const label = shape === 'range' ? (half === 0 ? 'От' : 'До') : (half === 0 ? 'Ключ' : 'Значение');
+                  const text = String((Array.isArray(filter.value) ? filter.value[half] : '') ?? '');
+                  return <Input key={half} aria-label={label} placeholder={label.toLowerCase()} value={text} aria-invalid={invalid && text === ''} onChange={(event) => {
+                    const pair = Array.isArray(filter.value) ? [...filter.value] : ['', ''];
+                    pair[half] = event.target.value;
+                    change(index, { value: pair });
+                  }} />;
+                })}
+              </div> : shape === 'list' ? <ValueList values={Array.isArray(filter.value) ? filter.value.map(String) : []} invalid={invalid} onChange={(value) => change(index, { value })} />
+                : <Input className="w-56" aria-label="Значение" placeholder={shape === 'number' ? 'число' : 'значение'} inputMode={shape === 'number' ? 'numeric' : undefined}
+                  value={String(filter.value ?? '')} aria-invalid={invalid} onChange={(event) => change(index, { value: event.target.value })} />}
+              {index < filters.length - 1 && joinToNext(index)}
+              <Button size="icon" variant="ghost" className="size-7 text-muted-foreground" aria-label={`Убрать условие ${index + 1}`} onClick={() => update(filters.filter((_, at) => at !== index))}><XIcon className="size-4" /></Button>
+            </div>;
+          })}
+        </div>)}
+        <div className={`flex flex-wrap items-center justify-between gap-3 ${filters.length ? 'pt-4' : ''}`}>
+          <Button size="sm" variant="outline" disabled={!columns.length} onClick={() => {
+            const column = columns[0]!;
+            update([...filters, { column: column.name, condition: column.conditions[0] ?? 'is', value: '' }]);
+          }}>Добавить условие</Button>
+          {filters.length > 0 && <Button size="sm" variant="ghost" onClick={() => onChange([], caseSensitive)}>Очистить всё</Button>}
+        </div>
+      </section>
+    </TooltipProvider>
   );
 }
 
-function ValueList({ values, onChange }: { values: string[]; onChange: (values: string[]) => void }) {
+function ValueList({ values, invalid, onChange }: { values: string[]; invalid: boolean; onChange: (values: string[]) => void }) {
   const [draft, setDraft] = React.useState('');
   return <div className="flex w-56 flex-wrap gap-1">
     {values.map((value, index) => <Button key={index} size="sm" variant="secondary" aria-label={`Убрать значение ${value}`} onClick={() => onChange(values.filter((_, at) => at !== index))}>{value}<XIcon className="size-3" /></Button>)}
-    <Input aria-label="Значения" placeholder="значения" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
+    <Input aria-label="Значения" placeholder="значения" value={draft} aria-invalid={invalid} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
       if (event.key === 'Enter' && draft !== '') { event.preventDefault(); onChange([...values, draft]); setDraft(''); }
     }} />
   </div>;
