@@ -1,8 +1,14 @@
 import { z } from 'zod';
-import { BOOLEAN_CONDITIONS, JSON_CONDITIONS, TEXT_CONDITIONS, UUID_CONDITIONS, VALUE_CONDITIONS } from './filters.js';
+import {
+  ARRAY_CONDITIONS, BOOLEAN_CONDITIONS, JSON_CONDITIONS, PLAIN_CONDITIONS, RANGE_CONDITIONS,
+  TEXT_CONDITIONS, UUID_CONDITIONS, VALUE_CONDITIONS,
+} from './filters.js';
 
 const name = z.string().min(1);
-const condition = z.enum([...TEXT_CONDITIONS, ...VALUE_CONDITIONS, ...BOOLEAN_CONDITIONS, ...UUID_CONDITIONS, ...JSON_CONDITIONS]);
+const condition = z.enum([
+  ...TEXT_CONDITIONS, ...VALUE_CONDITIONS, ...BOOLEAN_CONDITIONS, ...UUID_CONDITIONS, ...JSON_CONDITIONS,
+  ...ARRAY_CONDITIONS, ...RANGE_CONDITIONS, ...PLAIN_CONDITIONS,
+]);
 // z.record drops the legal PostgreSQL column name "__proto__"; validate without rebuilding the object.
 export const valuesSchema = z.custom<Record<string, string | null>>((value) =>
   typeof value === 'object' && value !== null && !Array.isArray(value)

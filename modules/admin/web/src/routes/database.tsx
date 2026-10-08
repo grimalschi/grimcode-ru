@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ArrowDownIcon, ArrowUpIcon, CopyIcon, FilterIcon, PencilIcon, Trash2Icon } from 'lucide-react';
+import { ArrowDownIcon, ArrowUpIcon, CopyIcon, FilterIcon, Loader2Icon, PencilIcon, Trash2Icon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api } from '@/api';
@@ -18,6 +18,7 @@ import { cellText, emptyView, isFilterReady, messageOf, PAGE_SIZES, readView, sh
 import { RowEditor } from '@/database/row-editor';
 import { SchemaTables, type SchemaCatalogue } from '@/database/schema-tables';
 import { useAsync } from '@/hooks/use-async';
+import { useDebounced } from '@/hooks/use-debounced';
 
 export function DatabasePage() {
   const [view, setView] = React.useState(readView);
@@ -43,14 +44,30 @@ export function DatabasePage() {
   }, []);
   const tables = catalogues[view.schema]?.tables ?? [];
   const selected = tables.find((table) => table.name === view.table);
+  /*
+   * Typing into a filter changes the view on every keystroke. The request waits until the typing
+   * pauses; the rest of the view — table, page, sorting — is asked for at once. The settled filters
+   * are remembered with their table, so a table opened mid-pause is never asked with the last
+   * table's conditions.
+   */
+  const readyFilters = JSON.stringify({ schema: view.schema, table: view.table, filters: view.filters.filter(isFilterReady) });
+  const settled = JSON.parse(useDebounced(readyFilters, 300)) as { schema: string; table: string; filters: typeof view.filters };
   const query = {
-    schema: view.schema, table: view.table, filters: view.filters.filter(isFilterReady), combine: view.combine,
+    schema: view.schema, table: view.table, combine: view.combine,
+    filters: settled.schema === view.schema && settled.table === view.table ? settled.filters : [],
     order: view.order, limit: view.size, offset: (view.page - 1) * view.size,
   };
   const queryKey = JSON.stringify(query);
-  const listing = useAsync(async () => ({ key: queryKey, page: query.table
+  const listing = useAsync(async () => ({ key: queryKey, schema: query.schema, table: query.table, page: query.table
     ? await api.database.rows.query(query) : null }), [queryKey]);
-  const page = listing.data?.key === queryKey ? listing.data.page : null;
+  /*
+   * While a new page is on its way, the previous one of the same table stays on screen: replacing
+   * rows with a placeholder on every change made the table jump under the cursor. Another table's
+   * page is never kept — its columns are not these.
+   */
+  const current = listing.data?.key === queryKey ? listing.data.page : null;
+  const previous = listing.data && listing.data.schema === view.schema && listing.data.table === view.table ? listing.data.page : null;
+  const page = current ?? previous;
   const columns = page?.columns ?? selected?.columns ?? [];
   const readOnlyReason = page ? page.readOnlyReason : selected?.readOnlyReason ?? null;
   const deleteReadOnlyReason = readOnlyReason ?? (page ? page.deleteReadOnlyReason : selected?.deleteReadOnlyReason ?? null);
@@ -58,7 +75,7 @@ export function DatabasePage() {
   const currentTable = selected ? { ...selected, primaryKey: page?.primaryKey ?? selected.primaryKey, readOnlyReason, deleteReadOnlyReason } : null;
   const blockedInsert = columns.some((column) => column.readOnlyReason && !column.generated && !column.hasDefault && !column.nullable);
   const shown = view.columns.length ? columns.filter((column) => view.columns.includes(column.name)) : columns;
-  const loading = !!view.table && (listing.loading || listing.data?.key !== queryKey);
+  const loading = !!view.table && (listing.loading || !current);
 
   React.useEffect(() => {
     if (!schemas.data) return;
@@ -161,7 +178,7 @@ export function DatabasePage() {
           {!readOnlyReason && deleteReadOnlyReason && <p className="text-xs text-muted-foreground">Удаление недоступно: {deleteReadOnlyReason}</p>}
           {listing.error ? <ErrorState error={listing.error} retry={listing.reload} /> : <TooltipProvider delayDuration={250}>
             <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-              <Table data-testid="database-table">
+              <Table data-testid="database-table" aria-busy={loading} className={loading && page ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
                 <TableHeader><TableRow>
                   {shown.map((column) => {
                     const direction = view.order.find((order) => order.column === column.name)?.direction;
@@ -182,7 +199,7 @@ export function DatabasePage() {
                   {page ? <TableHead className="w-20"><span className="sr-only">Действия</span></TableHead> : null}
                 </TableRow></TableHeader>
                 <TableBody>
-                  {loading ? Array.from({ length: 5 }, (_, row) => <TableRow key={row}>{shown.map((column) => <TableCell key={column.name}><Skeleton className="h-4 w-28" /></TableCell>)}</TableRow>)
+                  {loading && !page ? Array.from({ length: 5 }, (_, row) => <TableRow key={row}>{shown.map((column) => <TableCell key={column.name}><Skeleton className="h-4 w-28" /></TableCell>)}</TableRow>)
                     : page?.rows.map((row, index) => <TableRow key={page.primaryKey.length ? JSON.stringify(page.primaryKey.map((column) => row[column])) : index}>
                       {shown.map((column) => <TableCell key={column.name}><ValueCell column={column.name} value={row[column.name]} /></TableCell>)}
                       {currentTable ? <TableCell><div className="flex gap-1">
@@ -200,7 +217,9 @@ export function DatabasePage() {
               <SelectTrigger aria-label="Строк на странице" className="w-36"><SelectValue /></SelectTrigger>
               <SelectContent>{PAGE_SIZES.map((size) => <SelectItem key={size} value={String(size)}>{size} строк</SelectItem>)}</SelectContent>
             </Select>
-            <span className="text-xs text-muted-foreground" data-testid="database-total">Всего: {page?.total ?? 0}</span>
+            <span className="inline-flex items-center gap-2 text-xs text-muted-foreground" data-testid="database-total">
+              {loading && page && <Loader2Icon className="size-3.5 animate-spin" aria-label="Загрузка" />}Всего: {page?.total ?? 0}
+            </span>
             <Pagination total={page?.total ?? 0} limit={view.size} offset={(view.page - 1) * view.size} onOffsetChange={(offset) => setView({ ...view, page: offset / view.size + 1 })} />
           </div>
         </>}

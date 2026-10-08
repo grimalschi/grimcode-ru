@@ -53,6 +53,9 @@ test.beforeAll(async () => {
   await database.query(`INSERT INTO "${fixtureSchema}"."values" (id, label) VALUES (1, 'cancel-delete')`);
   // A serial key: PostgreSQL numbers the rows, and the editor must never offer to.
   await database.query(`CREATE TABLE "${fixtureSchema}".numbered (id serial PRIMARY KEY, label text NOT NULL)`);
+  // Three kinds of "nothing to see" in one text column: a value, the empty string and SQL NULL.
+  await database.query(`CREATE TABLE "${fixtureSchema}".blanks (id integer PRIMARY KEY, label text NOT NULL, blank text, tags text[])`);
+  await database.query(`INSERT INTO "${fixtureSchema}".blanks VALUES (1, 'filled', 'x', '{a,b}'), (2, 'empty-string', '', '{a}'), (3, 'sql-null', NULL, NULL)`);
   await database.query(`CREATE TYPE "${fixtureSchema}".compound AS (part text)`);
   await database.query(`CREATE TABLE "${fixtureSchema}".unsupported (id integer PRIMARY KEY, value "${fixtureSchema}".compound NOT NULL)`);
   await database.query(`INSERT INTO "${fixtureSchema}".unsupported VALUES (1, ROW('source'))`);
@@ -204,6 +207,35 @@ test.describe('the native database page', () => {
     expectNoPageErrors(problems);
   });
 
+  test('waits for typing to pause and keeps the rows on screen while the page reloads', async ({ page }) => {
+    const problems = collectPageErrors(page);
+    await openDatabase(page);
+    await chooseSchema(page, 'auth');
+    await chooseTable(page, 'auth', 'identities');
+    await expect(rows(page).first()).toBeVisible();
+    const requests: string[] = [];
+    page.on('request', (request) => {
+      if (request.url().includes('/admin/rpc/database.rows')) requests.push(request.postData() ?? '');
+    });
+    let placeholderSeen = false;
+    const watcher = page.getByTestId('database-table').locator('[data-slot="skeleton"]');
+    const poll = setInterval(() => { void watcher.count().then((count) => { if (count > 0) placeholderSeen = true; }); }, 50);
+    await page.getByRole('button', { name: /^Фильтры/ }).click();
+    await filters(page).getByRole('button', { name: 'Добавить условие', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Колонка условия 1', exact: true }).click();
+    await page.getByRole('option', { name: 'email', exact: true }).click();
+    await filters(page).getByLabel('Значение', { exact: true }).pressSequentially('nobody', { delay: 40 });
+    await expect(page.getByRole('button', { name: /^Фильтры/ })).toHaveText(/Фильтры\s*\(1\)/);
+    await expect(rows(page)).toHaveCount(1);
+    await expect(rows(page).first()).toContainText('Строк нет');
+    clearInterval(poll);
+    // Six keystrokes 40 ms apart settle into one request; without the pause there were six.
+    expect(requests.filter((input) => input.includes('nobody')).length).toBe(1);
+    expect(requests.some((input) => /"value":"n(o(b(o(d)?)?)?)?"/.test(input))).toBe(false);
+    expect(placeholderSeen).toBe(false);
+    expectNoPageErrors(problems);
+  });
+
   test('clears filters while leaving the editor open', async ({ page }) => {
     await openDatabase(page);
     await chooseSchema(page, 'auth');
@@ -241,10 +273,60 @@ test.describe('the native database page', () => {
     await page.getByRole('combobox', { name: 'Колонка условия 1', exact: true }).click();
     await page.getByRole('option', { name: 'created_at', exact: true }).click();
     await page.getByRole('combobox', { name: 'Условие 1', exact: true }).click();
-    await page.getByRole('option', { name: 'между', exact: true }).click();
+    await page.getByRole('option', { name: 'от … до', exact: true }).click();
     await expect(filters(page).getByLabel('От', { exact: true })).toBeVisible();
     await expect(filters(page).getByLabel('До', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: /^Фильтры/ })).toHaveText('Фильтры');
+    expectNoPageErrors(problems);
+  });
+
+  test('tells SQL NULL from the empty string and keeps empty cells under "or empty"', async ({ page }) => {
+    const problems = collectPageErrors(page);
+    await openDatabase(page);
+    await chooseSchema(page, fixtureSchema);
+    await chooseTable(page, fixtureSchema, 'blanks');
+    await page.getByRole('button', { name: /^Фильтры/ }).click();
+    await filters(page).getByRole('button', { name: 'Добавить условие', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Колонка условия 1', exact: true }).click();
+    await page.getByRole('option', { name: 'blank', exact: true }).click();
+
+    const choose = async (condition: string) => {
+      await page.getByRole('combobox', { name: 'Условие 1', exact: true }).click();
+      await page.getByRole('option', { name: condition, exact: true }).click();
+    };
+    // The previous rows stay on screen until the new page arrives, so each step waits for that answer.
+    const settled = async (action: () => Promise<void>) => {
+      const answered = page.waitForResponse((response) => response.url().includes('/admin/rpc/database.rows'));
+      await action();
+      await answered;
+    };
+    const labels = async () => (await rows(page).allTextContents()).map((text) => /filled|empty-string|sql-null/.exec(text)?.[0]);
+    const expectLabels = async (expected: string[]) => {
+      await expect(rows(page)).toHaveCount(expected.length);
+      expect(await labels()).toEqual(expected);
+    };
+
+    await settled(() => choose('пусто'));
+    await expectLabels(['sql-null']);
+    await settled(() => choose('пустая строка'));
+    await expectLabels(['empty-string']);
+    await choose('не равно');
+    await settled(() => filters(page).getByLabel('Значение', { exact: true }).fill('x'));
+    await expectLabels(['empty-string']);
+    await settled(() => choose('не равно или пусто'));
+    await expectLabels(['empty-string', 'sql-null']);
+    // A value typed for text would travel to the array column as an array literal; leave the condition without one first.
+    await settled(() => choose('пусто'));
+
+    await settled(async () => {
+      await page.getByRole('combobox', { name: 'Колонка условия 1', exact: true }).click();
+      await page.getByRole('option', { name: 'tags', exact: true }).click();
+    });
+    await page.getByRole('combobox', { name: 'Условие 1', exact: true }).click();
+    await expect(page.getByRole('option', { name: 'больше', exact: true })).toHaveCount(0);
+    await page.getByRole('option', { name: 'содержит значение', exact: true }).click();
+    await settled(() => filters(page).getByLabel('Значение', { exact: true }).fill('b'));
+    await expectLabels(['filled']);
     expectNoPageErrors(problems);
   });
 

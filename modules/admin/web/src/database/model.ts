@@ -74,29 +74,64 @@ export function readView(): View {
 }
 
 export const CONDITION_LABELS: Record<string, string> = {
-  is: 'равно', 'is-not': 'не равно', contains: 'содержит', 'not-contains': 'не содержит',
+  is: 'равно', 'is-not': 'не равно', 'not-equals-or-empty': 'не равно или пусто',
+  contains: 'содержит', 'not-contains': 'не содержит', 'not-contains-or-empty': 'не содержит или пусто',
   'starts-with': 'начинается с', 'not-starts-with': 'не начинается с', 'ends-with': 'заканчивается на',
   'not-ends-with': 'не заканчивается на', equals: 'равно', 'not-equals': 'не равно',
   'greater-than': 'больше', 'at-least': 'не меньше', 'less-than': 'меньше', 'at-most': 'не больше',
-  between: 'между', 'one-of': 'одно из', 'not-one-of': 'ни одно из', 'is-true': 'да',
-  'is-false': 'нет', 'is-empty': 'пусто', 'is-not-empty': 'не пусто',
+  between: 'от … до', 'not-between': 'вне от … до', 'one-of': 'одно из', 'not-one-of': 'ни одно из',
+  'is-true': 'да', 'is-false': 'нет', 'is-empty': 'пусто', 'is-not-empty': 'не пусто',
+  'empty-string': 'пустая строка', 'not-empty-string': 'не пустая строка',
+  'length-over': 'длина больше', 'length-under': 'длина меньше',
+  'array-has': 'содержит значение', 'array-lacks': 'не содержит значение', 'array-has-all': 'содержит все перечисленные',
+  'count-over': 'элементов больше', 'count-under': 'элементов меньше',
+  'has-key': 'есть ключ', 'lacks-key': 'нет ключа', 'key-equals': 'значение ключа равно', 'key-contains': 'значение ключа содержит',
+  'range-has': 'содержит значение',
 };
 
-export function filterShape(condition: string) {
-  if (['is-empty', 'is-not-empty', 'is-true', 'is-false'].includes(condition)) return 'none';
-  if (condition === 'between') return 'range';
-  if (['one-of', 'not-one-of'].includes(condition)) return 'list';
+/**
+ * Headings for the condition menu, in the order they appear. Eighteen conditions for a text column
+ * read as a wall without them; the owner chose grouping over dropping any (8 October 2026).
+ */
+const CONDITION_GROUPS: [string, string[]][] = [
+  ['Сравнение', ['is', 'is-not', 'equals', 'not-equals', 'not-equals-or-empty', 'one-of', 'not-one-of', 'is-true', 'is-false']],
+  ['Порядок', ['greater-than', 'at-least', 'less-than', 'at-most', 'between', 'not-between']],
+  ['По тексту', ['contains', 'not-contains', 'not-contains-or-empty', 'starts-with', 'not-starts-with', 'ends-with', 'not-ends-with']],
+  ['Элементы', ['array-has', 'array-lacks', 'array-has-all', 'count-over', 'count-under', 'range-has']],
+  ['Ключи', ['has-key', 'lacks-key', 'key-equals', 'key-contains']],
+  ['Пустое', ['is-empty', 'is-not-empty', 'empty-string', 'not-empty-string']],
+  ['Длина', ['length-over', 'length-under']],
+];
+
+/** A column's conditions under their headings, in menu order; a condition no group names comes last, unheaded. */
+export function groupConditions(conditions: readonly string[]): { label: string; conditions: string[] }[] {
+  const groups = CONDITION_GROUPS
+    .map(([label, members]) => ({ label, conditions: members.filter((condition) => conditions.includes(condition)) }))
+    .filter((group) => group.conditions.length > 0);
+  const placed = new Set(groups.flatMap((group) => group.conditions));
+  const rest = conditions.filter((condition) => !placed.has(condition));
+  return rest.length ? [...groups, { label: '', conditions: rest }] : groups;
+}
+
+/** What a condition needs typed in: nothing, one value, a number, a start and end, a list, or a key and value. */
+export function filterShape(condition: string): 'none' | 'one' | 'number' | 'range' | 'list' | 'pair' {
+  if (['is-empty', 'is-not-empty', 'is-true', 'is-false', 'empty-string', 'not-empty-string'].includes(condition)) return 'none';
+  if (['between', 'not-between'].includes(condition)) return 'range';
+  if (['one-of', 'not-one-of', 'array-has-all'].includes(condition)) return 'list';
+  if (['length-over', 'length-under', 'count-over', 'count-under'].includes(condition)) return 'number';
+  if (['key-equals', 'key-contains'].includes(condition)) return 'pair';
   return 'one';
 }
+
+const filled = (value: unknown): boolean => value !== undefined && value !== null && String(value) !== '';
 
 export function isFilterReady(filter: Filter): boolean {
   if (!filter.column) return false;
   const shape = filterShape(filter.condition);
   if (shape === 'none') return true;
-  if (shape === 'range') return Array.isArray(filter.value) && filter.value.length === 2
-    && filter.value.every((value) => value !== null && String(value ?? '') !== '');
+  if (shape === 'range' || shape === 'pair') return Array.isArray(filter.value) && filter.value.length === 2 && filter.value.every(filled);
   if (shape === 'list') return Array.isArray(filter.value) && filter.value.length > 0;
-  return filter.value !== undefined && filter.value !== null && String(filter.value) !== '';
+  return filled(filter.value);
 }
 
 export const cellText = (value: string | null | undefined): string => value ?? '';

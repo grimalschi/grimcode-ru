@@ -130,6 +130,17 @@ Every procedure requires owner; mutations also require Admin's CSRF token. Ident
 against PostgreSQL's catalogue and values are SQL parameters. System schemas and `schema_migrations`
 are excluded at the API boundary.
 
+Filter conditions are a closed list per column type ([`filters.ts`](src/admin/database/filters.ts)):
+text, numbers and dates, booleans, uuid, json, arrays, ranges and network addresses each get their
+own set, and a condition outside the column's set is refused. Every "… or empty" condition
+(`IS DISTINCT FROM`, `IS NULL OR … NOT ILIKE`) exists because SQL drops an empty cell from any
+negative comparison; "is empty" is SQL NULL only, and text has "empty string" separately. Arrays are
+asked about elements (`= ANY`, `@>` cast to the column's own type from the catalogue, `cardinality`),
+json about keys and dotted paths (`jsonb_exists`, `#>>`), ranges whether they contain a value (`@>`
+cast to the element type). Values are always parameters; the only type names in SQL come from the
+catalogue. [`filters.postgres.test.ts`](src/admin/database/filters.postgres.test.ts) runs every
+condition against real PostgreSQL.
+
 When PostgreSQL refuses a value a person typed — a data exception (class 22), a broken constraint
 (class 23) or a malformed `tsvector`/`tsquery` (`42601`, the one syntax error that is the value's
 fault) — the answer is 400. [`errors.ts`](src/admin/database/errors.ts) rewrites class-22 texts to say

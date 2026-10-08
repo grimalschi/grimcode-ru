@@ -2,8 +2,8 @@ import * as React from 'react';
 import { XIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CONDITION_LABELS, filterShape, type Column, type Filter } from './model';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CONDITION_LABELS, filterShape, groupConditions, type Column, type Filter } from './model';
 
 export function Filters({ columns, filters, combine, onChange }: {
   columns: Column[];
@@ -41,16 +41,26 @@ export function Filters({ columns, filters, combine, onChange }: {
             if (condition) change(index, { condition });
           }}>
             <SelectTrigger aria-label={`Условие ${index + 1}`} className="w-44"><SelectValue /></SelectTrigger>
-            <SelectContent>{conditions(filter.column).map((condition) => <SelectItem key={condition} value={condition}>{CONDITION_LABELS[condition] ?? condition}</SelectItem>)}</SelectContent>
+            <SelectContent>{(() => {
+              const groups = groupConditions(conditions(filter.column));
+              // Headings only where there is more than one group: a heading over the whole list says nothing.
+              return groups.map((group) => <SelectGroup key={group.label}>
+                {groups.length > 1 && group.label && <SelectLabel>{group.label}</SelectLabel>}
+                {group.conditions.map((condition) => <SelectItem key={condition} value={condition}>{CONDITION_LABELS[condition] ?? condition}</SelectItem>)}
+              </SelectGroup>);
+            })()}</SelectContent>
           </Select>
-          {shape === 'none' ? <span className="w-48 text-muted-foreground">—</span> : shape === 'range' ? <div className="flex w-56 items-center gap-2">
-            {([0, 1] as const).map((at) => <Input key={at} aria-label={at === 0 ? 'От' : 'До'} placeholder={at === 0 ? 'от' : 'до'} value={String((Array.isArray(filter.value) ? filter.value[at] : '') ?? '')} onChange={(event) => {
-              const range = Array.isArray(filter.value) ? [...filter.value] : ['', ''];
-              range[at] = event.target.value;
-              change(index, { value: range });
-            }} />)}
+          {shape === 'none' ? <span className="w-48 text-muted-foreground">—</span> : shape === 'range' || shape === 'pair' ? <div className="flex w-56 items-center gap-2">
+            {([0, 1] as const).map((at) => {
+              const label = shape === 'range' ? (at === 0 ? 'От' : 'До') : (at === 0 ? 'Ключ' : 'Значение');
+              return <Input key={at} aria-label={label} placeholder={label.toLowerCase()} value={String((Array.isArray(filter.value) ? filter.value[at] : '') ?? '')} onChange={(event) => {
+                const pair = Array.isArray(filter.value) ? [...filter.value] : ['', ''];
+                pair[at] = event.target.value;
+                change(index, { value: pair });
+              }} />;
+            })}
           </div> : shape === 'list' ? <ValueList values={Array.isArray(filter.value) ? filter.value.map(String) : []} onChange={(value) => change(index, { value })} />
-            : <Input className="w-56" aria-label="Значение" placeholder="значение" value={String(filter.value ?? '')} onChange={(event) => change(index, { value: event.target.value })} />}
+            : <Input className="w-56" aria-label="Значение" placeholder={shape === 'number' ? 'число' : 'значение'} inputMode={shape === 'number' ? 'numeric' : undefined} value={String(filter.value ?? '')} onChange={(event) => change(index, { value: event.target.value })} />}
           <Button size="icon" variant="ghost" aria-label={`Убрать условие ${index + 1}`} onClick={() => onChange(filters.filter((_, at) => at !== index), combine)}><XIcon /></Button>
         </div>;
       })}
