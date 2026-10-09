@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { DateField, DateRangeFields, dateKindOf, type DateKind } from './date-field';
 import { CONDITION_LABELS, chained, filterShape, groupConditions, isFilterReady, type Column, type Filter } from './model';
 
 const JOIN_HINT = 'Условия через И выполняются вместе; ИЛИ разделяет такие группы.';
@@ -110,6 +111,8 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
             const filter = filters[index]!;
             const shape = filterShape(filter.condition);
             const invalid = pointedAt(index);
+            // A date column gets a calendar beside each text box; the box itself stays free text.
+            const dates = dateKindOf(columnOf(filter.column)?.type ?? '');
             return <div key={index} data-testid="database-filter" className="flex flex-wrap items-center gap-2" aria-invalid={invalid}
               onDragOver={(event) => { if (dragging !== null) event.preventDefault(); }}
               onDrop={(event) => { event.preventDefault(); if (dragging !== null) move(dragging, index); setDragging(null); }}>
@@ -141,19 +144,28 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
                   </SelectGroup>);
                 })()}</SelectContent>
               </Select>
-              {shape === 'none' ? <span className="w-56" aria-hidden="true" /> : shape === 'range' || shape === 'pair' ? <div className="flex w-56 items-center gap-2">
-                {([0, 1] as const).map((half) => {
-                  const label = shape === 'range' ? (half === 0 ? 'От' : 'До') : (half === 0 ? 'Ключ' : 'Значение');
-                  const text = String((Array.isArray(filter.value) ? filter.value[half] : '') ?? '');
-                  return <Input key={half} aria-label={label} placeholder={label.toLowerCase()} value={text} aria-invalid={invalid && text === ''} onChange={(event) => {
-                    const pair = Array.isArray(filter.value) ? [...filter.value] : ['', ''];
-                    pair[half] = event.target.value;
-                    change(index, { value: pair });
-                  }} />;
-                })}
-              </div> : shape === 'list' ? <ValueList values={Array.isArray(filter.value) ? filter.value.map(String) : []} invalid={invalid} onChange={(value) => change(index, { value })} />
-                : <Input className="w-56" aria-label="Значение" placeholder={shape === 'number' ? 'число' : 'значение'} inputMode={shape === 'number' ? 'numeric' : undefined}
-                  value={String(filter.value ?? '')} aria-invalid={invalid} onChange={(event) => change(index, { value: event.target.value })} />}
+              {shape === 'none' ? <span className="w-80" aria-hidden="true" /> : shape === 'range' || shape === 'pair' ? <div className="flex w-80 items-center gap-2">
+                {(() => {
+                  const pair = Array.isArray(filter.value) ? filter.value : ['', ''];
+                  const text = (half: 0 | 1) => String(pair[half] ?? '');
+                  const write = (half: 0 | 1, next: string) => {
+                    const values = [text(0), text(1)];
+                    values[half] = next;
+                    change(index, { value: values });
+                  };
+                  if (shape === 'range' && dates) {
+                    return <DateRangeFields kind={dates} labels={['От', 'До']} values={[text(0), text(1)]} invalid={invalid} onChange={write} />;
+                  }
+                  return ([0, 1] as const).map((half) => {
+                    const label = shape === 'range' ? (half === 0 ? 'От' : 'До') : (half === 0 ? 'Ключ' : 'Значение');
+                    return <Input key={half} aria-label={label} placeholder={label.toLowerCase()} value={text(half)} aria-invalid={invalid && text(half) === ''} onChange={(event) => write(half, event.target.value)} />;
+                  });
+                })()}
+              </div> : shape === 'list' ? <ValueList values={Array.isArray(filter.value) ? filter.value.map(String) : []} invalid={invalid} dates={dates} onChange={(value) => change(index, { value })} />
+                : dates && shape === 'one'
+                  ? <DateField className="w-80" kind={dates} label="Значение" placeholder="значение" value={String(filter.value ?? '')} invalid={invalid} onChange={(value) => change(index, { value })} />
+                  : <Input className="w-80" aria-label="Значение" placeholder={shape === 'number' ? 'число' : 'значение'} inputMode={shape === 'number' ? 'numeric' : undefined}
+                    value={String(filter.value ?? '')} aria-invalid={invalid} onChange={(event) => change(index, { value: event.target.value })} />}
               {index < filters.length - 1 && joinToNext(index)}
               <Button size="icon" variant="ghost" className="size-7 text-muted-foreground" aria-label={`Убрать условие ${index + 1}`} onClick={() => update(filters.filter((_, at) => at !== index))}><XIcon className="size-4" /></Button>
             </div>;
@@ -171,12 +183,15 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
   );
 }
 
-function ValueList({ values, invalid, onChange }: { values: string[]; invalid: boolean; onChange: (values: string[]) => void }) {
+function ValueList({ values, invalid, dates, onChange }: { values: string[]; invalid: boolean; dates: DateKind | null; onChange: (values: string[]) => void }) {
   const [draft, setDraft] = React.useState('');
-  return <div className="flex w-56 flex-wrap gap-1">
+  const add = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' && draft !== '') { event.preventDefault(); onChange([...values, draft]); setDraft(''); }
+  };
+  return <div className="flex w-80 flex-wrap gap-1">
     {values.map((value, index) => <Button key={index} size="sm" variant="secondary" aria-label={`Убрать значение ${value}`} onClick={() => onChange(values.filter((_, at) => at !== index))}>{value}<XIcon className="size-3" /></Button>)}
-    <Input aria-label="Значения" placeholder="значения" value={draft} aria-invalid={invalid} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
-      if (event.key === 'Enter' && draft !== '') { event.preventDefault(); onChange([...values, draft]); setDraft(''); }
-    }} />
+    {dates
+      ? <DateField className="w-full" kind={dates} label="Значения" placeholder="значения" value={draft} invalid={invalid} onChange={setDraft} onKeyDown={add} />
+      : <Input aria-label="Значения" placeholder="значения" value={draft} aria-invalid={invalid} onChange={(event) => setDraft(event.target.value)} onKeyDown={add} />}
   </div>;
 }

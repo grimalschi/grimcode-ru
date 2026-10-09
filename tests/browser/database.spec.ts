@@ -54,7 +54,7 @@ test.beforeAll(async () => {
   // A serial key: PostgreSQL numbers the rows, and the editor must never offer to.
   await database.query(`CREATE TABLE "${fixtureSchema}".numbered (id serial PRIMARY KEY, label text NOT NULL)`);
   // Three kinds of "nothing to see" in one text column: a value, the empty string and SQL NULL.
-  await database.query(`CREATE TABLE "${fixtureSchema}".blanks (id integer PRIMARY KEY, label text NOT NULL, blank text, tags text[])`);
+  await database.query(`CREATE TABLE "${fixtureSchema}".blanks (id integer PRIMARY KEY, label text NOT NULL, blank text, tags text[], born date, seen timestamptz)`);
   await database.query(`INSERT INTO "${fixtureSchema}".blanks VALUES (1, 'filled', 'x', '{a,b}'), (2, 'empty-string', '', '{a}'), (3, 'sql-null', NULL, NULL)`);
   await database.query(`CREATE TYPE "${fixtureSchema}".compound AS (part text)`);
   await database.query(`CREATE TABLE "${fixtureSchema}".unsupported (id integer PRIMARY KEY, value "${fixtureSchema}".compound NOT NULL)`);
@@ -391,6 +391,53 @@ test.describe('the native database page', () => {
     await expect(page.getByRole('button', { name: 'Переместить условие 1', exact: true })).toBeFocused();
     await expect(join).toHaveAttribute('aria-checked', 'false');
     await expect(rows(page).first()).toContainText('Строк нет');
+    expectNoPageErrors(problems);
+  });
+
+  test('offers a calendar beside a date box and a time box for a column with a time of day', async ({ page }) => {
+    const problems = collectPageErrors(page);
+    await openDatabase(page);
+    await chooseSchema(page, fixtureSchema);
+    await chooseTable(page, fixtureSchema, 'blanks');
+    await page.getByRole('button', { name: /^Фильтры/ }).click();
+    await filters(page).getByRole('button', { name: 'Добавить условие', exact: true }).click();
+    // The calendar opens on the current month when nothing is typed, so the day is picked from it.
+    const now = new Date();
+    const first = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+
+    await page.getByRole('combobox', { name: 'Колонка условия 1', exact: true }).click();
+    await page.getByRole('option', { name: 'born', exact: true }).click();
+    const value = filters(page).getByLabel('Значение', { exact: true });
+    await expect(value).toHaveValue('');
+    await page.getByRole('button', { name: 'Календарь: Значение', exact: true }).click();
+    await expect(page.getByRole('dialog').locator('[data-day]').first()).toBeVisible();
+    await expect(page.getByLabel('Время: Значение', { exact: true })).toHaveCount(0);
+    await page.getByRole('dialog').locator(`[data-day="${first}"] button`).click();
+    await expect(value).toHaveValue(first);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+
+    await page.getByRole('combobox', { name: 'Колонка условия 1', exact: true }).click();
+    await page.getByRole('option', { name: 'seen', exact: true }).click();
+    await page.getByRole('button', { name: 'Календарь: Значение', exact: true }).click();
+    await page.getByRole('dialog').locator(`[data-day="${first}"] button`).click();
+    await expect(value).toHaveValue(`${first} 00:00`);
+    await page.getByLabel('Время: Значение', { exact: true }).fill('12:30');
+    await expect(value).toHaveValue(`${first} 12:30`);
+    await page.keyboard.press('Escape');
+    // Typing stays free: the box takes what PostgreSQL reads, not only what the calendar writes.
+    await value.fill(`${first} 12:30:45+03`);
+    await expect(rows(page).first()).toContainText('Строк нет');
+
+    // A range is two clicks: picking the start closes its calendar and opens the end's.
+    await page.getByRole('combobox', { name: 'Условие 1', exact: true }).click();
+    await page.getByRole('option', { name: 'от … до', exact: true }).click();
+    await page.getByRole('button', { name: 'Календарь: От', exact: true }).click();
+    await page.getByRole('dialog').locator(`[data-day="${first}"] button`).click();
+    await expect(filters(page).getByLabel('От', { exact: true })).toHaveValue(`${first} 00:00`);
+    await expect(page.getByRole('dialog')).toHaveCount(1);
+    await page.getByRole('dialog').locator(`[data-day="${first}"] button`).click();
+    await expect(filters(page).getByLabel('До', { exact: true })).toHaveValue(`${first} 00:00`);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     expectNoPageErrors(problems);
   });
 

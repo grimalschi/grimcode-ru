@@ -63,7 +63,7 @@ Playwright retains a trace on failure; browser helpers collect console errors an
 | Notifications, MJML publication and sending, profile flows | [flows.test.ts](src/flows.test.ts) |
 | Admin navigation, embedded screens and theme | [admin-shell.spec.ts](browser/admin-shell.spec.ts) |
 | Administrator menus, direct links, revoked access and cross-origin requests | [admin-access.spec.ts](browser/admin-access.spec.ts) |
-| Database filters (conditions by column type, SQL NULL against the empty string, "or empty", И/ИЛИ chain and reordering, case switch, unfilled conditions, typing pause), URL state and row editing | [database.spec.ts](browser/database.spec.ts) |
+| Database filters (conditions by column type, SQL NULL against the empty string, "or empty", И/ИЛИ chain and reordering, case switch, unfilled conditions, typing pause, calendar and time box), URL state and row editing | [database.spec.ts](browser/database.spec.ts) |
 | Email source editing, draft isolation, preview, publication and test sends | [email-admin.spec.ts](browser/email-admin.spec.ts) |
 | Sign-in flows, application navigation and public SSR pages | [app.spec.ts](browser/app.spec.ts) |
 

@@ -150,6 +150,12 @@ sends no request and keeps the last page: leaving one condition out of a chain w
 neighbours' joins mean. Filters in the page URL carry `join` and `caseSensitive`; an address from
 before the chain (`combine`) is read as every join.
 
+A `date` or `timestamp` column gets a calendar beside each text box
+([`date-field.tsx`](web/src/database/date-field.tsx), shadcn `Calendar` over `react-day-picker`):
+picking a day writes `YYYY-MM-DD`, and for a column with a time of day `YYYY-MM-DD HH:MM` with a time
+box under the month, midnight until changed. The text box stays free: seconds or a zone are typed
+by hand, and the value goes to PostgreSQL as typed, in the editor's UTC session.
+
 When PostgreSQL refuses a value a person typed — a data exception (class 22), a broken constraint
 (class 23) or a malformed `tsvector`/`tsquery` (`42601`, the one syntax error that is the value's
 fault) — the answer is 400. [`errors.ts`](src/admin/database/errors.ts) rewrites class-22 texts to say
