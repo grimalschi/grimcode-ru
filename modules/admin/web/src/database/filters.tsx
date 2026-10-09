@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { DateField, DateRangeFields, dateKindOf, type DateKind } from './date-field';
+import { useDragOrder } from './drag-order';
 import { CONDITION_LABELS, chained, filterShape, groupConditions, isFilterReady, type Column, type Filter } from './model';
 
 const JOIN_HINT = 'Условия через И выполняются вместе; ИЛИ разделяет такие группы.';
@@ -32,10 +33,12 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
   caseSensitive: boolean;
   onChange: (filters: Filter[], caseSensitive: boolean) => void;
 }) {
-  const [dragging, setDragging] = React.useState<number | null>(null);
-  // The row under the pointer while dragging: where the dashed slot — the condition's future place — is drawn.
-  const [over, setOver] = React.useState<number | null>(null);
-  const endDrag = () => { setDragging(null); setOver(null); };
+  const drag = useDragOrder(filters.length, (from, to) => {
+    const next = [...filters];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved!);
+    update(next);
+  }, 'database-filter');
   const [idle, setIdle] = React.useState(false);
   const columnOf = (name: string) => columns.find((column) => column.name === name);
   const conditions = (name: string) => columnOf(name)?.conditions ?? [];
@@ -62,16 +65,6 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
       return next;
     }));
   }
-  function move(from: number, to: number) {
-    if (to < 0 || to >= filters.length || from === to) return;
-    const next = [...filters];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved!);
-    update(next);
-    // Keep the keyboard on the handle that moved, so another press moves it again.
-    window.requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-handle="${to}"]`)?.focus());
-  }
-
   // Blocks: a condition joined with ИЛИ starts a new one; everything joined with И stays in the current.
   const blocks: number[][] = [];
   filters.forEach((filter, index) => {
@@ -116,27 +109,10 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
             const invalid = pointedAt(index);
             // A date column gets a calendar beside each text box; the box itself stays free text.
             const dates = dateKindOf(columnOf(filter.column)?.type ?? '');
-            /*
-             * Where the dragged condition would land: a thin line in the gap above the hovered row
-             * when it comes from below, below it when it comes from above — that is where `move`
-             * puts it. A line, not a slot: a slot the height of a row made the panel jump.
-             */
-            const slot = dragging !== null && over === index && dragging !== index
-              ? <div data-testid="database-filter-drop" aria-hidden="true" className={`absolute inset-x-0 h-0.5 rounded bg-ring ${dragging > index ? '-top-[5px]' : '-bottom-[5px]'}`} />
-              : null;
-            return <div key={index} data-testid="database-filter" className={`relative flex flex-wrap items-center gap-2 ${dragging === index ? 'opacity-40' : ''}`} aria-invalid={invalid}
-                onDragOver={(event) => { if (dragging !== null) { event.preventDefault(); if (over !== index) setOver(index); } }}
-                onDrop={(event) => { event.preventDefault(); if (dragging !== null) move(dragging, index); endDrag(); }}>
-              <button type="button" draggable data-handle={index} aria-label={`Переместить условие ${index + 1}`}
-                title="Перетащите или нажмите стрелки вверх и вниз, чтобы изменить порядок"
-                className="cursor-grab rounded text-muted-foreground hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing"
-                onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; setDragging(index); }} onDragEnd={endDrag}
-                onKeyDown={(event) => {
-                  if (event.key === 'ArrowUp') { event.preventDefault(); move(index, index - 1); }
-                  if (event.key === 'ArrowDown') { event.preventDefault(); move(index, index + 1); }
-                }}>
-                <GripVerticalIcon className="size-4" />
-              </button>
+            const row = drag.row(index);
+            return <div key={index} data-testid="database-filter" className={`relative flex flex-wrap items-center gap-2 ${row.dimmed ? 'opacity-40' : ''}`} aria-invalid={invalid}
+                onDragOver={row.onDragOver} onDrop={row.onDrop}>
+              <button {...drag.handle(index, `Переместить условие ${index + 1}`)}><GripVerticalIcon className="size-4" /></button>
               <Select value={filter.column} onValueChange={(column) => change(index, { column })}>
                 <SelectTrigger aria-label={`Колонка условия ${index + 1}`} className="w-44"><SelectValue /></SelectTrigger>
                 <SelectContent>{columns.map((column) => <SelectItem key={column.name} value={column.name}>{column.name}</SelectItem>)}</SelectContent>
@@ -179,7 +155,7 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
                     value={String(filter.value ?? '')} aria-invalid={invalid} onChange={(event) => change(index, { value: event.target.value })} />}
               {index < filters.length - 1 && joinToNext(index)}
               <Button size="icon" variant="ghost" className="size-7 text-muted-foreground" aria-label={`Убрать условие ${index + 1}`} onClick={() => update(filters.filter((_, at) => at !== index))}><XIcon className="size-4" /></Button>
-              {slot}
+              {drag.line(index)}
             </div>;
           })}
         </div>)}

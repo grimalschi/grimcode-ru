@@ -29,6 +29,29 @@ async function chooseTable(page: Page, schema: string, table: string): Promise<v
 const rows = (page: Page) => page.getByRole('table').locator('tbody tr');
 const column = (page: Page, name: string) => page.getByRole('button', { name: `Колонка ${name}`, exact: true });
 const filters = (page: Page) => page.getByRole('region', { name: 'Фильтры таблицы' });
+const sorting = (page: Page) => page.getByRole('region', { name: 'Сортировка таблицы' });
+
+/**
+ * Sorts by a column through the panel, opening it when closed; the panel stays open afterwards.
+ * A column already on a level (a table opens sorted by the column rows arrive in) gets its
+ * direction set; any other is added as the next level.
+ */
+async function addSortLevel(page: Page, column: string, direction: 'asc' | 'desc'): Promise<void> {
+  const button = page.getByRole('button', { name: /^Сортировка/ });
+  if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click();
+  let at = 0;
+  for (let level = 1; level <= await page.getByTestId('database-sort-level').count(); level++) {
+    if ((await page.getByRole('combobox', { name: `Колонка условия ${level}`, exact: true }).textContent()) === column) at = level;
+  }
+  if (at === 0) {
+    await sorting(page).getByRole('button', { name: 'Добавить условие', exact: true }).click();
+    at = await page.getByTestId('database-sort-level').count();
+    await page.getByRole('combobox', { name: `Колонка условия ${at}`, exact: true }).click();
+    await page.getByRole('option', { name: column, exact: true }).click();
+  }
+  const toggle = page.getByRole('switch', { name: new RegExp(`^Направление условия ${at}`) });
+  if (((await toggle.getAttribute('aria-checked')) === 'true') !== (direction === 'desc')) await toggle.click();
+}
 
 const fixtureSchema = `browser_database_${crypto.randomUUID().replaceAll('-', '')}`;
 let database: Pool;
@@ -54,8 +77,9 @@ test.beforeAll(async () => {
   // A serial key: PostgreSQL numbers the rows, and the editor must never offer to.
   await database.query(`CREATE TABLE "${fixtureSchema}".numbered (id serial PRIMARY KEY, label text NOT NULL)`);
   // Three kinds of "nothing to see" in one text column: a value, the empty string and SQL NULL.
-  await database.query(`CREATE TABLE "${fixtureSchema}".blanks (id integer PRIMARY KEY, label text NOT NULL, blank text, tags text[], born date, seen timestamptz)`);
-  await database.query(`INSERT INTO "${fixtureSchema}".blanks VALUES (1, 'filled', 'x', '{a,b}'), (2, 'empty-string', '', '{a}'), (3, 'sql-null', NULL, NULL)`);
+  await database.query(`CREATE TABLE "${fixtureSchema}".blanks (id integer PRIMARY KEY, label text NOT NULL, blank text, tags text[], born date, seen timestamptz, grade integer)`);
+  // `grade` ties two rows, so a second sort level has something to decide.
+  await database.query(`INSERT INTO "${fixtureSchema}".blanks (id, label, blank, tags, grade) VALUES (1, 'filled', 'x', '{a,b}', 2), (2, 'empty-string', '', '{a}', 1), (3, 'sql-null', NULL, NULL, 1)`);
   await database.query(`CREATE TYPE "${fixtureSchema}".compound AS (part text)`);
   await database.query(`CREATE TABLE "${fixtureSchema}".unsupported (id integer PRIMARY KEY, value "${fixtureSchema}".compound NOT NULL)`);
   await database.query(`INSERT INTO "${fixtureSchema}".unsupported VALUES (1, ROW('source'))`);
@@ -134,19 +158,47 @@ test.describe('the native database page', () => {
     });
   }
 
-  test('sorts through the column menu and restores the view from its URL', async ({ page }) => {
+  test('sorts by several levels from the panel and restores the view from its URL', async ({ page }) => {
+    const problems = collectPageErrors(page);
     await openDatabase(page);
-    await chooseSchema(page, 'auth');
-    await chooseTable(page, 'auth', 'identities');
-    await column(page, 'email').click();
-    await page.getByRole('menuitem', { name: 'Сортировать по возрастанию', exact: true }).click();
-    const header = page.getByRole('columnheader').filter({ has: column(page, 'email') });
-    await expect(header).toHaveAttribute('aria-sort', 'ascending');
+    await chooseSchema(page, fixtureSchema);
+    await chooseTable(page, fixtureSchema, 'blanks');
+    const labels = async () => (await rows(page).allTextContents()).map((text) => /filled|empty-string|sql-null/.exec(text)?.[0]);
+    const header = (name: string) => page.getByRole('columnheader').filter({ has: column(page, name) });
+    // No sort menu in the header any more: the panel is the one place.
+    await column(page, 'grade').click();
+    await expect(page.getByRole('menuitem', { name: /Сортировать/ })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+
+    await addSortLevel(page, 'grade', 'asc');
+    await addSortLevel(page, 'id', 'desc');
+    // grade 1 twice (ids 3 and 2, by id descending), then grade 2.
+    await expect.poll(labels).toEqual(['sql-null', 'empty-string', 'filled']);
+    await expect(header('grade')).toHaveAttribute('aria-sort', 'ascending');
+    await expect(header('id')).toHaveAttribute('aria-sort', 'descending');
+    await expect(header('grade').getByTestId('database-sort-level-mark')).toHaveText('1');
+    await expect(header('id').getByTestId('database-sort-level-mark')).toHaveText('2');
+    // A column one level uses is not offered to another.
+    await page.getByRole('combobox', { name: 'Колонка условия 2', exact: true }).click();
+    await expect(page.getByRole('option', { name: 'grade', exact: true })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+
+    await page.getByRole('switch', { name: /^Направление условия 2/ }).click();
+    await expect.poll(labels).toEqual(['empty-string', 'sql-null', 'filled']);
+    await page.keyboard.press('Escape');
+    await expect(sorting(page)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Сортировка/ })).toHaveText(/Сортировка\s*\(2\)/);
     const address = page.url();
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'auth.identities', level: 2 })).toBeVisible();
-    await expect(header).toHaveAttribute('aria-sort', 'ascending');
+    await expect(page.getByRole('heading', { name: `${fixtureSchema}.blanks`, level: 2 })).toBeVisible();
+    await expect.poll(labels).toEqual(['empty-string', 'sql-null', 'filled']);
     expect(page.url()).toBe(address);
+
+    await page.getByRole('button', { name: /^Сортировка/ }).click();
+    await sorting(page).getByRole('button', { name: 'Очистить', exact: true }).click();
+    await expect.poll(labels).toEqual(['filled', 'empty-string', 'sql-null']);
+    await expect(page.getByRole('button', { name: /^Сортировка/ })).toHaveText('Сортировка');
+    expectNoPageErrors(problems);
   });
 
   test('shows a cell value on hover without opening a dialog', async ({ page }) => {
@@ -584,8 +636,8 @@ test.describe('the native database page', () => {
     await create.getByLabel('action', { exact: true }).fill(action);
     await create.getByRole('button', { name: 'Добавить', exact: true }).click();
     await expect(create).toBeHidden();
-    await column(page, 'created_at').click();
-    await page.getByRole('menuitem', { name: 'Сортировать по убыванию', exact: true }).click();
+    await addSortLevel(page, 'created_at', 'desc');
+    await page.keyboard.press('Escape');
     const inserted = rows(page).filter({ hasText: action });
     await expect(inserted).toBeVisible();
     await expect(inserted).toContainText('{}');

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ArrowDownIcon, ArrowUpIcon, CopyIcon, FilterIcon, Loader2Icon, PencilIcon, Trash2Icon } from 'lucide-react';
+import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, CopyIcon, FilterIcon, Loader2Icon, PencilIcon, Trash2Icon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api } from '@/api';
@@ -18,12 +18,14 @@ import { Filters } from '@/database/filters';
 import { cellText, emptyView, isFilterReady, messageOf, PAGE_SIZES, readView, shortType, type Column, type Row, type TableInfo } from '@/database/model';
 import { RowEditor } from '@/database/row-editor';
 import { SchemaTables, type SchemaCatalogue } from '@/database/schema-tables';
+import { Sorting } from '@/database/sorting';
 import { useAsync } from '@/hooks/use-async';
 import { useDebounced } from '@/hooks/use-debounced';
 
 export function DatabasePage() {
   const [view, setView] = React.useState(readView);
-  const [filtersOpen, setFiltersOpen] = React.useState(false);
+  // Which floating panel is open: one at a time, each under its own button.
+  const [panel, setPanel] = React.useState<'filters' | 'sort' | null>(null);
   const [editor, setEditor] = React.useState<{ table: TableInfo; columns: Column[]; row: Row | null } | null>(null);
   const [deleting, setDeleting] = React.useState<{ table: TableInfo; row: Row } | null>(null);
   const [busy, setBusy] = React.useState(false);
@@ -102,7 +104,7 @@ export function DatabasePage() {
   React.useEffect(() => {
     if (view.schema) setOpen((previous) => (previous.includes(view.schema) ? previous : [...previous, view.schema]));
   }, [view.schema]);
-  React.useEffect(() => { setFiltersOpen(false); setEditor(null); setDeleting(null); }, [view.schema, view.table]);
+  React.useEffect(() => { setPanel(null); setEditor(null); setDeleting(null); }, [view.schema, view.table]);
   React.useEffect(() => {
     const hash = `#${encodeURIComponent(JSON.stringify(view))}`;
     if (view.schema && window.location.hash !== hash) window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}${hash}`);
@@ -116,10 +118,6 @@ export function DatabasePage() {
   function openTable(table: TableInfo) {
     setView({ ...emptyView(), schema: table.schema, table: table.name, size: view.size,
       order: table.naturalOrder ? [{ column: table.naturalOrder, direction: 'asc' }] : [] });
-  }
-  function sort(column: string) {
-    const current = view.order.find((order) => order.column === column)?.direction;
-    setView({ ...view, page: 1, order: current === 'desc' ? [] : [{ column, direction: current === 'asc' ? 'desc' : 'asc' }] });
   }
   function counted(table: TableInfo, delta: number) {
     const key = `${table.schema}.${table.name}`;
@@ -178,13 +176,21 @@ export function DatabasePage() {
               9 October 2026): the table and its scroll stay put, and the button's count says what
               is set while the panel is closed. A click on the table closes the panel first.
             */}
-            <Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <Popover open={panel === 'filters'} onOpenChange={(open) => setPanel(open ? 'filters' : null)}>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" aria-expanded={filtersOpen}><FilterIcon />Фильтры{view.filters.length ? ` (${view.filters.length})` : ''}</Button>
+                <Button variant="outline" size="sm" aria-expanded={panel === 'filters'}><FilterIcon />Фильтры{view.filters.length ? ` (${view.filters.length})` : ''}</Button>
               </PopoverTrigger>
               {/* No focus jump on open: it landed on the first control, the case checkbox, and its tooltip popped up uninvited. */}
               <PopoverContent align="start" className="w-[min(64rem,calc(100vw-2rem))] p-0" onOpenAutoFocus={(event) => event.preventDefault()}>
                 <Filters columns={columns} filters={view.filters} caseSensitive={view.caseSensitive} onChange={(filters, caseSensitive) => setView({ ...view, filters, caseSensitive, page: 1 })} />
+              </PopoverContent>
+            </Popover>
+            <Popover open={panel === 'sort'} onOpenChange={(open) => setPanel(open ? 'sort' : null)}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" aria-expanded={panel === 'sort'}><ArrowUpDownIcon />Сортировка{view.order.length ? ` (${view.order.length})` : ''}</Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-[min(40rem,calc(100vw-2rem))] p-0" onOpenAutoFocus={(event) => event.preventDefault()}>
+                <Sorting columns={columns} order={view.order} onChange={(order) => setView({ ...view, order, page: 1 })} />
               </PopoverContent>
             </Popover>
             {view.columns.length > 0 && <Button variant="ghost" size="sm" onClick={() => setView({ ...view, columns: [] })}>Показать все колонки</Button>}
@@ -206,15 +212,17 @@ export function DatabasePage() {
               <Table data-testid="database-table" aria-busy={loading} className={loading && page ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
                 <TableHeader><TableRow>
                   {shown.map((column) => {
-                    const direction = view.order.find((order) => order.column === column.name)?.direction;
+                    // The header shows the sort — arrow, and the level number when there is more than one — but does not set it; the panel does.
+                    const level = view.order.findIndex((order) => order.column === column.name);
+                    const direction = level >= 0 ? view.order[level]!.direction : undefined;
                     return <TableHead key={column.name} aria-sort={direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'} className="min-w-40">
                       <DropdownMenu><DropdownMenuTrigger asChild><button type="button" aria-label={`Колонка ${column.name}`} className="inline-flex items-center gap-1.5 whitespace-nowrap py-2 font-medium">
                         {column.name}{direction === 'asc' ? <ArrowUpIcon className="size-3" /> : direction === 'desc' ? <ArrowDownIcon className="size-3" /> : null}
+                        {direction && view.order.length > 1 && <span className="-ml-1 text-[10px] font-normal text-muted-foreground" data-testid="database-sort-level-mark">{level + 1}</span>}
                         <span className="text-xs font-normal text-muted-foreground" title={column.type}>{shortType(column.type)}</span>
                       </button></DropdownMenuTrigger><DropdownMenuContent align="start">
-                        <DropdownMenuItem onSelect={() => sort(column.name)}>{direction === 'asc' ? 'Сортировать по убыванию' : direction === 'desc' ? 'Убрать сортировку' : 'Сортировать по возрастанию'}</DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => {
-                          setView({ ...view, page: 1, filters: [...view.filters, { column: column.name, condition: column.conditions[0] ?? 'is', value: '' }] }); setFiltersOpen(true);
+                          setView({ ...view, page: 1, filters: [...view.filters, { column: column.name, condition: column.conditions[0] ?? 'is', value: '' }] }); setPanel('filters');
                         }}>Фильтровать</DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem disabled={shown.length < 2} onSelect={() => setView({ ...view, columns: shown.filter((entry) => entry.name !== column.name).map((entry) => entry.name) })}>Скрыть колонку</DropdownMenuItem>
