@@ -141,7 +141,7 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
                   </SelectGroup>);
                 })()}</SelectContent>
               </Select>
-              {shape === 'none' ? <span className="w-48 text-muted-foreground">—</span> : shape === 'range' || shape === 'pair' ? <div className="flex w-56 items-center gap-2">
+              {shape === 'none' ? <span className="w-56" aria-hidden="true" /> : shape === 'range' || shape === 'pair' ? <div className="flex w-56 items-center gap-2">
                 {([0, 1] as const).map((half) => {
                   const label = shape === 'range' ? (half === 0 ? 'От' : 'До') : (half === 0 ? 'Ключ' : 'Значение');
                   const text = String((Array.isArray(filter.value) ? filter.value[half] : '') ?? '');
