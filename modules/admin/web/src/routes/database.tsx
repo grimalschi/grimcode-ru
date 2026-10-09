@@ -239,13 +239,14 @@ export function DatabasePage() {
                       </DropdownMenuContent></DropdownMenu>
                     </TableHead>;
                   })}
-                  {page ? <TableHead className="w-20"><span className="sr-only">Действия</span></TableHead> : null}
+                  {/* The actions stay at the right edge while the table scrolls sideways: no long trip to the pencil on a wide table (the owner, 9 October 2026). */}
+                  {page ? <TableHead className={STICKY_ACTIONS}><span className="sr-only">Действия</span></TableHead> : null}
                 </TableRow></TableHeader>
                 <TableBody>
                   {loading && !page ? Array.from({ length: 5 }, (_, row) => <TableRow key={row}>{shown.map((column) => <TableCell key={column.name}><Skeleton className="h-4 w-28" /></TableCell>)}</TableRow>)
-                    : page?.rows.map((row, index) => <TableRow key={page.primaryKey.length ? JSON.stringify(page.primaryKey.map((column) => row[column])) : index}>
+                    : page?.rows.map((row, index) => <TableRow className="group" key={page.primaryKey.length ? JSON.stringify(page.primaryKey.map((column) => row[column])) : index}>
                       {shown.map((column) => <TableCell key={column.name}><ValueCell column={column.name} value={row[column.name]} /></TableCell>)}
-                      {currentTable ? <TableCell><div className="flex gap-1">
+                      {currentTable ? <TableCell className={`${STICKY_ACTIONS} group-hover:after:opacity-100 group-has-aria-expanded:after:opacity-100`}><div className="relative flex gap-1">
                         <Button variant="ghost" size="icon" className="size-7" aria-label="Открыть строку" title="Открыть строку" onClick={() => setEditor({ table: currentTable, columns, row })}><PencilIcon className="size-4" /></Button>
                         <Button variant="ghost" size="icon" className="size-7 text-destructive" aria-label="Удалить строку" title={deleteReadOnlyReason ?? 'Удалить строку'} disabled={!!deleteReadOnlyReason} onClick={() => setDeleting({ table: currentTable, row })}><Trash2Icon className="size-4" /></Button>
                       </div></TableCell> : null}
@@ -276,6 +277,13 @@ export function DatabasePage() {
     </Dialog>
   </AdminPage>;
 }
+
+/*
+ * A cell pinned to the right edge. Its own background hides the cells scrolling under it; the
+ * overlay (`after`) tints it the row's hover colour, because an opaque cell would otherwise sit
+ * untinted in a highlighted row. A soft shadow on the left marks where the pinned part begins.
+ */
+const STICKY_ACTIONS = 'sticky right-0 z-10 w-20 bg-background shadow-[-8px_0_10px_-8px_rgb(0_0_0/0.25)] after:pointer-events-none after:absolute after:inset-0 after:bg-muted/50 after:opacity-0 after:transition-opacity';
 
 function ValueCell({ column, value }: { column: string; value: string | null | undefined }) {
   const text = cellText(value);

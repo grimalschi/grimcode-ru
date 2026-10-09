@@ -537,11 +537,24 @@ test.describe('the native database page', () => {
     await filters(page).getByRole('button', { name: 'Добавить условие', exact: true }).click();
     await page.getByRole('combobox', { name: 'Колонка условия 1', exact: true }).click();
     await page.getByRole('option', { name: 'label', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Условие 1', exact: true }).click();
+    await page.getByRole('option', { name: 'содержит', exact: true }).click();
     const answered = page.waitForResponse((response) => response.url().includes('/admin/rpc/database.rows'));
     await filters(page).getByLabel('Значение', { exact: true }).fill('cancel');
     await answered;
     await expect(rows(page)).toHaveCount(1);
+    await expect(rows(page).first()).toContainText('cancel-delete');
     expect(await scroller.evaluate((element) => element.scrollLeft)).toBe(400);
+    // The row's actions are pinned to the right edge: still in view after scrolling sideways.
+    const pencil = rows(page).first().getByRole('button', { name: 'Открыть строку', exact: true });
+    const frame = await scroller.boundingBox();
+    const pin = await pencil.boundingBox();
+    expect(pin!.x + pin!.width).toBeLessThanOrEqual(frame!.x + frame!.width);
+    expect(pin!.x).toBeGreaterThan(frame!.x);
+    await scroller.evaluate((element) => { element.scrollLeft = 0; });
+    const pinAtStart = await pencil.boundingBox();
+    expect(Math.round(pinAtStart!.x)).toBe(Math.round(pin!.x));
+    await scroller.evaluate((element) => { element.scrollLeft = 400; });
 
     await chooseTable(page, fixtureSchema, 'blanks');
     await expect(rows(page).first()).toBeVisible();
