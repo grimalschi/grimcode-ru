@@ -150,9 +150,12 @@ sends no request and keeps the last page: leaving one condition out of a chain w
 neighbours' joins mean. Filters in the page URL carry `join` and `caseSensitive`; an address from
 before the chain (`combine`) is read as every join.
 
-The filter and sorting panels float over the table in a `Popover` under their buttons rather than
-pushing the table down; they close on a click outside or Escape, and what they set lives on in the
-page URL, with a count on each button. The calendar inside the filter panel is a nested popover.
+The filter, sorting and visibility panels float over the table in a `Popover` under their buttons
+rather than pushing the table down; they close on a click outside or Escape, and what they set
+lives on in the page URL, with a count on each button. The calendar inside the filter panel is a
+nested popover. The visibility panel ([`visibility.tsx`](web/src/database/visibility.tsx)) is a box
+per column, the last visible one not to be unticked; "Скрыть колонку" in a column header hides it
+and opens the panel, as "Фильтровать" opens the filter panel with the new condition.
 
 Sorting is set only in its panel ([`sorting.tsx`](web/src/database/sorting.tsx)): levels in the order
 they apply, the first deciding and each next breaking ties, a column used by one level not offered to

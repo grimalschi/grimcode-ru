@@ -102,6 +102,8 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
           </TooltipTrigger>
           <TooltipContent className="max-w-72">{CASE_HINT}</TooltipContent>
         </Tooltip>}
+        {/* Five conditions in view; the rest scroll inside the panel, the buttons below stay put. */}
+        {filters.length > 0 && <div className="max-h-56 space-y-2 overflow-y-auto py-1.5 pr-1">
         {blocks.map((block) => <div key={block[0]} data-testid="database-filter-block" className="space-y-2">
           {block.map((index) => {
             const filter = filters[index]!;
@@ -159,6 +161,7 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
             </div>;
           })}
         </div>)}
+        </div>}
         <div className={`flex flex-wrap items-center justify-between gap-3 ${filters.length ? 'pt-4' : ''}`}>
           <Button size="sm" variant="outline" disabled={!columns.length} onClick={() => {
             const column = columns[0]!;

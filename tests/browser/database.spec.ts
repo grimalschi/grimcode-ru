@@ -689,10 +689,35 @@ test.describe('the native database page', () => {
     await expect(page.getByRole('button', { name: /Добавить колонку/ })).toHaveCount(0);
     await column(page, 'email').click();
     await expect(page.getByRole('menuitem', { name: /Переименовать колонку|Удалить колонку/ })).toHaveCount(0);
+    // Hiding from the header opens the visibility panel with that column already unticked.
     await page.getByRole('menuitem', { name: 'Скрыть колонку', exact: true }).click();
     await expect(column(page, 'email')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Показать все колонки', exact: true }).click();
+    const visibility = page.getByRole('region', { name: 'Видимость колонок' });
+    await expect(visibility).toBeVisible();
+    await expect(visibility.getByRole('checkbox', { name: 'Показывать email', exact: true })).toHaveAttribute('aria-checked', 'false');
+    await expect(page.getByRole('button', { name: /^Видимость/ })).toHaveText(/\(1 скрыто\)/);
+    await visibility.getByRole('checkbox', { name: 'Показывать id', exact: true }).click();
+    await expect(column(page, 'id')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Видимость/ })).toHaveText(/\(2 скрыто\)/);
+    const address = page.url();
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'auth.identities', level: 2 })).toBeVisible();
+    await expect(column(page, 'email')).toHaveCount(0);
+    expect(page.url()).toBe(address);
+
+    await page.getByRole('button', { name: /^Видимость/ }).click();
+    await visibility.getByRole('checkbox', { name: 'Показывать id', exact: true }).click();
+    await expect(column(page, 'id')).toBeVisible();
+    await visibility.getByRole('button', { name: 'Показать все', exact: true }).click();
     await expect(column(page, 'email')).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Видимость/ })).toHaveText('Видимость');
+    await expect(visibility.getByRole('button', { name: 'Показать все', exact: true })).toHaveCount(0);
+    // The last visible column stays: its box is disabled.
+    const boxes = visibility.getByRole('checkbox');
+    for (let at = (await boxes.count()) - 1; at > 0; at--) await boxes.nth(at).click();
+    await expect(boxes.first()).toHaveAttribute('aria-checked', 'true');
+    await expect(boxes.first()).toBeDisabled();
+    await visibility.getByRole('button', { name: 'Показать все', exact: true }).click();
   });
 
   test('hides migration tables in every module schema', async ({ page }) => {

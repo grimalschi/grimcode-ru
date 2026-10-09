@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, CopyIcon, FilterIcon, Loader2Icon, PencilIcon, Trash2Icon } from 'lucide-react';
+import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, CopyIcon, EyeIcon, FilterIcon, Loader2Icon, PencilIcon, Trash2Icon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api } from '@/api';
@@ -19,13 +19,14 @@ import { cellText, emptyView, isFilterReady, messageOf, PAGE_SIZES, readView, sh
 import { RowEditor } from '@/database/row-editor';
 import { SchemaTables, type SchemaCatalogue } from '@/database/schema-tables';
 import { Sorting } from '@/database/sorting';
+import { Visibility } from '@/database/visibility';
 import { useAsync } from '@/hooks/use-async';
 import { useDebounced } from '@/hooks/use-debounced';
 
 export function DatabasePage() {
   const [view, setView] = React.useState(readView);
   // Which floating panel is open: one at a time, each under its own button.
-  const [panel, setPanel] = React.useState<'filters' | 'sort' | null>(null);
+  const [panel, setPanel] = React.useState<'filters' | 'sort' | 'visibility' | null>(null);
   const [editor, setEditor] = React.useState<{ table: TableInfo; columns: Column[]; row: Row | null } | null>(null);
   const [deleting, setDeleting] = React.useState<{ table: TableInfo; row: Row } | null>(null);
   const [busy, setBusy] = React.useState(false);
@@ -193,7 +194,14 @@ export function DatabasePage() {
                 <Sorting columns={columns} order={view.order} onChange={(order) => setView({ ...view, order, page: 1 })} />
               </PopoverContent>
             </Popover>
-            {view.columns.length > 0 && <Button variant="ghost" size="sm" onClick={() => setView({ ...view, columns: [] })}>Показать все колонки</Button>}
+            <Popover open={panel === 'visibility'} onOpenChange={(open) => setPanel(open ? 'visibility' : null)}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" aria-expanded={panel === 'visibility'}><EyeIcon />Видимость{view.columns.length ? ` (${columns.length - shown.length} скрыто)` : ''}</Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-[min(32rem,calc(100vw-2rem))] p-0" onOpenAutoFocus={(event) => event.preventDefault()}>
+                <Visibility columns={columns} shown={view.columns} onChange={(visible) => setView({ ...view, columns: visible })} />
+              </PopoverContent>
+            </Popover>
             <Button className="ml-auto" size="sm" disabled={!page || loading || !currentTable || !!readOnlyReason || blockedInsert} onClick={() => currentTable && setEditor({ table: currentTable, columns, row: null })}>Добавить строку</Button>
           </div>
           {notice && <p role="note" data-testid="database-notice" className="rounded-md border px-3 py-2 text-sm">{notice}</p>}
@@ -225,7 +233,9 @@ export function DatabasePage() {
                           setView({ ...view, page: 1, filters: [...view.filters, { column: column.name, condition: column.conditions[0] ?? 'is', value: '' }] }); setPanel('filters');
                         }}>Фильтровать</DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem disabled={shown.length < 2} onSelect={() => setView({ ...view, columns: shown.filter((entry) => entry.name !== column.name).map((entry) => entry.name) })}>Скрыть колонку</DropdownMenuItem>
+                        <DropdownMenuItem disabled={shown.length < 2} onSelect={() => {
+                          setView({ ...view, columns: shown.filter((entry) => entry.name !== column.name).map((entry) => entry.name) }); setPanel('visibility');
+                        }}>Скрыть колонку</DropdownMenuItem>
                       </DropdownMenuContent></DropdownMenu>
                     </TableHead>;
                   })}

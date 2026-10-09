@@ -49,6 +49,8 @@ export function Sorting({ columns, order, onChange }: {
     <TooltipProvider delayDuration={250}>
     <section aria-label="Сортировка таблицы" className="space-y-2 p-4">
       {order.length === 0 && <p className="text-sm text-muted-foreground">Строки идут в порядке появления. Добавьте условие, чтобы отсортировать.</p>}
+      {/* Five conditions in view; the rest scroll inside the panel, the buttons below stay put. */}
+      {order.length > 0 && <div className="max-h-56 space-y-2 overflow-y-auto py-1.5 pr-1">
       {order.map((level, index) => {
         const row = drag.row(index);
         const desc = level.direction === 'desc';
@@ -70,6 +72,7 @@ export function Sorting({ columns, order, onChange }: {
           {drag.line(index)}
         </div>;
       })}
+      </div>}
       <div className={`flex flex-wrap items-center justify-between gap-3 ${order.length ? 'pt-4' : ''}`}>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" disabled={!free.length} onClick={() => onChange([...order, { column: free[0]!.name, direction: 'asc' }])}>Добавить условие</Button>
