@@ -33,6 +33,9 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
   onChange: (filters: Filter[], caseSensitive: boolean) => void;
 }) {
   const [dragging, setDragging] = React.useState<number | null>(null);
+  // The row under the pointer while dragging: where the dashed slot — the condition's future place — is drawn.
+  const [over, setOver] = React.useState<number | null>(null);
+  const endDrag = () => { setDragging(null); setOver(null); };
   const [idle, setIdle] = React.useState(false);
   const columnOf = (name: string) => columns.find((column) => column.name === name);
   const conditions = (name: string) => columnOf(name)?.conditions ?? [];
@@ -96,7 +99,7 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
 
   return (
     <TooltipProvider delayDuration={250}>
-      <section aria-label="Фильтры таблицы" className="space-y-2 rounded-lg border bg-muted/20 p-4">
+      <section aria-label="Фильтры таблицы" className="space-y-2 p-4">
         {filters.length > 0 && <Tooltip>
           <TooltipTrigger asChild>
             <label className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
@@ -113,13 +116,21 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
             const invalid = pointedAt(index);
             // A date column gets a calendar beside each text box; the box itself stays free text.
             const dates = dateKindOf(columnOf(filter.column)?.type ?? '');
-            return <div key={index} data-testid="database-filter" className="flex flex-wrap items-center gap-2" aria-invalid={invalid}
-              onDragOver={(event) => { if (dragging !== null) event.preventDefault(); }}
-              onDrop={(event) => { event.preventDefault(); if (dragging !== null) move(dragging, index); setDragging(null); }}>
+            /*
+             * Where the dragged condition would land: a thin line in the gap above the hovered row
+             * when it comes from below, below it when it comes from above — that is where `move`
+             * puts it. A line, not a slot: a slot the height of a row made the panel jump.
+             */
+            const slot = dragging !== null && over === index && dragging !== index
+              ? <div data-testid="database-filter-drop" aria-hidden="true" className={`absolute inset-x-0 h-0.5 rounded bg-ring ${dragging > index ? '-top-[5px]' : '-bottom-[5px]'}`} />
+              : null;
+            return <div key={index} data-testid="database-filter" className={`relative flex flex-wrap items-center gap-2 ${dragging === index ? 'opacity-40' : ''}`} aria-invalid={invalid}
+                onDragOver={(event) => { if (dragging !== null) { event.preventDefault(); if (over !== index) setOver(index); } }}
+                onDrop={(event) => { event.preventDefault(); if (dragging !== null) move(dragging, index); endDrag(); }}>
               <button type="button" draggable data-handle={index} aria-label={`Переместить условие ${index + 1}`}
                 title="Перетащите или нажмите стрелки вверх и вниз, чтобы изменить порядок"
                 className="cursor-grab rounded text-muted-foreground hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing"
-                onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; setDragging(index); }} onDragEnd={() => setDragging(null)}
+                onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; setDragging(index); }} onDragEnd={endDrag}
                 onKeyDown={(event) => {
                   if (event.key === 'ArrowUp') { event.preventDefault(); move(index, index - 1); }
                   if (event.key === 'ArrowDown') { event.preventDefault(); move(index, index + 1); }
@@ -168,6 +179,7 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
                     value={String(filter.value ?? '')} aria-invalid={invalid} onChange={(event) => change(index, { value: event.target.value })} />}
               {index < filters.length - 1 && joinToNext(index)}
               <Button size="icon" variant="ghost" className="size-7 text-muted-foreground" aria-label={`Убрать условие ${index + 1}`} onClick={() => update(filters.filter((_, at) => at !== index))}><XIcon className="size-4" /></Button>
+              {slot}
             </div>;
           })}
         </div>)}

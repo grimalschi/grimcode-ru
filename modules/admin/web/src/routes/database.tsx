@@ -7,6 +7,7 @@ import { AdminPage, EmptyState, ErrorState } from '@/components/layout/admin-pag
 import { Pagination } from '@/components/layout/data-table';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -172,11 +173,23 @@ export function DatabasePage() {
         {!view.table ? <EmptyState title="Выберите таблицу" /> : <>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="mr-2 font-medium" data-testid="database-table-title">{view.schema}.{view.table}</h2>
-            <Button variant="outline" size="sm" onClick={() => setFiltersOpen(!filtersOpen)} aria-expanded={filtersOpen}><FilterIcon />Фильтры{view.filters.length ? ` (${view.filters.length})` : ''}</Button>
+            {/*
+              The panel floats over the table instead of pushing it down (the owner's request,
+              9 October 2026): the table and its scroll stay put, and the button's count says what
+              is set while the panel is closed. A click on the table closes the panel first.
+            */}
+            <Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" aria-expanded={filtersOpen}><FilterIcon />Фильтры{view.filters.length ? ` (${view.filters.length})` : ''}</Button>
+              </PopoverTrigger>
+              {/* No focus jump on open: it landed on the first control, the case checkbox, and its tooltip popped up uninvited. */}
+              <PopoverContent align="start" className="w-[min(64rem,calc(100vw-2rem))] p-0" onOpenAutoFocus={(event) => event.preventDefault()}>
+                <Filters columns={columns} filters={view.filters} caseSensitive={view.caseSensitive} onChange={(filters, caseSensitive) => setView({ ...view, filters, caseSensitive, page: 1 })} />
+              </PopoverContent>
+            </Popover>
             {view.columns.length > 0 && <Button variant="ghost" size="sm" onClick={() => setView({ ...view, columns: [] })}>Показать все колонки</Button>}
             <Button className="ml-auto" size="sm" disabled={!page || loading || !currentTable || !!readOnlyReason || blockedInsert} onClick={() => currentTable && setEditor({ table: currentTable, columns, row: null })}>Добавить строку</Button>
           </div>
-          {filtersOpen && <Filters columns={columns} filters={view.filters} caseSensitive={view.caseSensitive} onChange={(filters, caseSensitive) => setView({ ...view, filters, caseSensitive, page: 1 })} />}
           {notice && <p role="note" data-testid="database-notice" className="rounded-md border px-3 py-2 text-sm">{notice}</p>}
           {readOnlyReason && <p role="status" className="text-sm text-muted-foreground">Только чтение: {readOnlyReason}</p>}
           {!readOnlyReason && blockedInsert && <p className="text-xs text-muted-foreground">Добавление недоступно: обязательная колонка имеет неподдержанный тип.</p>}

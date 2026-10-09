@@ -150,6 +150,10 @@ sends no request and keeps the last page: leaving one condition out of a chain w
 neighbours' joins mean. Filters in the page URL carry `join` and `caseSensitive`; an address from
 before the chain (`combine`) is read as every join.
 
+The filter panel floats over the table in a `Popover` under its button rather than pushing the
+table down; it closes on a click outside or Escape, and the conditions live on in the page URL, with
+their count on the button. The calendar inside it is a nested popover.
+
 A `date` or `timestamp` column gets a calendar beside each text box
 ([`date-field.tsx`](web/src/database/date-field.tsx), shadcn `Calendar` over `react-day-picker`):
 picking a day writes `YYYY-MM-DD`, and for a column with a time of day `YYYY-MM-DD HH:MM` with a time

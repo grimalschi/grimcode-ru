@@ -254,6 +254,33 @@ test.describe('the native database page', () => {
     expectNoPageErrors(problems);
   });
 
+  test('floats the filter panel over the table and closes it on a click outside, keeping the conditions', async ({ page }) => {
+    const problems = collectPageErrors(page);
+    await openDatabase(page);
+    await chooseSchema(page, 'auth');
+    await chooseTable(page, 'auth', 'identities');
+    const title = page.getByTestId('database-table-title');
+    const before = await title.boundingBox();
+    await page.getByRole('button', { name: /^Фильтры/ }).click();
+    await expect(filters(page)).toBeVisible();
+    // The table did not move: the panel floats instead of pushing the page down.
+    expect(await title.boundingBox()).toEqual(before);
+    await filters(page).getByRole('button', { name: 'Добавить условие', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Колонка условия 1', exact: true }).click();
+    await page.getByRole('option', { name: 'email', exact: true }).click();
+    await filters(page).getByLabel('Значение', { exact: true }).fill('nobody');
+    await expect(rows(page).first()).toContainText('Строк нет');
+    await page.keyboard.press('Escape');
+    await expect(filters(page)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Фильтры/ })).toHaveText(/Фильтры\s*\(1\)/);
+    await expect(rows(page).first()).toContainText('Строк нет');
+    await page.getByRole('button', { name: /^Фильтры/ }).click();
+    await expect(filters(page).getByLabel('Значение', { exact: true })).toHaveValue('nobody');
+    await title.click();
+    await expect(filters(page)).toHaveCount(0);
+    expectNoPageErrors(problems);
+  });
+
   test('clears filters while leaving the editor open', async ({ page }) => {
     await openDatabase(page);
     await chooseSchema(page, 'auth');
@@ -404,22 +431,24 @@ test.describe('the native database page', () => {
     // The calendar opens on the current month when nothing is typed, so the day is picked from it.
     const now = new Date();
     const first = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    // The filter panel floats as a dialog too; the calendar is the dialog that holds days.
+    const calendar = page.getByRole('dialog').filter({ has: page.locator('[data-day]') });
 
     await page.getByRole('combobox', { name: 'Колонка условия 1', exact: true }).click();
     await page.getByRole('option', { name: 'born', exact: true }).click();
     const value = filters(page).getByLabel('Значение', { exact: true });
     await expect(value).toHaveValue('');
     await page.getByRole('button', { name: 'Календарь: Значение', exact: true }).click();
-    await expect(page.getByRole('dialog').locator('[data-day]').first()).toBeVisible();
+    await expect(calendar.locator('[data-day]').first()).toBeVisible();
     await expect(page.getByLabel('Время: Значение', { exact: true })).toHaveCount(0);
-    await page.getByRole('dialog').locator(`[data-day="${first}"] button`).click();
+    await calendar.locator(`[data-day="${first}"] button`).click();
     await expect(value).toHaveValue(first);
-    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(calendar).toHaveCount(0);
 
     await page.getByRole('combobox', { name: 'Колонка условия 1', exact: true }).click();
     await page.getByRole('option', { name: 'seen', exact: true }).click();
     await page.getByRole('button', { name: 'Календарь: Значение', exact: true }).click();
-    await page.getByRole('dialog').locator(`[data-day="${first}"] button`).click();
+    await calendar.locator(`[data-day="${first}"] button`).click();
     await expect(value).toHaveValue(`${first} 00:00`);
     await page.getByLabel('Время: Значение', { exact: true }).fill('12:30');
     await expect(value).toHaveValue(`${first} 12:30`);
@@ -432,12 +461,12 @@ test.describe('the native database page', () => {
     await page.getByRole('combobox', { name: 'Условие 1', exact: true }).click();
     await page.getByRole('option', { name: 'от … до', exact: true }).click();
     await page.getByRole('button', { name: 'Календарь: От', exact: true }).click();
-    await page.getByRole('dialog').locator(`[data-day="${first}"] button`).click();
+    await calendar.locator(`[data-day="${first}"] button`).click();
     await expect(filters(page).getByLabel('От', { exact: true })).toHaveValue(`${first} 00:00`);
-    await expect(page.getByRole('dialog')).toHaveCount(1);
-    await page.getByRole('dialog').locator(`[data-day="${first}"] button`).click();
+    await expect(calendar).toHaveCount(1);
+    await calendar.locator(`[data-day="${first}"] button`).click();
     await expect(filters(page).getByLabel('До', { exact: true })).toHaveValue(`${first} 00:00`);
-    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(calendar).toHaveCount(0);
     expectNoPageErrors(problems);
   });
 
@@ -465,6 +494,41 @@ test.describe('the native database page', () => {
     await chooseTable(page, fixtureSchema, 'blanks');
     await expect(rows(page).first()).toBeVisible();
     expect(await scroller.evaluate((element) => element.scrollLeft)).toBe(0);
+    expectNoPageErrors(problems);
+  });
+
+  test('shows where a dragged condition will land and drops it there', async ({ page }) => {
+    const problems = collectPageErrors(page);
+    await openDatabase(page);
+    await chooseSchema(page, fixtureSchema);
+    await chooseTable(page, fixtureSchema, 'blanks');
+    await page.getByRole('button', { name: /^Фильтры/ }).click();
+    for (const condition of ['пустая строка', 'пусто']) {
+      await filters(page).getByRole('button', { name: 'Добавить условие', exact: true }).click();
+      const at = (await page.getByTestId('database-filter').count());
+      await page.getByRole('combobox', { name: `Колонка условия ${at}`, exact: true }).click();
+      await page.getByRole('option', { name: 'blank', exact: true }).click();
+      await page.getByRole('combobox', { name: `Условие ${at}`, exact: true }).click();
+      await page.getByRole('option', { name: condition, exact: true }).click();
+    }
+    const handle = page.getByRole('button', { name: 'Переместить условие 2', exact: true });
+    const target = page.getByTestId('database-filter').first();
+    const slot = page.getByTestId('database-filter-drop');
+    // The HTML5 drag sequence by hand: start on the handle, hover the first row, drop there.
+    const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+    await handle.dispatchEvent('dragstart', { dataTransfer });
+    await expect(slot).toHaveCount(0);
+    await target.dispatchEvent('dragover', { dataTransfer });
+    await expect(slot).toHaveCount(1);
+    // Coming from below, the slot is drawn above the hovered row.
+    const slotBox = await slot.boundingBox();
+    const targetBox = await target.boundingBox();
+    expect(slotBox!.y).toBeLessThan(targetBox!.y);
+    await target.dispatchEvent('drop', { dataTransfer });
+    await handle.dispatchEvent('dragend', { dataTransfer });
+    await expect(slot).toHaveCount(0);
+    await expect(page.getByRole('combobox', { name: 'Условие 1', exact: true })).toHaveText('пусто');
+    await expect(page.getByRole('combobox', { name: 'Условие 2', exact: true })).toHaveText('пустая строка');
     expectNoPageErrors(problems);
   });
 
