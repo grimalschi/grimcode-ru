@@ -441,6 +441,33 @@ test.describe('the native database page', () => {
     expectNoPageErrors(problems);
   });
 
+  test('keeps the table scrolled where it was while filters change, and starts over on another table', async ({ page }) => {
+    const problems = collectPageErrors(page);
+    await openDatabase(page);
+    await chooseSchema(page, fixtureSchema);
+    await chooseTable(page, fixtureSchema, 'values');
+    await expect(rows(page).first()).toBeVisible();
+    // Eleven columns at 10rem each do not fit the viewport; the table scrolls sideways.
+    const scroller = page.getByTestId('database-table').locator('xpath=..');
+    await scroller.evaluate((element) => { element.scrollLeft = 400; });
+    expect(await scroller.evaluate((element) => element.scrollLeft)).toBe(400);
+
+    await page.getByRole('button', { name: /^Фильтры/ }).click();
+    await filters(page).getByRole('button', { name: 'Добавить условие', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Колонка условия 1', exact: true }).click();
+    await page.getByRole('option', { name: 'label', exact: true }).click();
+    const answered = page.waitForResponse((response) => response.url().includes('/admin/rpc/database.rows'));
+    await filters(page).getByLabel('Значение', { exact: true }).fill('cancel');
+    await answered;
+    await expect(rows(page)).toHaveCount(1);
+    expect(await scroller.evaluate((element) => element.scrollLeft)).toBe(400);
+
+    await chooseTable(page, fixtureSchema, 'blanks');
+    await expect(rows(page).first()).toBeVisible();
+    expect(await scroller.evaluate((element) => element.scrollLeft)).toBe(0);
+    expectNoPageErrors(problems);
+  });
+
   test('tells big letters from small only when the switch is on', async ({ page }) => {
     const problems = collectPageErrors(page);
     await openDatabase(page);

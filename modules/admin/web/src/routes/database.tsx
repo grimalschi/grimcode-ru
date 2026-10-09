@@ -182,7 +182,14 @@ export function DatabasePage() {
           {!readOnlyReason && blockedInsert && <p className="text-xs text-muted-foreground">Добавление недоступно: обязательная колонка имеет неподдержанный тип.</p>}
           {!readOnlyReason && deleteReadOnlyReason && <p className="text-xs text-muted-foreground">Удаление недоступно: {deleteReadOnlyReason}</p>}
           {listing.error ? <ErrorState error={listing.error} retry={listing.reload} /> : <TooltipProvider delayDuration={250}>
-            <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
+            {/*
+              The scroll position is the table's own: filtering, sorting and paging redraw the rows in
+              place and leave it where the person put it, so a column in the middle of a wide table
+              stays in view while conditions are typed. Another table gets a fresh container (the key)
+              and so starts at the top left — its columns are not these. Resetting the old container
+              in an effect did not take: the browser had already clamped the position to the new width.
+            */}
+            <div key={`${view.schema}.${view.table}`} className="min-h-0 flex-1 overflow-auto rounded-lg border">
               <Table data-testid="database-table" aria-busy={loading} className={loading && page ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
                 <TableHeader><TableRow>
                   {shown.map((column) => {
