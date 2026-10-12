@@ -191,6 +191,13 @@ Cells travel as PostgreSQL's native text or SQL NULL, using query-local text par
 JSON, array and binary values are never converted through JavaScript numbers, dates or objects on
 the write path. Connection formatting is fixed within the editor's transaction. The form distinguishes
 an empty string, the text `null`, SQL NULL and an omitted value that uses the column default.
+The mode (value, SQL NULL, default — only those the column allows) and the escaping box live in a
+popover behind a settings icon opposite the field name (`FieldSettings` in
+[`row-editor.tsx`](web/src/database/row-editor.tsx)); the icon is tinted while either is set, with
+no tooltip of its own, and a box in SQL NULL or default mode shows the mode as its placeholder.
+Such a box is not disabled: clicking into it switches the field to a value so one can type, and
+leaving it with nothing typed switches it back, so a stray click never turns NULL into an empty
+string; a mode picked in the panel stays.
 Control characters use a reversible JSON **string** wrapper; it does not parse the cell's JSON content.
 A table cell spells them out the same way (`\r`, `\n`, `\t`, `\u0001`), dimmed, instead of the space
 or nothing a browser draws for them (`controlSegments` in [`model.ts`](web/src/database/model.ts)):

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { Pool } from 'pg';
 
 import { appliedTheme, collectPageErrors, expectNoPageErrors, signIn } from './support.js';
@@ -644,7 +644,7 @@ test.describe('the native database page', () => {
     const edited = `${action}.edited`;
     await page.getByRole('button', { name: 'Добавить строку', exact: true }).click();
     const create = page.getByRole('dialog', { name: 'Новая строка' });
-    await expect(create.getByRole('combobox', { name: 'Режим created_at', exact: true })).toHaveValue('default');
+    await expect(create.getByLabel('created_at', { exact: true })).toHaveAttribute('placeholder', 'По умолчанию');
     await create.getByLabel('id', { exact: true }).fill(crypto.randomUUID());
     await create.getByLabel('action', { exact: true }).fill(action);
     await create.getByRole('button', { name: 'Добавить', exact: true }).click();
@@ -784,6 +784,22 @@ async function storedRow(id: number) {
 
 const editor = (page: Page) => page.getByRole('dialog', { name: 'Строка', exact: true });
 
+/** Opens the settings popover of a field in the row dialog: its mode and escaping live there. */
+async function fieldSettings(dialog: Locator, column: string) {
+  const page = dialog.page();
+  const panel = page.getByRole('dialog', { name: `Настройки ${column}`, exact: true });
+  if (await panel.count() === 0) await dialog.getByRole('button', { name: `Настройки ${column}`, exact: true }).click();
+  await expect(panel).toBeVisible();
+  return panel;
+}
+
+async function setMode(dialog: Locator, column: string, mode: 'Значение' | 'SQL NULL' | 'По умолчанию') {
+  const panel = await fieldSettings(dialog, column);
+  await panel.getByRole('radio', { name: mode, exact: true }).check();
+  await dialog.page().keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+}
+
 test.describe('columns numbered by the database', () => {
   test('leaves a serial key to PostgreSQL and says so in the form', async ({ page }) => {
     const problems = collectPageErrors(page);
@@ -911,32 +927,73 @@ test.describe('lossless database editing in the browser', () => {
     await openFixture(page);
     await page.getByRole('button', { name: 'Добавить строку', exact: true }).click();
     const create = page.getByRole('dialog', { name: 'Новая строка', exact: true });
+    // The dialog opens typing into its first box, not on a settings icon; nothing pops up by itself.
+    await expect(create.getByLabel('id', { exact: true })).toBeFocused();
+    await expect(page.getByRole('tooltip')).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: /^Настройки/ })).toHaveCount(0);
     await create.getByLabel('id', { exact: true }).fill('10');
     await create.getByLabel('label', { exact: true }).fill('explicit-states');
-    await create.getByRole('combobox', { name: 'Режим blank', exact: true }).selectOption('value');
+    await setMode(create, 'blank', 'Значение');
     await create.getByLabel('blank', { exact: true }).fill('');
-    await create.getByRole('combobox', { name: 'Режим literal', exact: true }).selectOption('value');
+    await setMode(create, 'literal', 'Значение');
     await create.getByLabel('literal', { exact: true }).fill('null');
-    await expect(create.getByRole('combobox', { name: 'Режим fallback', exact: true })).toHaveValue('default');
+    await expect(create.getByLabel('fallback', { exact: true })).toHaveAttribute('placeholder', 'По умолчанию');
+    // The icon says so without opening anything, and the dialog itself survives the panel's Escape.
+    await expect(create.getByRole('button', { name: 'Настройки fallback', exact: true })).toHaveAttribute('data-set', 'true');
+    await expect(create.getByRole('button', { name: 'Настройки literal', exact: true })).not.toHaveAttribute('data-set', 'true');
+    await expect(create).toBeVisible();
     await create.getByRole('button', { name: 'Добавить', exact: true }).click();
     await expect(create).toBeHidden();
     expect(await storedRow(10)).toMatchObject({ blank: '', literal: 'null', fallback: 'database default', precise: null });
 
     const row = rows(page).filter({ hasText: 'explicit-states' });
     await row.getByRole('button', { name: 'Открыть строку', exact: true }).click();
-    await editor(page).getByRole('combobox', { name: 'Режим blank', exact: true }).selectOption('null');
-    await editor(page).getByRole('combobox', { name: 'Режим fallback', exact: true }).selectOption('value');
+    await setMode(editor(page), 'blank', 'SQL NULL');
+    await expect(editor(page).getByLabel('blank', { exact: true })).toHaveAttribute('placeholder', 'SQL NULL');
+    await setMode(editor(page), 'fallback', 'Значение');
     await editor(page).getByLabel('fallback', { exact: true }).fill('');
     await editor(page).getByRole('button', { name: 'Сохранить', exact: true }).click();
     await expect(editor(page)).toBeHidden();
     expect(await storedRow(10)).toMatchObject({ blank: null, literal: 'null', fallback: '' });
 
     await row.getByRole('button', { name: 'Открыть строку', exact: true }).click();
-    await editor(page).getByRole('combobox', { name: 'Режим blank', exact: true }).selectOption('value');
+    await setMode(editor(page), 'blank', 'Значение');
     await editor(page).getByLabel('blank', { exact: true }).fill('');
     await editor(page).getByRole('button', { name: 'Сохранить', exact: true }).click();
     await expect(editor(page)).toBeHidden();
     expect(await storedRow(10)).toMatchObject({ blank: '', literal: 'null', fallback: '' });
+  });
+
+  test('types into a NULL box by clicking it, while a stray click leaves NULL alone', async ({ page }) => {
+    await openFixture(page);
+    await page.getByRole('button', { name: 'Добавить строку', exact: true }).click();
+    const create = page.getByRole('dialog', { name: 'Новая строка', exact: true });
+    await create.getByLabel('id', { exact: true }).fill('11');
+    await create.getByLabel('label', { exact: true }).fill('clicked-in');
+    // A nullable box starts as SQL NULL; clicking into it is enough to type a value.
+    const blank = create.getByLabel('blank', { exact: true });
+    await expect(blank).toHaveAttribute('placeholder', 'SQL NULL');
+    await expect(blank).toBeEnabled();
+    await blank.click();
+    await expect(blank).not.toHaveAttribute('placeholder', 'SQL NULL');
+    await blank.fill('typed');
+    // Clicking into another one and leaving it empty puts SQL NULL back.
+    const literal = create.getByLabel('literal', { exact: true });
+    await literal.click();
+    await expect(literal).not.toHaveAttribute('placeholder', 'SQL NULL');
+    await create.getByLabel('label', { exact: true }).click();
+    await expect(literal).toHaveAttribute('placeholder', 'SQL NULL');
+    await create.getByRole('button', { name: 'Добавить', exact: true }).click();
+    await expect(create).toBeHidden();
+    expect(await storedRow(11)).toMatchObject({ blank: 'typed', literal: null });
+
+    // On an existing row the same stray click does not even enable saving.
+    await rows(page).filter({ hasText: 'clicked-in' }).getByRole('button', { name: 'Открыть строку', exact: true }).click();
+    await editor(page).getByLabel('literal', { exact: true }).click();
+    await expect(editor(page).getByRole('button', { name: 'Сохранить', exact: true })).toBeDisabled();
+    await editor(page).getByLabel('label', { exact: true }).click();
+    await expect(editor(page).getByLabel('literal', { exact: true })).toHaveAttribute('placeholder', 'SQL NULL');
+    await expect(editor(page).getByRole('button', { name: 'Сохранить', exact: true })).toBeDisabled();
   });
 
   test('changes only the edited field and preserves precise and control-bearing neighbours', async ({ page }) => {
@@ -955,10 +1012,14 @@ test.describe('lossless database editing in the browser', () => {
     await expect(editor(page).getByLabel('__proto__', { exact: true })).toHaveValue('own property');
     await expect(editor(page).getByRole('button', { name: 'Сохранить', exact: true })).toBeDisabled();
 
-    const documentField = editor(page).locator('[data-testid="database-field"][data-column="document"]');
-    await documentField.getByRole('checkbox', { name: 'Экранировать спецсимволы', exact: true }).check();
+    const documentSettings = await fieldSettings(editor(page), 'document');
+    await documentSettings.getByRole('checkbox', { name: 'Экранировать спецсимволы', exact: true }).check();
     await expect(editor(page).getByRole('button', { name: 'Сохранить', exact: true })).toBeDisabled();
-    await documentField.getByRole('checkbox', { name: 'Экранировать спецсимволы', exact: true }).uncheck();
+    await expect(editor(page).getByRole('button', { name: 'Настройки document', exact: true })).toHaveAttribute('data-set', 'true');
+    await documentSettings.getByRole('checkbox', { name: 'Экранировать спецсимволы', exact: true }).uncheck();
+    await page.keyboard.press('Escape');
+    await expect(documentSettings).toBeHidden();
+    await expect(editor(page)).toBeVisible();
     await expect(editor(page).getByLabel('document', { exact: true })).toHaveValue(document);
 
     await editor(page).getByLabel('label', { exact: true }).fill('exact-neighbours-edited');
