@@ -30,7 +30,7 @@ const column = z.object({
   conditions: z.array(condition), readOnlyReason: z.string().nullable(),
 });
 export const tablesOutputSchema = z.object({ tables: z.array(z.object({
-  schema: name, name, primaryKey: z.array(name), columns: z.array(column),
+  schema: name, name, kind: z.enum(['table', 'view']), primaryKey: z.array(name), columns: z.array(column),
   naturalOrder: name.nullable(), readOnlyReason: z.string().nullable(), deleteReadOnlyReason: z.string().nullable(),
   // A warning shown above a table that stays editable, unlike the reasons that lock it.
   notice: z.string().nullable(),

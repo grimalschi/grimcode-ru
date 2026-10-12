@@ -53,6 +53,8 @@ function whole(value: unknown, fallback: number, name: string): number {
  * it `ctid` — the physical address of the row — is unique and stable enough to page by.
  */
 function byKey(table: Table, alreadySorted: string[]): string[] {
+  // A view has no ctid and no key: its rows come in whatever order its query gives them.
+  if (table.kind === 'view') return [];
   if (table.primaryKey.length === 0) return ['ctid'];
 
   /*
@@ -84,7 +86,7 @@ export function selectRows(
    * an edit. With the key appended the order is total, and the sort a person chose still decides.
    */
   const levels = [...(order === null ? [] : [order.sql]), ...byKey(table, order?.columns ?? [])];
-  const sorted = ` ORDER BY ${levels.join(', ')}`;
+  const sorted = levels.length ? ` ORDER BY ${levels.join(', ')}` : '';
 
   const rows = {
     text:

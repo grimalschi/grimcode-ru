@@ -40,6 +40,7 @@ interface ColumnRow {
   element_schema: string | null;
   element_kind: string | null;
   complete_columns: boolean;
+  relkind: string;
   unsafe_relation: boolean;
   unsafe_code: boolean;
   cascading_delete: boolean;
@@ -69,6 +70,7 @@ export async function readCatalogue(pool: Queryable, schema: string): Promise<Ca
                 (SELECT count(*) FROM pg_attribute physical
                   WHERE physical.attrelid = r.oid AND physical.attnum > 0 AND NOT physical.attisdropped)
               ) AS complete_columns,
+              r.relkind,
               (r.relkind <> 'r' OR am.amname <> 'heap' OR r.relispartition OR r.relrowsecurity OR r.relhasrules
                 OR EXISTS (SELECT 1 FROM pg_inherits i WHERE i.inhrelid = r.oid OR i.inhparent = r.oid)
                 OR EXISTS (SELECT 1 FROM pg_trigger tr WHERE tr.tgrelid = r.oid AND NOT tr.tgisinternal)
@@ -105,7 +107,7 @@ export async function readCatalogue(pool: Queryable, schema: string): Promise<Ca
          JOIN pg_namespace tn ON tn.oid = t.typnamespace
          LEFT JOIN pg_type et ON et.oid = t.typelem AND et.typarray = t.oid AND t.typtype = 'b'
          LEFT JOIN pg_namespace en ON en.oid = et.typnamespace
-        WHERE c.table_schema = $1 AND r.relkind IN ('r', 'p', 'f')
+        WHERE c.table_schema = $1 AND r.relkind IN ('r', 'p', 'f', 'v')
         ORDER BY c.table_schema, c.table_name, c.ordinal_position`,
       [schema],
     );
@@ -144,10 +146,12 @@ export async function readCatalogue(pool: Queryable, schema: string): Promise<Ca
         : row.is_generated === 'ALWAYS' ? 'Вычисляемые колонки доступны только для чтения.' : null,
     };
     const table = tables.get(row.table_name) ?? {
-      schema: row.table_schema, name: row.table_name, columns: [],
+      schema: row.table_schema, name: row.table_name, kind: row.relkind === 'v' ? 'view' as const : 'table' as const, columns: [],
       primaryKey: keyRows.filter((key) => key.table_name === row.table_name).map((key) => key.column_name),
-      // information_schema hides columns outside this role's privileges; a partial row cannot prove preservation.
-      readOnlyReason: row.complete_columns !== true ? 'Не все колонки таблицы доступны текущей роли PostgreSQL. Безопасное редактирование невозможно.'
+      // A view is read like a table and never written; it says so before any other reason could.
+      readOnlyReason: row.relkind === 'v' ? 'Представление — только чтение.'
+        // information_schema hides columns outside this role's privileges; a partial row cannot prove preservation.
+        : row.complete_columns !== true ? 'Не все колонки таблицы доступны текущей роли PostgreSQL. Безопасное редактирование невозможно.'
         : row.server_encoding !== 'UTF8' ? 'Безопасное редактирование поддерживается только для базы в кодировке UTF8.'
         : row.unsafe_relation ? 'Таблица использует триггеры, правила, RLS, наследование или секционирование.'
         : row.unsafe_code ? 'Выражения таблицы используют неподдержанные функции или операторы.'

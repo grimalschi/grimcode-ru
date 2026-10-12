@@ -32,15 +32,22 @@ export function SchemaTables({ schema, catalogue, selected, counts, onOpen, onRe
 
   if (!catalogue) return late ? <Skeleton className="h-24 w-full" /> : <div className="h-10" aria-hidden="true" />;
   if (catalogue.tables === undefined) return <ErrorState error={catalogue.error} retry={onRetry} />;
-  const tables = catalogue.tables;
+  const tables = catalogue.tables.filter((table) => table.kind !== 'view');
+  const views = catalogue.tables.filter((table) => table.kind === 'view');
+  const entry = (table: TableInfo) => {
+    const count = table.rows.kind === 'exact' ? { ...table.rows, count: Math.max(0, table.rows.count + (counts[`${table.schema}.${table.name}`] ?? 0)) } : table.rows;
+    const current = selected === table.name;
+    return <Button key={table.name} variant={current ? 'secondary' : 'ghost'} className="w-full shrink-0 justify-between gap-2 pl-5 pr-2" aria-label={`Открыть ${table.kind === 'view' ? 'представление' : 'таблицу'} ${table.schema}.${table.name}`} aria-current={current ? 'page' : undefined} onClick={() => onOpen(table)}>
+      <span className="truncate">{table.name}</span><span className="text-xs tabular-nums text-muted-foreground">{rowCountLabel(count)}</span>
+    </Button>;
+  };
+  // Views come after the tables under their own heading (the owner, 12 October): an icon alone did not tell them apart.
   return <nav aria-label={`Таблицы ${schema}`} className="flex flex-col gap-1">
-    {tables.map((table) => {
-      const count = table.rows.kind === 'exact' ? { ...table.rows, count: Math.max(0, table.rows.count + (counts[`${table.schema}.${table.name}`] ?? 0)) } : table.rows;
-      const current = selected === table.name;
-      return <Button key={table.name} variant={current ? 'secondary' : 'ghost'} className="w-full shrink-0 justify-between gap-2 pl-5 pr-2" aria-label={`Открыть таблицу ${table.schema}.${table.name}`} aria-current={current ? 'page' : undefined} onClick={() => onOpen(table)}>
-        <span className="truncate">{table.name}</span><span className="text-xs tabular-nums text-muted-foreground">{rowCountLabel(count)}</span>
-      </Button>;
-    })}
+    {tables.map(entry)}
     {!tables.length && <p className="px-5 text-sm text-muted-foreground">Таблиц нет</p>}
+    {views.length > 0 && <>
+      <p className="mt-2 px-5 text-xs text-muted-foreground" aria-hidden="true">Представления</p>
+      {views.map(entry)}
+    </>}
   </nav>;
 }

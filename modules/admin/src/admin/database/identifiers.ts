@@ -38,6 +38,8 @@ export interface Column {
 export interface Table {
   schema: string;
   name: string;
+  /** A view is listed beside the tables and read like one, never written; absent means a table. */
+  kind?: 'table' | 'view';
   columns: Column[];
   /** The primary key columns in order, or an empty list when the table has none. */
   primaryKey: string[];

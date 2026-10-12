@@ -133,7 +133,7 @@ export function createDatabaseBrowser(database: () => Promise<Pool>, guards: Reg
   async function schemas(client: PoolClient) {
     const { rows } = await client.query<{ name: string }>(
       `SELECT DISTINCT table_schema AS name FROM information_schema.tables
-        WHERE table_type IN ('BASE TABLE', 'FOREIGN') AND table_schema <> 'information_schema'
+        WHERE table_type IN ('BASE TABLE', 'FOREIGN', 'VIEW') AND table_schema <> 'information_schema'
           AND table_schema !~ '^pg_' AND table_name <> 'schema_migrations'
         ORDER BY name`,
     );
@@ -215,7 +215,7 @@ export function createDatabaseBrowser(database: () => Promise<Pool>, guards: Reg
       const tables = [];
       for (const table of await catalogue(client, schema)) {
         tables.push({
-          schema: table.schema, name: table.name, primaryKey: table.primaryKey, ...access(table),
+          schema: table.schema, name: table.name, kind: table.kind ?? 'table', primaryKey: table.primaryKey, ...access(table),
           rows: await countRows(client, table), naturalOrder: table.naturalOrder ?? null, columns: columns(table),
         });
       }

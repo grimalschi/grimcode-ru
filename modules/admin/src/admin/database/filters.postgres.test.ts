@@ -45,6 +45,8 @@ beforeAll(async () => {
     (6, 'LISA',    'MOSCOW',          true,  50,   '2010-02-28', NULL,    '{a,b,c,d}', NULL,                   '{"plan":"team","nested":{"deep":true}}',       NULL,             '[0,18)',  NULL,                      '10.0.0.200'),
     (7, 'Яна 50%', 'Санкт-Петербург', false, -5,   '1970-12-31', NULL,    NULL,        NULL,                   '[1,2,3]',                                      NULL,             '[40,50]', NULL,                      '2001:db8::1'),
     (8, '',        'Тверь',           NULL,  7,    '2026-10-07', NULL,    '{x}',       NULL,                   '"строка"',                                     NULL,             NULL,      NULL,                      '10.0.0.0/8')`);
+  // A view over the same rows: listed beside the table, read like it, never written.
+  await database.query(`CREATE VIEW ${quote(schema)}.grown AS SELECT id, name, city, amount FROM ${quote(schema)}.${table} WHERE amount > 60`);
 });
 
 afterAll(async () => {
@@ -159,6 +161,34 @@ describe('ranges and addresses', () => {
     await refused('address', 'at-least', '10.0.0.0');
     expect(await names('address', 'equals', '10.0.0.5')).toEqual(['Аня']);
     expect(await names('age_range', 'equals', 'empty')).toEqual(['Гена']);
+  });
+});
+
+describe('a view in the schema', () => {
+  it('is listed as a view, read-only, with its columns and row count', async () => {
+    const { tables } = await api.tables({ schema });
+    const view = tables.find((entry) => entry.name === 'grown');
+    expect(view).toMatchObject({ kind: 'view', primaryKey: [], readOnlyReason: 'Представление — только чтение.', rows: { count: 3, kind: 'exact' } });
+    expect(view?.columns.map((column) => column.name)).toEqual(['id', 'name', 'city', 'amount']);
+    expect(tables.find((entry) => entry.name === table)).toMatchObject({ kind: 'table', readOnlyReason: null });
+  });
+
+  it('reads, filters and sorts like a table, in its own order when no sort is chosen', async () => {
+    const page = await api.rows({ schema, table: 'grown' });
+    expect(page.readOnlyReason).toBe('Представление — только чтение.');
+    const byId = (rows: { id?: string | null }[]) => [...rows].sort((a, b) => Number(a.id) - Number(b.id)).map((row) => row.id);
+    expect(byId(page.rows)).toEqual(['1', '2', '5']);
+    const sorted = await api.rows({ schema, table: 'grown', order: [{ column: 'amount', direction: 'desc' }] });
+    expect(sorted.rows.map((row) => row.name)).toEqual(['lisa', 'Боря', 'Аня']);
+    const filtered = await api.rows({ schema, table: 'grown', filters: [{ column: 'city', condition: 'contains' as never, value: 'моск' }] });
+    expect(byId(filtered.rows)).toEqual(['1', '5']);
+  });
+
+  it('refuses writes', async () => {
+    const refusal = { code: 'FORBIDDEN', message: 'Представление — только чтение.' };
+    await expect(api.insert({ schema, table: 'grown', values: { id: '9', name: 'x' } })).rejects.toMatchObject(refusal);
+    await expect(api.update({ schema, table: 'grown', original: { id: '1', name: 'Аня', city: 'Москва', amount: '100' }, values: { name: 'y' } })).rejects.toMatchObject(refusal);
+    await expect(api.delete({ schema, table: 'grown', original: { id: '1', name: 'Аня', city: 'Москва', amount: '100' } })).rejects.toMatchObject(refusal);
   });
 });
 

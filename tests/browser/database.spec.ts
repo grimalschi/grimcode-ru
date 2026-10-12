@@ -84,6 +84,8 @@ test.beforeAll(async () => {
   await database.query(`CREATE TYPE "${fixtureSchema}".compound AS (part text)`);
   await database.query(`CREATE TABLE "${fixtureSchema}".unsupported (id integer PRIMARY KEY, value "${fixtureSchema}".compound NOT NULL)`);
   await database.query(`INSERT INTO "${fixtureSchema}".unsupported VALUES (1, ROW('source'))`);
+  // A view beside the tables: opened and read like one, never written.
+  await database.query(`CREATE VIEW "${fixtureSchema}".labels AS SELECT id, label FROM "${fixtureSchema}"."values"`);
 });
 
 test.afterAll(async () => {
@@ -732,6 +734,37 @@ test.describe('the native database page', () => {
     await expect(boxes.first()).toHaveAttribute('aria-checked', 'true');
     await expect(boxes.first()).toBeDisabled();
     await visibility.getByRole('button', { name: 'Показать все', exact: true }).click();
+  });
+
+  test('lists a view beside the tables and opens it read-only', async ({ page }) => {
+    await openDatabase(page);
+    await chooseSchema(page, fixtureSchema);
+    const entry = page.getByRole('button', { name: `Открыть представление ${fixtureSchema}.labels`, exact: true });
+    await expect(entry).toBeVisible();
+    // Under its own heading, after the schema's tables.
+    const list = page.getByRole('navigation', { name: `Таблицы ${fixtureSchema}`, exact: true });
+    await expect(list.getByText('Представления', { exact: true })).toBeVisible();
+    const heading = await list.getByText('Представления', { exact: true }).boundingBox();
+    const lastTable = await page.getByRole('button', { name: `Открыть таблицу ${fixtureSchema}.values`, exact: true }).boundingBox();
+    const view = await entry.boundingBox();
+    expect(heading!.y).toBeGreaterThan(lastTable!.y);
+    expect(view!.y).toBeGreaterThan(heading!.y);
+    await entry.click();
+    await expect(page.getByRole('heading', { name: `${fixtureSchema}.labels`, level: 2 })).toBeVisible();
+    await expect(rows(page).first()).toContainText('cancel-delete');
+    await expect(page.getByRole('status')).toContainText('Представление — только чтение');
+    await expect(page.getByRole('button', { name: 'Добавить строку', exact: true })).toBeDisabled();
+    // Reading works as on a table: a filter narrows the rows.
+    await page.getByRole('button', { name: /^Фильтры/ }).click();
+    await filters(page).getByRole('button', { name: 'Добавить условие', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Колонка условия 1', exact: true }).click();
+    await page.getByRole('option', { name: 'label', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Условие 1', exact: true }).click();
+    await page.getByRole('option', { name: 'содержит', exact: true }).click();
+    const answered = page.waitForResponse((response) => response.url().includes('/admin/rpc/database.rows'));
+    await filters(page).getByLabel('Значение', { exact: true }).fill('no-such-label');
+    await answered;
+    await expect(rows(page).first()).toContainText('Строк нет');
   });
 
   test('hides migration tables in every module schema', async ({ page }) => {
