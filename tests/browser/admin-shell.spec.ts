@@ -112,8 +112,9 @@ test.describe('the admin shell', () => {
     await expect(page.getByRole('heading', { name: 'Журнал' })).toBeVisible();
 
     await page.goto('/admin/database');
-    await expect(page.getByRole('heading', { name: 'База данных', level: 1 })).toBeVisible();
-    await expect(page.locator('h1')).toHaveCount(1);
+    // The database browser is the one screen without a page header: nothing above the tool.
+    await expect(page.getByRole('button', { name: /^Схема / }).first()).toBeVisible();
+    await expect(page.locator('h1')).toHaveCount(0);
     await expect(page.locator('iframe')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /^Схема / }).first()).toBeVisible();
 

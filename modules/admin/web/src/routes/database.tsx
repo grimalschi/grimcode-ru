@@ -152,7 +152,8 @@ export function DatabasePage() {
     finally { setBusy(false); }
   }
 
-  return <AdminPage title="База данных" className="h-full min-h-0 max-w-none">
+  // No page header (the owner, 12 October): the screen is the tool, the sidebar already names it.
+  return <AdminPage className="h-full min-h-0 max-w-none">
     {schemas.error ? <ErrorState error={schemas.error} retry={schemas.reload} /> : <div className="grid min-h-0 flex-1 gap-6 md:grid-cols-[13rem_minmax(0,1fr)]">
       <aside className="flex min-h-0 flex-col overflow-y-auto">
         {/*

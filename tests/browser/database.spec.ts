@@ -6,7 +6,8 @@ import { appliedTheme, collectPageErrors, expectNoPageErrors, signIn } from './s
 async function openDatabase(page: Page): Promise<void> {
   await signIn(page);
   await page.goto('/admin/database');
-  await expect(page.getByRole('heading', { name: 'База данных', level: 1 })).toBeVisible();
+  // The page has no header of its own; the schema list is what says it has loaded.
+  await expect(page.getByRole('heading', { level: 1 })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Открыть таблицу / }).first()).toBeVisible();
   await expect(page.locator('iframe')).toHaveCount(0);
 }
