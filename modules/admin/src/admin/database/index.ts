@@ -203,7 +203,7 @@ export function createDatabaseBrowser(database: () => Promise<Pool>, guards: Reg
     }
   }
 
-  const columns = (table: Table) => table.columns.map((column) => ({ ...column, conditions: [...conditionsFor(column.type)] }));
+  const columns = (table: Table) => table.columns.map((column) => ({ ...column, references: column.references ?? null, conditions: [...conditionsFor(column.type)] }));
   const access = (table: Table) => ({
     readOnlyReason: table.readOnlyReason, deleteReadOnlyReason: table.deleteReadOnlyReason,
     notice: isRegistry(table) ? REGISTRY_NOTICE : isIdentities(table) ? IDENTITIES_NOTICE : null,
@@ -216,6 +216,7 @@ export function createDatabaseBrowser(database: () => Promise<Pool>, guards: Reg
       for (const table of await catalogue(client, schema)) {
         tables.push({
           schema: table.schema, name: table.name, kind: table.kind ?? 'table', primaryKey: table.primaryKey, ...access(table),
+          foreignKeys: table.foreignKeys ?? [], referencedBy: table.referencedBy ?? [],
           rows: await countRows(client, table), naturalOrder: table.naturalOrder ?? null, columns: columns(table),
         });
       }

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, CopyIcon, EyeIcon, FilterIcon, Loader2Icon, PencilIcon, Trash2Icon } from 'lucide-react';
+import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, ArrowUpRightIcon, CopyIcon, EyeIcon, FilterIcon, Link2Icon, Loader2Icon, PencilIcon, Trash2Icon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api } from '@/api';
@@ -15,7 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Filters } from '@/database/filters';
-import { cellText, controlSegments, decodeFilterValues, emptyView, isFilterReady, messageOf, PAGE_SIZES, readView, shortType, type Column, type Row, type TableInfo } from '@/database/model';
+import { cellText, controlSegments, decodeFilterValues, emptyView, isFilterReady, messageOf, PAGE_SIZES, readView, shortType, type Column, type Reference, type Row, type TableInfo } from '@/database/model';
 import { RowEditor } from '@/database/row-editor';
 import { SchemaTables, type SchemaCatalogue } from '@/database/schema-tables';
 import { Sorting } from '@/database/sorting';
@@ -121,6 +121,16 @@ export function DatabasePage() {
     setView({ ...emptyView(), schema: table.schema, table: table.name, size: view.size,
       order: table.naturalOrder ? [{ column: table.naturalOrder, direction: 'asc' }] : [] });
   }
+  /** Following a foreign key is opening its target with the key as a visible condition: an address, nothing modal. */
+  function follow(reference: Reference, value: string) {
+    // Equality is "is" on text and uuid, "equals" on numbers: the target column's own set says which.
+    const offered = catalogues[reference.schema]?.tables?.find((table) => table.name === reference.table)?.columns.find((column) => column.name === reference.column)?.conditions ?? [];
+    const condition = offered.find((entry) => entry === 'is' || entry === 'equals') ?? offered[0] ?? 'is';
+    setView({ ...emptyView(), schema: reference.schema, table: reference.table, size: view.size,
+      filters: [{ column: reference.column, condition, value }] });
+  }
+  // A target the browser does not list (a system schema, a table without access) is told of but not offered.
+  const known = (reference: Reference) => catalogues[reference.schema]?.tables?.some((table) => table.name === reference.table) ?? false;
   function counted(table: TableInfo, delta: number) {
     const key = `${table.schema}.${table.name}`;
     setCounts((previous) => ({ ...previous, [key]: (previous[key] ?? 0) + delta }));
@@ -174,6 +184,11 @@ export function DatabasePage() {
         {!view.table ? <EmptyState title="Выберите таблицу" /> : <>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="mr-2 font-medium" data-testid="database-table-title">{view.schema}.{view.table}</h2>
+            {/* Who points here: it also says why a row may not be deletable. */}
+            {selected && selected.referencedBy.length > 0 && <TooltipProvider delayDuration={250}><Tooltip>
+              <TooltipTrigger asChild><span className="-ml-2 mr-2 inline-flex text-muted-foreground" tabIndex={0} aria-label="На эту таблицу ссылаются"><Link2Icon className="size-3.5" aria-hidden="true" /></span></TooltipTrigger>
+              <TooltipContent className="max-w-80">На эту таблицу ссылаются: {selected.referencedBy.map((key) => `${key.target.schema}.${key.target.table}.${key.columns.join(', ')}`).join('; ')}</TooltipContent>
+            </Tooltip></TooltipProvider>}
             {/*
               The panel floats over the table instead of pushing it down (the owner's request,
               9 October 2026): the table and its scroll stay put, and the button's count says what
@@ -239,6 +254,11 @@ export function DatabasePage() {
                           setView({ ...view, columns: shown.filter((entry) => entry.name !== column.name).map((entry) => entry.name) }); setPanel('visibility');
                         }}>Скрыть колонку</DropdownMenuItem>
                       </DropdownMenuContent></DropdownMenu>
+                      {/* A pointer to another table, told on hover; the arrow in the cell is what follows it. */}
+                      {column.references && <Tooltip>
+                        <TooltipTrigger asChild><span className="ml-1.5 inline-flex align-middle text-muted-foreground" tabIndex={0} aria-label={`Ссылается на ${column.references.schema}.${column.references.table}.${column.references.column}`}><Link2Icon className="size-3.5" aria-hidden="true" /></span></TooltipTrigger>
+                        <TooltipContent>Ссылается на {column.references.schema}.{column.references.table}.{column.references.column}</TooltipContent>
+                      </Tooltip>}
                     </TableHead>;
                   })}
                   {/* The actions stay at the right edge while the table scrolls sideways: no long trip to the pencil on a wide table (the owner, 9 October 2026). */}
@@ -247,7 +267,8 @@ export function DatabasePage() {
                 <TableBody>
                   {loading && !page ? Array.from({ length: 5 }, (_, row) => <TableRow key={row}>{shown.map((column) => <TableCell key={column.name}><Skeleton className="h-4 w-28" /></TableCell>)}</TableRow>)
                     : page?.rows.map((row, index) => <TableRow className="group" key={page.primaryKey.length ? JSON.stringify(page.primaryKey.map((column) => row[column])) : index}>
-                      {shown.map((column) => <TableCell key={column.name}><ValueCell column={column.name} value={row[column.name]} /></TableCell>)}
+                      {shown.map((column) => <TableCell key={column.name}><ValueCell column={column.name} value={row[column.name]}
+                        reference={column.references && known(column.references) ? column.references : null} onFollow={follow} /></TableCell>)}
                       {currentTable ? <TableCell className={`${STICKY_ACTIONS} group-hover:after:opacity-100 group-has-aria-expanded:after:opacity-100`}><div className="relative flex gap-1">
                         <Button variant="ghost" size="icon" className="size-7" aria-label="Открыть строку" title="Открыть строку" onClick={() => setEditor({ table: currentTable, columns, row })}><PencilIcon className="size-4" /></Button>
                         <Button variant="ghost" size="icon" className="size-7 text-destructive" aria-label="Удалить строку" title={deleteReadOnlyReason ?? 'Удалить строку'} disabled={!!deleteReadOnlyReason} onClick={() => setDeleting({ table: currentTable, row })}><Trash2Icon className="size-4" /></Button>
@@ -271,7 +292,8 @@ export function DatabasePage() {
         </>}
       </section>
     </div>}
-    {editor && <RowEditor schema={editor.table.schema} table={editor.table.name} columns={editor.columns} primaryKey={editor.table.primaryKey} readOnlyReason={editor.table.readOnlyReason} notice={notice} row={editor.row} onClose={() => setEditor(null)} onSave={save} />}
+    {editor && <RowEditor schema={editor.table.schema} table={editor.table.name} columns={editor.columns} primaryKey={editor.table.primaryKey} readOnlyReason={editor.table.readOnlyReason} notice={notice} row={editor.row} onClose={() => setEditor(null)} onSave={save}
+      onFollow={(reference, value) => { if (!known(reference)) return; setEditor(null); follow(reference, value); }} />}
     <Dialog open={!!deleting} onOpenChange={(open) => { if (!open && !busy) setDeleting(null); }}>
       <DialogContent><DialogHeader><DialogTitle>Удалить строку?</DialogTitle><DialogDescription>Это нельзя отменить.</DialogDescription></DialogHeader>
         <DialogFooter><Button variant="ghost" disabled={busy} onClick={() => setDeleting(null)}>Отмена</Button><Button variant="destructive" disabled={busy} onClick={() => void remove()}>Удалить</Button></DialogFooter>
@@ -287,7 +309,13 @@ export function DatabasePage() {
  */
 const STICKY_ACTIONS = 'sticky right-0 z-10 w-20 bg-background shadow-[-8px_0_10px_-8px_rgb(0_0_0/0.25)] after:pointer-events-none after:absolute after:inset-0 after:bg-muted/50 after:opacity-0 after:transition-opacity';
 
-function ValueCell({ column, value }: { column: string; value: string | null | undefined }) {
+function ValueCell({ column, value, reference = null, onFollow }: {
+  column: string;
+  value: string | null | undefined;
+  /** Where this value points, when the column is a foreign key and its target is listed. */
+  reference?: Reference | null;
+  onFollow?: (reference: Reference, value: string) => void;
+}) {
   const text = cellText(value);
   if (value === null) return <span data-testid="database-cell" data-column={column} className="text-muted-foreground">SQL NULL</span>;
   async function copy() {
@@ -297,12 +325,17 @@ function ValueCell({ column, value }: { column: string; value: string | null | u
       toast.success('Значение скопировано');
     } catch (error) { toast.error(messageOf(error)); }
   }
-  return <Tooltip><TooltipTrigger asChild><button type="button" data-testid="database-cell" data-column={column} className="block max-w-64 truncate text-left hover:underline" title="Нажмите, чтобы скопировать" onClick={() => void copy()}>{text ? <ControlText text={text.slice(0, 600)} /> : '""'}</button></TooltipTrigger>
+  const cell = <Tooltip><TooltipTrigger asChild><button type="button" data-testid="database-cell" data-column={column} className="block max-w-64 truncate text-left hover:underline" title="Нажмите, чтобы скопировать" onClick={() => void copy()}>{text ? <ControlText text={text.slice(0, 600)} /> : '""'}</button></TooltipTrigger>
     {text && <TooltipContent className="max-w-lg max-h-80 overflow-auto" data-testid="database-value-preview">
       <p className="mb-1 flex items-center gap-2 font-medium"><CopyIcon className="size-3" />{column}</p>
       <pre className="whitespace-pre-wrap break-all font-mono text-xs"><ControlText text={text} breakLines /></pre>
     </TooltipContent>}
   </Tooltip>;
+  if (!reference || !onFollow) return cell;
+  // The click on the value still copies; the arrow beside it is the way across, always there so nothing appears or vanishes under the pointer.
+  return <span className="flex items-center gap-1">{cell}
+    <Button variant="ghost" size="icon" className="size-6 shrink-0 text-muted-foreground" aria-label={`Открыть ${reference.schema}.${reference.table} по ${column}`} title={`Открыть ${reference.schema}.${reference.table}`} onClick={() => onFollow(reference, text)}><ArrowUpRightIcon className="size-3.5" /></Button>
+  </span>;
 }
 
 /** Control characters are spelled out dimmed, the way the row dialog spells them; the preview also breaks the line after `\n`. */

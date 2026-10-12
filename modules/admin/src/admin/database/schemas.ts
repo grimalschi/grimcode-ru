@@ -25,12 +25,18 @@ export const rowsInputSchema = tableInputSchema.extend({
   offset: z.number().int().nullish(),
 });
 
+const reference = z.object({ schema: name, table: name, column: name });
+const foreignKey = z.object({ columns: z.array(name), target: z.object({ schema: name, table: name, columns: z.array(name) }) });
 const column = z.object({
   name, type: z.string(), nullable: z.boolean(), hasDefault: z.boolean(), generated: z.boolean(),
   conditions: z.array(condition), readOnlyReason: z.string().nullable(),
+  // The row this value points at, when the column alone is a foreign key.
+  references: reference.nullable(),
 });
 export const tablesOutputSchema = z.object({ tables: z.array(z.object({
   schema: name, name, kind: z.enum(['table', 'view']), primaryKey: z.array(name), columns: z.array(column),
+  // Every key leaving the table and every one arriving at it (`target` is then the pointing table).
+  foreignKeys: z.array(foreignKey), referencedBy: z.array(foreignKey),
   naturalOrder: name.nullable(), readOnlyReason: z.string().nullable(), deleteReadOnlyReason: z.string().nullable(),
   // A warning shown above a table that stays editable, unlike the reasons that lock it.
   notice: z.string().nullable(),

@@ -5,6 +5,7 @@ type Inputs = inferRouterInputs<AdminPanelRouter>['database'];
 type Outputs = inferRouterOutputs<AdminPanelRouter>['database'];
 export type TableInfo = Outputs['tables']['tables'][number];
 export type Column = TableInfo['columns'][number];
+export type Reference = NonNullable<Column['references']>;
 export type Filter = NonNullable<Inputs['rows']['filters']>[number];
 export type Order = NonNullable<Inputs['rows']['order']>[number];
 export type Row = Outputs['rows']['rows'][number];

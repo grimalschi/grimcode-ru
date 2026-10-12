@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { LockIcon, Settings2Icon } from 'lucide-react';
+import { ArrowUpRightIcon, LockIcon, Settings2Icon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -8,9 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { fieldDraft, fieldValue, hasControlCharacters, messageOf, newUuid, shortType, type Column, type FieldDraft, type Row } from './model';
+import { fieldDraft, fieldValue, hasControlCharacters, messageOf, newUuid, shortType, type Column, type FieldDraft, type Reference, type Row } from './model';
 
-export function RowEditor({ schema, table, columns, primaryKey, readOnlyReason, notice = null, row, onClose, onSave }: {
+export function RowEditor({ schema, table, columns, primaryKey, readOnlyReason, notice = null, row, onClose, onSave, onFollow }: {
   schema: string;
   table: string;
   columns: Column[];
@@ -21,6 +21,8 @@ export function RowEditor({ schema, table, columns, primaryKey, readOnlyReason, 
   row: Row | null;
   onClose: () => void;
   onSave: (values: Row) => Promise<void>;
+  /** Opens the row a foreign-key field points at; the dialog is closed by the caller. */
+  onFollow?: (reference: Reference, value: string) => void;
 }) {
   const inserting = row === null;
   const [draft, setDraft] = React.useState(() => Object.fromEntries(columns.map((column) => [column.name,
@@ -166,9 +168,22 @@ export function RowEditor({ schema, table, columns, primaryKey, readOnlyReason, 
                     </TooltipTrigger>
                     <TooltipContent className="max-w-72">Только чтение: {reason}</TooltipContent>
                   </Tooltip>
-                  : <FieldSettings column={column} current={current} busy={busy}
+                  : <>
+                    {column.references && onFollow && (() => {
+                      // Across the key from the form: only with a value to follow and nothing unsaved, so leaving loses nothing.
+                      let target: string | null = null;
+                      try { target = current.mode === 'value' ? fieldValue(current) ?? null : null; } catch { target = null; }
+                      const blocked = busy || !target || (!inserting && changed);
+                      const reference = column.references;
+                      return <Button type="button" variant="ghost" size="icon" className="ml-auto size-7 text-muted-foreground" disabled={blocked}
+                        aria-label={`Открыть ${reference.schema}.${reference.table} по ${column.name}`}
+                        title={!inserting && changed ? 'Сначала сохраните или отмените правки' : `Открыть ${reference.schema}.${reference.table}`}
+                        onClick={() => target && onFollow(reference, target)}><ArrowUpRightIcon className="size-4" /></Button>;
+                    })()}
+                    <FieldSettings column={column} current={current} busy={busy}
                     modes={[...(column.nullable ? [['null', 'SQL NULL'] as const] : []), ['value', 'Значение'], ...(inserting && column.hasDefault ? [['default', 'По умолчанию'] as const] : [])]}
-                    onMode={(mode) => chooseMode(column.name, mode)} onEscape={(escaped) => toggleEscaping(column.name, escaped)} />}
+                    onMode={(mode) => chooseMode(column.name, mode)} onEscape={(escaped) => toggleEscaping(column.name, escaped)} />
+                  </>}
               </div>
               <div className="flex gap-2">
                 {current.escaped || /json|xml|bytea/i.test(column.type) || (row?.[column.name] ?? '').length > 80

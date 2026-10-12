@@ -32,6 +32,21 @@ export interface Column {
   /** Native SQL type including constraints, supplied by PostgreSQL itself. */
   sqlType: string;
   readOnlyReason: string | null;
+  /** The row this value points at, when the column alone is a foreign key; a composite key is on the table. */
+  references?: Reference | null;
+}
+
+/** One side of a foreign key: a column of a table, as `schema.table.column`. */
+export interface Reference {
+  schema: string;
+  table: string;
+  column: string;
+}
+
+/** A foreign key as the catalogue states it, composite keys included. */
+export interface ForeignKey {
+  columns: string[];
+  target: { schema: string; table: string; columns: string[] };
 }
 
 /** A table as the catalogue describes it, with the key rows are addressed by. */
@@ -50,6 +65,9 @@ export interface Table {
    * has one. What a table opens sorted by, because a uuid key sorts in no order a person can see.
    */
   naturalOrder?: string;
+  /** Every foreign key leaving this table, and every one arriving at it (who points here). */
+  foreignKeys?: ForeignKey[];
+  referencedBy?: ForeignKey[];
 }
 
 /**

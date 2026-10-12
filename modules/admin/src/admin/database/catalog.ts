@@ -1,4 +1,4 @@
-import { quote, type Column, type Table } from './identifiers.js';
+import { quote, type Column, type ForeignKey, type Table } from './identifiers.js';
 
 /** What the interface needs to run a query, and the only source of table and column names. */
 export interface Catalogue {
@@ -51,6 +51,15 @@ interface KeyRow {
   table_schema: string;
   table_name: string;
   column_name: string;
+}
+
+interface ForeignKeyRow {
+  table_schema: string;
+  table_name: string;
+  columns: string[];
+  target_schema: string;
+  target_table: string;
+  target_columns: string[];
 }
 
 function supportedType(name: string, schema: string, kind: string): boolean {
@@ -122,6 +131,26 @@ export async function readCatalogue(pool: Queryable, schema: string): Promise<Ca
       [schema],
     );
 
+  // Foreign keys leaving the schema and arriving at it, in column order; the arriving ones may come from another schema.
+  const { rows: foreignKeyRows } = await pool.query<ForeignKeyRow>(
+      `SELECT n.nspname AS table_schema, r.relname AS table_name,
+              -- text[] rather than name[]: the driver parses the former into an array, the latter it leaves as text.
+              ARRAY(SELECT a.attname::text FROM unnest(c.conkey) WITH ORDINALITY k(attnum, ord)
+                     JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum ORDER BY k.ord)::text[] AS columns,
+              fn.nspname AS target_schema, fr.relname AS target_table,
+              ARRAY(SELECT a.attname::text FROM unnest(c.confkey) WITH ORDINALITY k(attnum, ord)
+                     JOIN pg_attribute a ON a.attrelid = c.confrelid AND a.attnum = k.attnum ORDER BY k.ord)::text[] AS target_columns
+         FROM pg_constraint c
+         JOIN pg_class r ON r.oid = c.conrelid JOIN pg_namespace n ON n.oid = r.relnamespace
+         JOIN pg_class fr ON fr.oid = c.confrelid JOIN pg_namespace fn ON fn.oid = fr.relnamespace
+        WHERE c.contype = 'f' AND (n.nspname = $1 OR fn.nspname = $1)
+        ORDER BY n.nspname, r.relname, c.conname`,
+      [schema],
+    );
+  const foreignKeyOf = (row: ForeignKeyRow): ForeignKey => ({
+    columns: row.columns, target: { schema: row.target_schema, table: row.target_table, columns: row.target_columns },
+  });
+
   const tables = new Map<string, Table>();
   for (const row of columnRows) {
     const supported = supportedType(row.type_name, row.type_schema, row.type_kind)
@@ -142,6 +171,7 @@ export async function readCatalogue(pool: Queryable, schema: string): Promise<Ca
       hasDefault: row.column_default !== null || row.is_identity === 'YES',
       generated: row.is_identity === 'YES' || row.is_generated === 'ALWAYS' || sequenced,
       sqlType: row.sql_type,
+      references: null,
       readOnlyReason: !supported ? `Тип ${row.sql_type} пока не поддерживает безопасное редактирование.`
         : row.is_generated === 'ALWAYS' ? 'Вычисляемые колонки доступны только для чтения.' : null,
     };
@@ -168,6 +198,15 @@ export async function readCatalogue(pool: Queryable, schema: string): Promise<Ca
   }
   for (const table of tables.values()) {
     if (!table.primaryKey.length) table.readOnlyReason ??= 'У таблицы нет первичного ключа для однозначного выбора строки.';
+    table.foreignKeys = foreignKeyRows.filter((row) => row.table_schema === schema && row.table_name === table.name).map(foreignKeyOf);
+    table.referencedBy = foreignKeyRows.filter((row) => row.target_schema === schema && row.target_table === table.name)
+      .map((row) => ({ columns: row.columns, target: { schema: row.table_schema, table: row.table_name, columns: row.target_columns } }));
+    // A key of one column is the column's own pointer; a composite key stays on the table, told but not followed.
+    for (const key of table.foreignKeys) {
+      if (key.columns.length !== 1) continue;
+      const column = table.columns.find((entry) => entry.name === key.columns[0]);
+      if (column) column.references = { schema: key.target.schema, table: key.target.table, column: key.target.columns[0]! };
+    }
   }
   return { tables: [...tables.values()] };
 }

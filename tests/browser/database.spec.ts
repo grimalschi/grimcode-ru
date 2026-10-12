@@ -86,6 +86,11 @@ test.beforeAll(async () => {
   await database.query(`INSERT INTO "${fixtureSchema}".unsupported VALUES (1, ROW('source'))`);
   // A view beside the tables: opened and read like one, never written.
   await database.query(`CREATE VIEW "${fixtureSchema}".labels AS SELECT id, label FROM "${fixtureSchema}"."values"`);
+  // A foreign key to follow: a child points at a parent, one child at nothing.
+  await database.query(`CREATE TABLE "${fixtureSchema}".parents (id integer PRIMARY KEY, title text NOT NULL)`);
+  await database.query(`CREATE TABLE "${fixtureSchema}".children (id integer PRIMARY KEY, parent_id integer REFERENCES "${fixtureSchema}".parents (id), note text NOT NULL)`);
+  await database.query(`INSERT INTO "${fixtureSchema}".parents VALUES (1, 'root'), (2, 'other')`);
+  await database.query(`INSERT INTO "${fixtureSchema}".children VALUES (1, 1, 'first'), (2, NULL, 'orphan')`);
 });
 
 test.afterAll(async () => {
@@ -765,6 +770,42 @@ test.describe('the native database page', () => {
     await filters(page).getByLabel('Значение', { exact: true }).fill('no-such-label');
     await answered;
     await expect(rows(page).first()).toContainText('Строк нет');
+  });
+
+  test('follows a foreign key from the cell and the row dialog to the row it points at', async ({ page }) => {
+    await openFixture(page, 'children');
+    // The header tells where the column points; the cell's arrow goes there.
+    await page.getByLabel(`Ссылается на ${fixtureSchema}.parents.id`).hover();
+    await expect(page.getByRole('tooltip')).toContainText(`Ссылается на ${fixtureSchema}.parents.id`);
+    const first = rows(page).filter({ hasText: 'first' });
+    const orphan = rows(page).filter({ hasText: 'orphan' });
+    await expect(first.getByRole('button', { name: `Открыть ${fixtureSchema}.parents по parent_id`, exact: true })).toBeVisible();
+    await expect(orphan.getByRole('button', { name: `Открыть ${fixtureSchema}.parents по parent_id`, exact: true })).toHaveCount(0);
+    // Clicking the value still copies, not navigates.
+    await first.locator('[data-testid="database-cell"][data-column="parent_id"]').click();
+    await expect(page.getByRole('heading', { name: `${fixtureSchema}.children`, level: 2 })).toBeVisible();
+    await first.getByRole('button', { name: `Открыть ${fixtureSchema}.parents по parent_id`, exact: true }).click();
+    await expect(page.getByRole('heading', { name: `${fixtureSchema}.parents`, level: 2 })).toBeVisible();
+    await expect(rows(page)).toHaveCount(1);
+    await expect(rows(page).first()).toContainText('root');
+    await expect(page.getByRole('button', { name: /^Фильтры/ })).toHaveText(/Фильтры\s*\(1\)/);
+    // The target says who points at it.
+    await page.getByLabel('На эту таблицу ссылаются', { exact: true }).hover();
+    await expect(page.getByRole('tooltip')).toContainText(`${fixtureSchema}.children.parent_id`);
+
+    // From the row dialog: the arrow is there with a value, and held back while something is unsaved.
+    await openFixture(page, 'children');
+    await rows(page).filter({ hasText: 'first' }).getByRole('button', { name: 'Открыть строку', exact: true }).click();
+    const arrow = editor(page).getByRole('button', { name: `Открыть ${fixtureSchema}.parents по parent_id`, exact: true });
+    await expect(arrow).toBeEnabled();
+    await editor(page).getByLabel('note', { exact: true }).fill('first-edited');
+    await expect(arrow).toBeDisabled();
+    await editor(page).getByLabel('note', { exact: true }).fill('first');
+    await expect(arrow).toBeEnabled();
+    await arrow.click();
+    await expect(editor(page)).toBeHidden();
+    await expect(page.getByRole('heading', { name: `${fixtureSchema}.parents`, level: 2 })).toBeVisible();
+    await expect(rows(page)).toHaveCount(1);
   });
 
   test('hides migration tables in every module schema', async ({ page }) => {
