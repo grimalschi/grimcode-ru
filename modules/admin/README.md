@@ -192,6 +192,10 @@ JSON, array and binary values are never converted through JavaScript numbers, da
 the write path. Connection formatting is fixed within the editor's transaction. The form distinguishes
 an empty string, the text `null`, SQL NULL and an omitted value that uses the column default.
 Control characters use a reversible JSON **string** wrapper; it does not parse the cell's JSON content.
+A table cell spells them out the same way (`\r`, `\n`, `\t`, `\u0001`), dimmed, instead of the space
+or nothing a browser draws for them (`controlSegments` in [`model.ts`](web/src/database/model.ts)):
+what the cell shows is what a text condition has to match. The hover preview also breaks the line
+after `\n`; copying a cell hands over the original bytes.
 Paste captures the original clipboard text. Drag-and-drop is refused because browser text controls
 can normalize line endings before the editor receives the value.
 Copy uses the Clipboard API; if unavailable or denied, it reports failure.

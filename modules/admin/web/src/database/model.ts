@@ -23,6 +23,27 @@ export function hasControlCharacters(value: string): boolean {
   return false;
 }
 
+export interface TextSegment { text: string; control: boolean }
+
+/**
+ * Splits a cell value into plain runs and control characters, each control character spelled as the
+ * row dialog spells it in its JSON string (`\r`, `\n`, `\t`, `\u0001`) — so the table shows that the
+ * value holds a line break where the browser would otherwise draw nothing or a space.
+ */
+export function controlSegments(value: string): TextSegment[] {
+  const segments: TextSegment[] = [];
+  let plain = '';
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (code >= 32 && (code < 127 || code > 159)) { plain += character; continue; }
+    if (plain) { segments.push({ text: plain, control: false }); plain = ''; }
+    const spelled = code < 32 ? JSON.stringify(character).slice(1, -1) : `\\u${code.toString(16).padStart(4, '0')}`;
+    segments.push({ text: spelled, control: true });
+  }
+  if (plain) segments.push({ text: plain, control: false });
+  return segments;
+}
+
 export function fieldDraft(value: string | null | undefined): FieldDraft {
   const text = value ?? '';
   const escaped = hasControlCharacters(text);

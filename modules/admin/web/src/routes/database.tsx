@@ -15,7 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Filters } from '@/database/filters';
-import { cellText, emptyView, isFilterReady, messageOf, PAGE_SIZES, readView, shortType, type Column, type Row, type TableInfo } from '@/database/model';
+import { cellText, controlSegments, emptyView, isFilterReady, messageOf, PAGE_SIZES, readView, shortType, type Column, type Row, type TableInfo } from '@/database/model';
 import { RowEditor } from '@/database/row-editor';
 import { SchemaTables, type SchemaCatalogue } from '@/database/schema-tables';
 import { Sorting } from '@/database/sorting';
@@ -295,10 +295,17 @@ function ValueCell({ column, value }: { column: string; value: string | null | u
       toast.success('Значение скопировано');
     } catch (error) { toast.error(messageOf(error)); }
   }
-  return <Tooltip><TooltipTrigger asChild><button type="button" data-testid="database-cell" data-column={column} className="block max-w-64 truncate text-left hover:underline" title="Нажмите, чтобы скопировать" onClick={() => void copy()}>{text.slice(0, 600) || '""'}</button></TooltipTrigger>
+  return <Tooltip><TooltipTrigger asChild><button type="button" data-testid="database-cell" data-column={column} className="block max-w-64 truncate text-left hover:underline" title="Нажмите, чтобы скопировать" onClick={() => void copy()}>{text ? <ControlText text={text.slice(0, 600)} /> : '""'}</button></TooltipTrigger>
     {text && <TooltipContent className="max-w-lg max-h-80 overflow-auto" data-testid="database-value-preview">
       <p className="mb-1 flex items-center gap-2 font-medium"><CopyIcon className="size-3" />{column}</p>
-      <pre className="whitespace-pre-wrap break-all font-mono text-xs">{text}</pre>
+      <pre className="whitespace-pre-wrap break-all font-mono text-xs"><ControlText text={text} breakLines /></pre>
     </TooltipContent>}
   </Tooltip>;
+}
+
+/** Control characters are spelled out dimmed, the way the row dialog spells them; the preview also breaks the line after `\n`. */
+function ControlText({ text, breakLines = false }: { text: string; breakLines?: boolean }) {
+  return <>{controlSegments(text).map((segment, index) => segment.control
+    ? <React.Fragment key={index}><span className="text-muted-foreground" data-control>{segment.text}</span>{breakLines && segment.text === '\\n' ? '\n' : ''}</React.Fragment>
+    : <React.Fragment key={index}>{segment.text}</React.Fragment>)}</>;
 }

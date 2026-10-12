@@ -71,7 +71,7 @@ Keep local validation and business rules in module tests; use these suites for b
 module boundaries or depends on a browser. General checks are in the [development guide](../docs/development.md#checks).
 
 PostgreSQL type and preservation checks belong to [Admin's database tests](../modules/admin/README.md#tests).
-The database browser suite here verifies form input, exact strings, SQL NULL and escaped control characters.
+The database browser suite here verifies form input, exact strings, SQL NULL and escaped control characters, including how a cell and its hover preview spell them out.
 It edits microsecond timestamps, high-precision numbers and JSON containing large numbers directly
 through the form in UTC and Europe/Moscow. These checks compare the submitted patch and complete
 stored row, then reload the page to verify the value survives the full round trip unchanged.

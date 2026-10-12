@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONDITION_LABELS, fieldDraft, fieldValue, groupConditions } from './model';
+import { CONDITION_LABELS, controlSegments, fieldDraft, fieldValue, groupConditions, hasControlCharacters } from './model';
 import {
   ARRAY_CONDITIONS, BOOLEAN_CONDITIONS, JSON_CONDITIONS, PLAIN_CONDITIONS, RANGE_CONDITIONS,
   TEXT_CONDITIONS, UUID_CONDITIONS, VALUE_CONDITIONS,
@@ -73,5 +73,28 @@ describe('the database editor text representation', () => {
     expect(fieldValue({ mode: 'value', text: '', escaped: false })).toBe('');
     expect(fieldValue({ mode: 'null', text: '', escaped: false })).toBeNull();
     expect(fieldValue({ mode: 'default', text: '', escaped: false })).toBeUndefined();
+  });
+});
+
+describe('control characters in a table cell', () => {
+  it('spells each control character the way the row dialog does and keeps the rest as text', () => {
+    expect(controlSegments('first\r\nsecond\tend')).toEqual([
+      { text: 'first', control: false }, { text: '\\r', control: true }, { text: '\\n', control: true },
+      { text: 'second', control: false }, { text: '\\t', control: true }, { text: 'end', control: false },
+    ]);
+    expect(controlSegments('\u0001\u007f\u0085')).toEqual([
+      { text: '\\u0001', control: true }, { text: '\\u007f', control: true }, { text: '\\u0085', control: true },
+    ]);
+  });
+
+  it('leaves plain text, quotes and backslashes alone', () => {
+    expect(controlSegments('say "hi" \\ there')).toEqual([{ text: 'say "hi" \\ there', control: false }]);
+    expect(controlSegments('')).toEqual([]);
+  });
+
+  it('agrees with the dialog about what counts as a control character', () => {
+    for (const text of ['plain', 'tab\tbed', 'crlf\r\n', '\u009f']) {
+      expect(controlSegments(text).some((segment) => segment.control)).toBe(hasControlCharacters(text));
+    }
   });
 });

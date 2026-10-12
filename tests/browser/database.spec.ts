@@ -838,6 +838,21 @@ test.describe('lossless database editing in the browser', () => {
     expect((await storedRow(60))?.controls).toBe(source);
   });
 
+  test('spells control characters out in the cell and its preview', async ({ page }) => {
+    await database.query(`INSERT INTO "${fixtureSchema}"."values" (id, label, controls) VALUES (63, 'spelled-controls', $1)`, ['first\r\nsecond\tend']);
+    await openFixture(page);
+    const cell = rows(page).filter({ hasText: 'spelled-controls' }).locator('[data-testid="database-cell"][data-column="controls"]');
+    // The cell shows the bytes the search would have to match, not a space where the browser swallowed the line break.
+    await expect(cell).toHaveText('first\\r\\nsecond\\tend');
+    await expect(cell.locator('[data-control]')).toHaveText(['\\r', '\\n', '\\t']);
+    await cell.hover();
+    const preview = page.getByTestId('database-value-preview').locator('pre');
+    await expect(preview).toHaveText('first\\r\\n\nsecond\\tend');
+    await expect(preview.locator('[data-control]')).toHaveCount(3);
+    // The spelling is display only: the stored bytes are untouched.
+    expect((await storedRow(63))?.controls).toBe('first\r\nsecond\tend');
+  });
+
   for (const unavailable of ['missing', 'denied'] as const) {
     test(`refuses copying when clipboard access is ${unavailable}`, async ({ page }) => {
       const id = unavailable === 'missing' ? 61 : 62;
