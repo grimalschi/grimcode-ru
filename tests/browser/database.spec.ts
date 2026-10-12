@@ -932,6 +932,20 @@ test.describe('lossless database editing in the browser', () => {
     await answered;
     await expect(rows(page)).toHaveCount(1);
     await expect(rows(page).first()).toContainText('spelled-decoy');
+    // What a cell copies (the bytes) pasted into the box lands as the spelling, not as nothing.
+    answered = page.waitForResponse((response) => response.url().includes('/admin/rpc/database.rows'));
+    await filters(page).getByLabel('Значение', { exact: true }).evaluate((element) => {
+      const input = element as HTMLInputElement;
+      input.focus();
+      input.setSelectionRange(0, input.value.length);
+      const data = new DataTransfer();
+      data.setData('text/plain', 'first line\r\nsecond line');
+      input.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+    });
+    await expect(filters(page).getByLabel('Значение', { exact: true })).toHaveValue('first line\\r\\nsecond line');
+    await answered;
+    await expect(rows(page)).toHaveCount(1);
+    await expect(rows(page).first()).toContainText('spelled-filter');
   });
 
   for (const unavailable of ['missing', 'denied'] as const) {

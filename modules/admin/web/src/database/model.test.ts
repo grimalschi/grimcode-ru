@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONDITION_LABELS, controlSegments, decodeControlSpelling, decodeFilterValues, fieldDraft, fieldValue, groupConditions, hasControlCharacters, type Filter } from './model';
+import { CONDITION_LABELS, controlSegments, decodeControlSpelling, decodeFilterValues, fieldDraft, fieldValue, groupConditions, hasControlCharacters, spellControls, type Filter } from './model';
 import {
   ARRAY_CONDITIONS, BOOLEAN_CONDITIONS, JSON_CONDITIONS, PLAIN_CONDITIONS, RANGE_CONDITIONS,
   TEXT_CONDITIONS, UUID_CONDITIONS, VALUE_CONDITIONS,
@@ -90,6 +90,14 @@ describe('control characters in a table cell', () => {
   it('leaves plain text, quotes and backslashes alone', () => {
     expect(controlSegments('say "hi" \\ there')).toEqual([{ text: 'say "hi" \\ there', control: false }]);
     expect(controlSegments('')).toEqual([]);
+  });
+
+  it('spells pasted bytes the way the cell shows them, and reads them back exactly', () => {
+    expect(spellControls('first\r\nsecond\tend')).toBe('first\\r\\nsecond\\tend');
+    expect(spellControls('C:\\new\nline')).toBe('C:\\\\new\\nline');
+    for (const text of ['first\r\nsecond', 'C:\\new\nline', 'plain', '\u0001\\u0001']) {
+      expect(decodeControlSpelling(spellControls(text))).toBe(text);
+    }
   });
 
   it('reads the same spelling back in a filter value', () => {

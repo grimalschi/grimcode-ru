@@ -206,6 +206,8 @@ what the cell shows is what a text condition can be given: on a text column (one
 "empty string" to) a value for a matching condition is read back through `decodeFilterValues` —
 `\r`, `\n`, `\t`, `\b`, `\f`, `\uXXXX` become the characters, `\\` one backslash, any other
 backslash stays — before the request leaves the screen, while the page URL keeps the spelling.
+A paste into such a box that holds control characters (what a cell copies) lands as the spelling
+(`spellControls`, backslashes doubled), so the bytes a single-line box would drop are kept and found.
 The server sees characters only. The hover preview also breaks the line after `\n`; copying a cell
 hands over the original bytes.
 Paste captures the original clipboard text. Drag-and-drop is refused because browser text controls

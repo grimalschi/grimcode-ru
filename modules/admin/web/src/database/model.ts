@@ -58,6 +58,15 @@ export function decodeControlSpelling(text: string): string {
   });
 }
 
+/**
+ * The spelling of a text that holds control characters, as a filter box should receive it when the
+ * text is pasted: what a cell copies (the bytes) becomes what the cell shows, with every backslash
+ * doubled so that `decodeControlSpelling` gives the pasted bytes back exactly.
+ */
+export function spellControls(text: string): string {
+  return controlSegments(text).map((segment) => segment.control ? segment.text : segment.text.replaceAll('\\', '\\\\')).join('');
+}
+
 /** Text columns are the ones the server offers "empty string" to; the spelling is read only for them. */
 export const isTextColumn = (column: { conditions: readonly string[] } | undefined): boolean => column?.conditions.includes('empty-string') ?? false;
 

@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { DateField, DateRangeFields, dateKindOf, type DateKind } from './date-field';
 import { useDragOrder } from './drag-order';
-import { CONDITION_LABELS, chained, filterShape, groupConditions, isFilterReady, isTextColumn, type Column, type Filter } from './model';
+import { CONDITION_LABELS, chained, filterShape, groupConditions, hasControlCharacters, isFilterReady, isTextColumn, spellControls, type Column, type Filter } from './model';
 
 const JOIN_HINT = 'Условия через И выполняются вместе; ИЛИ разделяет такие группы.';
 /** The spelling the table uses for control characters is read back here; shown on text columns only. */
@@ -156,8 +156,8 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
               </div> : shape === 'list' ? <ValueList values={Array.isArray(filter.value) ? filter.value.map(String) : []} invalid={invalid} dates={dates} spelled={spelled} onChange={(value) => change(index, { value })} />
                 : dates && shape === 'one'
                   ? <DateField className="w-80" kind={dates} label="Значение" placeholder="значение" value={String(filter.value ?? '')} invalid={invalid} onChange={(value) => change(index, { value })} />
-                  : withSpellingHint(spelled && shape === 'one', <Input className="w-80" aria-label="Значение" placeholder={shape === 'number' ? 'число' : 'значение'} inputMode={shape === 'number' ? 'numeric' : undefined}
-                    value={String(filter.value ?? '')} aria-invalid={invalid} onChange={(event) => change(index, { value: event.target.value })} />)}
+                  : withSpelling(spelled && shape === 'one', <Input className="w-80" aria-label="Значение" placeholder={shape === 'number' ? 'число' : 'значение'} inputMode={shape === 'number' ? 'numeric' : undefined}
+                    value={String(filter.value ?? '')} aria-invalid={invalid} onChange={(event) => change(index, { value: event.target.value })} />, (value) => change(index, { value }))}
               {index < filters.length - 1 && joinToNext(index)}
               <Button size="icon" variant="ghost" className="size-7 text-muted-foreground" aria-label={`Убрать условие ${index + 1}`} onClick={() => update(filters.filter((_, at) => at !== index))}><XIcon className="size-4" /></Button>
               {drag.line(index)}
@@ -178,13 +178,23 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
 }
 
 /**
- * A text box with the spelling hint on hover, or the box alone where the spelling is not read.
- * Hover only: a tooltip opened by focus would sit over the box while typing, and Escape would
- * close it instead of the panel.
+ * A text box that speaks the spelling: a hint on hover, and a paste holding control characters
+ * (what a cell copies) lands as the spelling the cell shows, so the box keeps what a single-line
+ * box would otherwise drop. Elsewhere the box alone. Hover only for the hint: a tooltip opened by
+ * focus would sit over the box while typing, and Escape would close it instead of the panel.
  */
-function withSpellingHint(shown: boolean, input: React.ReactElement<{ onFocus?: React.FocusEventHandler }>): React.ReactElement {
+function withSpelling(shown: boolean, input: React.ReactElement<{ onFocus?: React.FocusEventHandler; onPaste?: React.ClipboardEventHandler<HTMLInputElement> }>, write: (value: string) => void): React.ReactElement {
   if (!shown) return input;
-  const quiet = React.cloneElement(input, { onFocus: (event: React.FocusEvent) => event.preventDefault() });
+  const quiet = React.cloneElement(input, {
+    onFocus: (event: React.FocusEvent) => event.preventDefault(),
+    onPaste: (event: React.ClipboardEvent<HTMLInputElement>) => {
+      const pasted = event.clipboardData.getData('text/plain');
+      if (!hasControlCharacters(pasted)) return;
+      event.preventDefault();
+      const { value, selectionStart, selectionEnd } = event.currentTarget;
+      write(value.slice(0, selectionStart ?? value.length) + spellControls(pasted) + value.slice(selectionEnd ?? value.length));
+    },
+  });
   return <Tooltip><TooltipTrigger asChild>{quiet}</TooltipTrigger><TooltipContent className="max-w-72">{SPELLING_HINT}</TooltipContent></Tooltip>;
 }
 
@@ -197,6 +207,6 @@ function ValueList({ values, invalid, dates, spelled, onChange }: { values: stri
     {values.map((value, index) => <Button key={index} size="sm" variant="secondary" aria-label={`Убрать значение ${value}`} onClick={() => onChange(values.filter((_, at) => at !== index))}>{value}<XIcon className="size-3" /></Button>)}
     {dates
       ? <DateField className="w-full" kind={dates} label="Значения" placeholder="значения" value={draft} invalid={invalid} onChange={setDraft} onKeyDown={add} />
-      : withSpellingHint(spelled, <Input aria-label="Значения" placeholder="значения" value={draft} aria-invalid={invalid} onChange={(event) => setDraft(event.target.value)} onKeyDown={add} />)}
+      : withSpelling(spelled, <Input aria-label="Значения" placeholder="значения" value={draft} aria-invalid={invalid} onChange={(event) => setDraft(event.target.value)} onKeyDown={add} />, setDraft)}
   </div>;
 }
