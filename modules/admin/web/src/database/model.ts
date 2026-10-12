@@ -44,6 +44,36 @@ export function controlSegments(value: string): TextSegment[] {
   return segments;
 }
 
+/**
+ * The way back: a filter value typed the way the cell spells control characters becomes the bytes
+ * the cell stands for, so what the table shows is what a condition can be given. `\\` is one
+ * backslash; a backslash before anything else is left alone, so `C:\data` still means itself and
+ * only `\n`, `\r`, `\t`, `\b`, `\f` and `\uXXXX` are read as spelling.
+ */
+export function decodeControlSpelling(text: string): string {
+  return text.replace(/\\(u[0-9a-fA-F]{4}|[nrtbf\\])/g, (_, code: string) => {
+    if (code === '\\') return '\\';
+    if (code.startsWith('u')) return String.fromCharCode(Number.parseInt(code.slice(1), 16));
+    return { n: '\n', r: '\r', t: '\t', b: '\b', f: '\f' }[code] ?? code;
+  });
+}
+
+/** Text columns are the ones the server offers "empty string" to; the spelling is read only for them. */
+export const isTextColumn = (column: { conditions: readonly string[] } | undefined): boolean => column?.conditions.includes('empty-string') ?? false;
+
+/** Conditions whose value is matched against the column's text, where the spelling means something. */
+const SPELLED_CONDITIONS = new Set(['is', 'is-not', 'not-equals-or-empty', 'contains', 'not-contains', 'not-contains-or-empty', 'starts-with', 'not-starts-with', 'ends-with', 'not-ends-with', 'one-of', 'not-one-of']);
+
+/** Filters as the server should see them: the spelling of control characters turned into the characters on text columns. */
+export function decodeFilterValues(filters: Filter[], columns: readonly { name: string; conditions: readonly string[] }[]): Filter[] {
+  return filters.map((filter) => {
+    if (!SPELLED_CONDITIONS.has(filter.condition) || !isTextColumn(columns.find((column) => column.name === filter.column))) return filter;
+    const value = Array.isArray(filter.value) ? filter.value.map((entry) => decodeControlSpelling(String(entry)))
+      : typeof filter.value === 'string' ? decodeControlSpelling(filter.value) : filter.value;
+    return { ...filter, value };
+  });
+}
+
 export function fieldDraft(value: string | null | undefined): FieldDraft {
   const text = value ?? '';
   const escaped = hasControlCharacters(text);

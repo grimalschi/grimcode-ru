@@ -8,9 +8,11 @@ import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { DateField, DateRangeFields, dateKindOf, type DateKind } from './date-field';
 import { useDragOrder } from './drag-order';
-import { CONDITION_LABELS, chained, filterShape, groupConditions, isFilterReady, type Column, type Filter } from './model';
+import { CONDITION_LABELS, chained, filterShape, groupConditions, isFilterReady, isTextColumn, type Column, type Filter } from './model';
 
 const JOIN_HINT = 'Условия через И выполняются вместе; ИЛИ разделяет такие группы.';
+/** The spelling the table uses for control characters is read back here; shown on text columns only. */
+const SPELLING_HINT = 'Спецсимволы пишутся как в таблице: \\r — возврат каретки, \\n — перевод строки, \\t — табуляция. Обратная косая черта сама по себе — \\\\.';
 const CASE_HINT = 'Действует на «содержит», «начинается с», «заканчивается на». «Равно» всегда различает большие и маленькие буквы.';
 /** How long a condition may stay unfilled before the panel points at it. */
 const IDLE_MS = 5000;
@@ -111,6 +113,7 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
             const invalid = pointedAt(index);
             // A date column gets a calendar beside each text box; the box itself stays free text.
             const dates = dateKindOf(columnOf(filter.column)?.type ?? '');
+            const spelled = isTextColumn(columnOf(filter.column));
             const row = drag.row(index);
             return <div key={index} data-testid="database-filter" className={`relative flex flex-wrap items-center gap-2 ${row.dimmed ? 'opacity-40' : ''}`} aria-invalid={invalid}
                 onDragOver={row.onDragOver} onDrop={row.onDrop}>
@@ -150,11 +153,11 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
                     return <Input key={half} aria-label={label} placeholder={label.toLowerCase()} value={text(half)} aria-invalid={invalid && text(half) === ''} onChange={(event) => write(half, event.target.value)} />;
                   });
                 })()}
-              </div> : shape === 'list' ? <ValueList values={Array.isArray(filter.value) ? filter.value.map(String) : []} invalid={invalid} dates={dates} onChange={(value) => change(index, { value })} />
+              </div> : shape === 'list' ? <ValueList values={Array.isArray(filter.value) ? filter.value.map(String) : []} invalid={invalid} dates={dates} spelled={spelled} onChange={(value) => change(index, { value })} />
                 : dates && shape === 'one'
                   ? <DateField className="w-80" kind={dates} label="Значение" placeholder="значение" value={String(filter.value ?? '')} invalid={invalid} onChange={(value) => change(index, { value })} />
-                  : <Input className="w-80" aria-label="Значение" placeholder={shape === 'number' ? 'число' : 'значение'} inputMode={shape === 'number' ? 'numeric' : undefined}
-                    value={String(filter.value ?? '')} aria-invalid={invalid} onChange={(event) => change(index, { value: event.target.value })} />}
+                  : withSpellingHint(spelled && shape === 'one', <Input className="w-80" aria-label="Значение" placeholder={shape === 'number' ? 'число' : 'значение'} inputMode={shape === 'number' ? 'numeric' : undefined}
+                    value={String(filter.value ?? '')} aria-invalid={invalid} onChange={(event) => change(index, { value: event.target.value })} />)}
               {index < filters.length - 1 && joinToNext(index)}
               <Button size="icon" variant="ghost" className="size-7 text-muted-foreground" aria-label={`Убрать условие ${index + 1}`} onClick={() => update(filters.filter((_, at) => at !== index))}><XIcon className="size-4" /></Button>
               {drag.line(index)}
@@ -174,7 +177,18 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
   );
 }
 
-function ValueList({ values, invalid, dates, onChange }: { values: string[]; invalid: boolean; dates: DateKind | null; onChange: (values: string[]) => void }) {
+/**
+ * A text box with the spelling hint on hover, or the box alone where the spelling is not read.
+ * Hover only: a tooltip opened by focus would sit over the box while typing, and Escape would
+ * close it instead of the panel.
+ */
+function withSpellingHint(shown: boolean, input: React.ReactElement<{ onFocus?: React.FocusEventHandler }>): React.ReactElement {
+  if (!shown) return input;
+  const quiet = React.cloneElement(input, { onFocus: (event: React.FocusEvent) => event.preventDefault() });
+  return <Tooltip><TooltipTrigger asChild>{quiet}</TooltipTrigger><TooltipContent className="max-w-72">{SPELLING_HINT}</TooltipContent></Tooltip>;
+}
+
+function ValueList({ values, invalid, dates, spelled, onChange }: { values: string[]; invalid: boolean; dates: DateKind | null; spelled: boolean; onChange: (values: string[]) => void }) {
   const [draft, setDraft] = React.useState('');
   const add = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter' && draft !== '') { event.preventDefault(); onChange([...values, draft]); setDraft(''); }
@@ -183,6 +197,6 @@ function ValueList({ values, invalid, dates, onChange }: { values: string[]; inv
     {values.map((value, index) => <Button key={index} size="sm" variant="secondary" aria-label={`Убрать значение ${value}`} onClick={() => onChange(values.filter((_, at) => at !== index))}>{value}<XIcon className="size-3" /></Button>)}
     {dates
       ? <DateField className="w-full" kind={dates} label="Значения" placeholder="значения" value={draft} invalid={invalid} onChange={setDraft} onKeyDown={add} />
-      : <Input aria-label="Значения" placeholder="значения" value={draft} aria-invalid={invalid} onChange={(event) => setDraft(event.target.value)} onKeyDown={add} />}
+      : withSpellingHint(spelled, <Input aria-label="Значения" placeholder="значения" value={draft} aria-invalid={invalid} onChange={(event) => setDraft(event.target.value)} onKeyDown={add} />)}
   </div>;
 }

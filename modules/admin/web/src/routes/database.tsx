@@ -15,7 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Filters } from '@/database/filters';
-import { cellText, controlSegments, emptyView, isFilterReady, messageOf, PAGE_SIZES, readView, shortType, type Column, type Row, type TableInfo } from '@/database/model';
+import { cellText, controlSegments, decodeFilterValues, emptyView, isFilterReady, messageOf, PAGE_SIZES, readView, shortType, type Column, type Row, type TableInfo } from '@/database/model';
 import { RowEditor } from '@/database/row-editor';
 import { SchemaTables, type SchemaCatalogue } from '@/database/schema-tables';
 import { Sorting } from '@/database/sorting';
@@ -61,9 +61,10 @@ export function DatabasePage() {
   const [held, setHeld] = React.useState(() => (ready ? wanted : JSON.stringify({ schema: view.schema, table: view.table, filters: [], caseSensitive: view.caseSensitive })));
   React.useEffect(() => { if (ready) setHeld(wanted); }, [ready, wanted]);
   const settled = JSON.parse(useDebounced(held, 300)) as { schema: string; table: string; filters: typeof view.filters; caseSensitive: boolean };
+  // The address keeps the spelling a person typed (`\r\n`); the server gets the characters it stands for.
   const query = {
     schema: view.schema, table: view.table, caseSensitive: settled.caseSensitive,
-    filters: settled.schema === view.schema && settled.table === view.table ? settled.filters : [],
+    filters: settled.schema === view.schema && settled.table === view.table ? decodeFilterValues(settled.filters, selected?.columns ?? []) : [],
     order: view.order, limit: view.size, offset: (view.page - 1) * view.size,
   };
   const queryKey = JSON.stringify(query);

@@ -194,8 +194,12 @@ an empty string, the text `null`, SQL NULL and an omitted value that uses the co
 Control characters use a reversible JSON **string** wrapper; it does not parse the cell's JSON content.
 A table cell spells them out the same way (`\r`, `\n`, `\t`, `\u0001`), dimmed, instead of the space
 or nothing a browser draws for them (`controlSegments` in [`model.ts`](web/src/database/model.ts)):
-what the cell shows is what a text condition has to match. The hover preview also breaks the line
-after `\n`; copying a cell hands over the original bytes.
+what the cell shows is what a text condition can be given: on a text column (one the server offers
+"empty string" to) a value for a matching condition is read back through `decodeFilterValues` —
+`\r`, `\n`, `\t`, `\b`, `\f`, `\uXXXX` become the characters, `\\` one backslash, any other
+backslash stays — before the request leaves the screen, while the page URL keeps the spelling.
+The server sees characters only. The hover preview also breaks the line after `\n`; copying a cell
+hands over the original bytes.
 Paste captures the original clipboard text. Drag-and-drop is refused because browser text controls
 can normalize line endings before the editor receives the value.
 Copy uses the Clipboard API; if unavailable or denied, it reports failure.

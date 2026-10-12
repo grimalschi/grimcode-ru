@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONDITION_LABELS, controlSegments, fieldDraft, fieldValue, groupConditions, hasControlCharacters } from './model';
+import { CONDITION_LABELS, controlSegments, decodeControlSpelling, decodeFilterValues, fieldDraft, fieldValue, groupConditions, hasControlCharacters, type Filter } from './model';
 import {
   ARRAY_CONDITIONS, BOOLEAN_CONDITIONS, JSON_CONDITIONS, PLAIN_CONDITIONS, RANGE_CONDITIONS,
   TEXT_CONDITIONS, UUID_CONDITIONS, VALUE_CONDITIONS,
@@ -90,6 +90,26 @@ describe('control characters in a table cell', () => {
   it('leaves plain text, quotes and backslashes alone', () => {
     expect(controlSegments('say "hi" \\ there')).toEqual([{ text: 'say "hi" \\ there', control: false }]);
     expect(controlSegments('')).toEqual([]);
+  });
+
+  it('reads the same spelling back in a filter value', () => {
+    expect(decodeControlSpelling('first\\r\\nsecond\\tend')).toBe('first\r\nsecond\tend');
+    expect(decodeControlSpelling('\\u0001\\u007f\\u0085')).toBe('\u0001\u007f\u0085');
+    expect(decodeControlSpelling('C:\\data\\\\n \\x \\')).toBe('C:\\data\\n \\x \\');
+    for (const text of ['first\r\nsecond\tend', '\u0001\u009f', 'back\\slash']) {
+      expect(decodeControlSpelling(controlSegments(text).map((segment) => segment.control ? segment.text : segment.text.replaceAll('\\', '\\\\')).join(''))).toBe(text);
+    }
+  });
+
+  it('decodes filter values only for text-matching conditions on text columns', () => {
+    const columns = [{ name: 'label', conditions: ['is', 'contains', 'empty-string'] }, { name: 'amount', conditions: ['is', 'contains'] }];
+    const filters: Filter[] = [
+      { column: 'label', condition: 'contains', value: 'a\\nb' },
+      { column: 'label', condition: 'one-of', value: ['a\\tb', 'c'] },
+      { column: 'label', condition: 'length-over', value: '\\n' },
+      { column: 'amount', condition: 'contains', value: '\\n' },
+    ];
+    expect(decodeFilterValues(filters, columns).map((filter) => filter.value)).toEqual(['a\nb', ['a\tb', 'c'], '\\n', '\\n']);
   });
 
   it('agrees with the dialog about what counts as a control character', () => {

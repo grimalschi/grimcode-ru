@@ -853,6 +853,32 @@ test.describe('lossless database editing in the browser', () => {
     expect((await storedRow(63))?.controls).toBe('first\r\nsecond\tend');
   });
 
+  test('finds a row by a condition typed the way the cell spells it', async ({ page }) => {
+    await database.query(`INSERT INTO "${fixtureSchema}"."values" (id, label, controls) VALUES (64, 'spelled-filter', $1), (65, 'spelled-decoy', $2)`, ['first line\r\nsecond line', 'first line\\r\\nsecond line']);
+    await openFixture(page);
+    await page.getByRole('button', { name: /^Фильтры/ }).click();
+    await filters(page).getByRole('button', { name: 'Добавить условие', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Колонка условия 1', exact: true }).click();
+    await page.getByRole('option', { name: 'controls', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Условие 1', exact: true }).click();
+    await page.getByRole('option', { name: 'содержит', exact: true }).click();
+    let answered = page.waitForResponse((response) => response.url().includes('/admin/rpc/database.rows'));
+    await filters(page).getByLabel('Значение', { exact: true }).fill('line\\r\\nsecond');
+    await answered;
+    // `\r\n` means the two characters, as the cell shows them; the decoy holds four and is not it.
+    await expect(rows(page)).toHaveCount(1);
+    await expect(rows(page).first()).toContainText('spelled-filter');
+    // The address keeps the spelling, so a reload asks the same thing.
+    const view = JSON.parse(decodeURIComponent(new URL(page.url()).hash.slice(1))) as { filters: { value: unknown }[] };
+    expect(view.filters[0]?.value).toBe('line\\r\\nsecond');
+    // `\\` is one backslash: that finds the decoy, which has the spelling as plain text.
+    answered = page.waitForResponse((response) => response.url().includes('/admin/rpc/database.rows'));
+    await filters(page).getByLabel('Значение', { exact: true }).fill('line\\\\r\\\\nsecond');
+    await answered;
+    await expect(rows(page)).toHaveCount(1);
+    await expect(rows(page).first()).toContainText('spelled-decoy');
+  });
+
   for (const unavailable of ['missing', 'denied'] as const) {
     test(`refuses copying when clipboard access is ${unavailable}`, async ({ page }) => {
       const id = unavailable === 'missing' ? 61 : 62;
