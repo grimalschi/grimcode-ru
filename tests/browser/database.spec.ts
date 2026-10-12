@@ -816,7 +816,12 @@ test.describe('columns numbered by the database', () => {
       const id = create.getByLabel('id', { exact: true });
       await expect(id).toBeDisabled();
       await expect(id).toHaveAttribute('placeholder', 'Автоматически');
-      await expect(create.locator('[data-testid="database-field"][data-column="id"]')).toContainText('PostgreSQL назначит значение при сохранении');
+      // The reason sits behind a lock beside the name: no text in the field, the text on hovering the lock.
+      const idField = create.locator('[data-testid="database-field"][data-column="id"]');
+      await expect(idField).not.toContainText('Только чтение');
+      await idField.getByLabel(/^Только чтение/).hover();
+      await expect(page.getByRole('tooltip')).toContainText('PostgreSQL назначит значение при сохранении');
+      await create.getByLabel('label', { exact: true }).hover();
       await create.getByLabel('label', { exact: true }).fill(label);
       await create.getByRole('button', { name: 'Добавить', exact: true }).click();
       await expect(create).toBeHidden();

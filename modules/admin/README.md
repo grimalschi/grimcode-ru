@@ -195,6 +195,7 @@ The mode (value, SQL NULL, default — only those the column allows) and the esc
 popover behind a settings icon opposite the field name (`FieldSettings` in
 [`row-editor.tsx`](web/src/database/row-editor.tsx)); the icon is tinted while either is set, with
 no tooltip of its own, and a box in SQL NULL or default mode shows the mode as its placeholder.
+A locked field carries a lock beside its name, and why it is locked shows on hover over the lock.
 Such a box is not disabled: clicking into it switches the field to a value so one can type, and
 leaving it with nothing typed switches it back, so a stray click never turns NULL into an empty
 string; a mode picked in the panel stays.

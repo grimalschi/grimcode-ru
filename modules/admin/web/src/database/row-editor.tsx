@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Settings2Icon } from 'lucide-react';
+import { LockIcon, Settings2Icon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { fieldDraft, fieldValue, hasControlCharacters, messageOf, newUuid, shortType, type Column, type FieldDraft, type Row } from './model';
 
 export function RowEditor({ schema, table, columns, primaryKey, readOnlyReason, notice = null, row, onClose, onSave }: {
@@ -121,6 +122,7 @@ export function RowEditor({ schema, table, columns, primaryKey, readOnlyReason, 
 
   return <Dialog open onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
     <DialogContent className="sm:max-w-2xl" onInteractOutside={(event) => event.preventDefault()} onOpenAutoFocus={focusFirstField}>
+      <TooltipProvider delayDuration={250}>
       <DialogHeader>
         <DialogTitle>{inserting ? 'Новая строка' : 'Строка'}</DialogTitle>
         <DialogDescription>{schema}.{table}</DialogDescription>
@@ -157,7 +159,13 @@ export function RowEditor({ schema, table, columns, primaryKey, readOnlyReason, 
                 <Label htmlFor={input.id}>{column.name}</Label>
                 <span className="text-xs text-muted-foreground" title={column.type}>{shortType(column.type)}</span>
                 {reason
-                  ? <span className="ml-auto text-xs text-muted-foreground">Только чтение: {reason}</span>
+                  // A lock beside the name; why the box is locked shows on hover over the lock (the owner, 12 October).
+                  ? <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex text-muted-foreground" tabIndex={0} aria-label={`Только чтение: ${reason}`}><LockIcon className="size-3.5" aria-hidden="true" /></span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-72">Только чтение: {reason}</TooltipContent>
+                  </Tooltip>
                   : <FieldSettings column={column} current={current} busy={busy}
                     modes={[...(column.nullable ? [['null', 'SQL NULL'] as const] : []), ['value', 'Значение'], ...(inserting && column.hasDefault ? [['default', 'По умолчанию'] as const] : [])]}
                     onMode={(mode) => chooseMode(column.name, mode)} onEscape={(escaped) => toggleEscaping(column.name, escaped)} />}
@@ -176,6 +184,7 @@ export function RowEditor({ schema, table, columns, primaryKey, readOnlyReason, 
           <Button type="submit" disabled={busy || !changed || !!readOnlyReason || blockedInsert}>{busy ? 'Сохраняем…' : inserting ? 'Добавить' : 'Сохранить'}</Button>
         </DialogFooter>
       </form>
+      </TooltipProvider>
     </DialogContent>
   </Dialog>;
 }
