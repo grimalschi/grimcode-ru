@@ -51,7 +51,7 @@ const auth = createAuth({
 });
 const users = createUsers({
   env: {
-    databaseUrl, sessionCookieName: session.sessionCookieName,
+    databaseUrl, sessionCookieName: session.sessionCookieName, csrfCookieName: `${slug}_csrf_users`,
   },
   modules: { auth: auth.internalCaller },
 });

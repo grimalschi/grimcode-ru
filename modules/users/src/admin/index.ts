@@ -5,11 +5,11 @@ import { Hono } from 'hono';
 
 import type { HttpDependencies } from '../dependencies.js';
 import type { UsersEnv } from '../env.js';
-import { mountSpa } from '../http/spa.js';
+import { mountCsrfEndpoint, mountSpa } from '../http/spa.js';
 import { mountTrpc } from '../trpc/mount.js';
 import { adminRouter } from './router.js';
 
-/** Administrative profile list, assets and context checks have their own HTTP application. */
+/** Administrative profile list, assets, CSRF endpoint and context checks have their own HTTP application. */
 export function createAdminFetch({ env, repository, auth }: HttpDependencies) {
   const app = new Hono<{ Bindings: UsersEnv & { adminContext: AdminContext } }>();
   app.get('/healthz', (c) => c.json({ ok: true, module: 'users' }));
@@ -21,6 +21,7 @@ export function createAdminFetch({ env, repository, auth }: HttpDependencies) {
     auth,
     adminContext: env.adminContext,
   }));
+  mountCsrfEndpoint(app, '/admin/embed/module/users/csrf');
   mountSpa(app, {
     basePath: '/admin/embed/module/users',
     rootDir: join(dirname(fileURLToPath(import.meta.url)), '../../web/dist'),

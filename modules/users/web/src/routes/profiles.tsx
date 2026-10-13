@@ -1,7 +1,8 @@
 import * as React from 'react';
 import type { AdminUserProfile as Profile } from '@template/contracts/modules/users';
+import { toast } from 'sonner';
 
-import { api } from '@/api';
+import { api, messageOf } from '@/api';
 import { AdminPage, ErrorState } from '@/components/layout/admin-page';
 import { DataTable, Pagination } from '@/components/layout/data-table';
 import { Button } from '@/components/ui/button';
@@ -25,13 +26,18 @@ const LIMIT = 25;
  * This is who a person is inside the product — a display name. Passwords, sessions and admin
  * rights live in Auth and Admin, and are neither shown nor editable here.
  *
- * The sign-in address is not stored here either: Users asks Auth for it, in one call for the page.
+ * The sign-in address is not stored here either: Users asks Auth for it, in one call for the page,
+ * together with whether the account is blocked. Blocking is the one thing the owner does from this
+ * list (the owner's choice, 13 October 2026: this is where the people are); Auth performs it and
+ * refuses it for the panel's owners.
  */
 export function ProfilesPage() {
   const [query, setQuery] = React.useState('');
   const [search, setSearch] = React.useState('');
   const [offset, setOffset] = React.useState(0);
   const [selected, setSelected] = React.useState<Profile | null>(null);
+  const [blocking, setBlocking] = React.useState<Profile | null>(null);
+  const [busy, setBusy] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -41,11 +47,27 @@ export function ProfilesPage() {
     return () => clearTimeout(timer);
   }, [query]);
 
+  const viewer = useAsync(() => api.viewer.query({}), []);
   const list = useAsync(
     () =>
       api.listProfiles.query({ query: search === '' ? undefined : search, limit: LIMIT, offset }),
     [search, offset],
   );
+  const owner = viewer.data?.role === 'owner';
+
+  async function setBlocked(profile: Profile, blocked: boolean) {
+    setBusy(profile.id);
+    try {
+      await api.setBlocked.mutate({ identityId: profile.identityId, blocked });
+      toast.success(blocked ? 'Аккаунт заблокирован' : 'Аккаунт разблокирован');
+      list.reload();
+    } catch (error) {
+      toast.error(messageOf(error));
+    } finally {
+      setBusy(null);
+      setBlocking(null);
+    }
+  }
 
   if (list.error) {
     return (
@@ -90,11 +112,10 @@ export function ProfilesPage() {
             ),
           },
           {
-            key: 'identity',
-            header: 'Учётная запись',
-            cell: (row) => (
-              <code className="text-muted-foreground text-xs">{row.identityId}</code>
-            ),
+            key: 'access',
+            header: 'Вход',
+            className: 'whitespace-nowrap',
+            cell: (row) => <AccessState profile={row} />,
           },
           {
             key: 'created',
@@ -102,6 +123,19 @@ export function ProfilesPage() {
             className: 'whitespace-nowrap',
             cell: (row) => new Date(row.createdAt).toLocaleDateString(),
           },
+          ...(owner ? [{
+            key: 'block',
+            header: '',
+            className: 'w-px whitespace-nowrap text-right',
+            cell: (row: Profile) => (
+              <BlockButton
+                profile={row}
+                self={row.identityId === viewer.data?.userId}
+                busy={busy === row.id}
+                onClick={() => (row.blockedAt ? void setBlocked(row, false) : setBlocking(row))}
+              />
+            ),
+          }] : []),
         ]}
       />
 
@@ -115,7 +149,67 @@ export function ProfilesPage() {
       {selected ? (
         <ProfileDialog id={selected.id} onClose={() => setSelected(null)} />
       ) : null}
+
+      {blocking ? (
+        <Dialog open onOpenChange={(open) => !open && busy === null && setBlocking(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Заблокировать {blocking.email ?? blocking.displayName ?? 'аккаунт'}?</DialogTitle>
+              <DialogDescription>
+                Вход будет запрещён, а открытые сессии завершатся. Разблокировать можно здесь же.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="ghost" size="sm" disabled={busy !== null} onClick={() => setBlocking(null)}>
+                Отмена
+              </Button>
+              <Button variant="destructive" size="sm" disabled={busy !== null} onClick={() => void setBlocked(blocking, true)}>
+                Заблокировать
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </AdminPage>
+  );
+}
+
+/** Whether the account can sign in, as Auth sees it. */
+function AccessState({ profile }: { profile: Profile }) {
+  if (profile.email === null) return <span className="text-muted-foreground">—</span>;
+  if (profile.blockedAt) {
+    return <span className="text-destructive">Заблокирован с {new Date(profile.blockedAt).toLocaleDateString()}</span>;
+  }
+  return <span className="text-muted-foreground">Открыт</span>;
+}
+
+/**
+ * Block or unblock, for the owner. Not offered for an account Auth cannot block — the panel's
+ * owners (take the role away first) and the owner's own — nor for a profile without an account;
+ * the reason stands in the button's title, so nothing has to be guessed.
+ */
+function BlockButton({ profile, self, busy, onClick }: {
+  profile: Profile;
+  self: boolean;
+  busy: boolean;
+  onClick: () => void;
+}) {
+  if (profile.email === null) return null;
+  const protectedOwner = profile.blockingProtectedAt !== null && !profile.blockedAt;
+  const reason = self
+    ? 'Нельзя заблокировать собственный аккаунт'
+    : protectedOwner ? 'Владелец панели: сначала снимите роль в «Администраторах»' : undefined;
+  return (
+    <Button
+      variant={profile.blockedAt ? 'outline' : 'destructive'}
+      size="sm"
+      disabled={busy || reason !== undefined}
+      title={reason}
+      aria-label={`${profile.blockedAt ? 'Разблокировать' : 'Заблокировать'} ${profile.email}`}
+      onClick={(event) => { event.stopPropagation(); onClick(); }}
+    >
+      {profile.blockedAt ? 'Разблокировать' : 'Заблокировать'}
+    </Button>
   );
 }
 
@@ -151,6 +245,8 @@ function ProfileDialog({ id, onClose }: { id: string; onClose: () => void }) {
         <dl className="grid grid-cols-[9rem_1fr] gap-y-2 text-sm">
           <dt className="text-muted-foreground">Почта</dt>
           <dd>{profile.email ?? 'В Auth нет аккаунта'}</dd>
+          <dt className="text-muted-foreground">Вход</dt>
+          <dd><AccessState profile={profile} /></dd>
           <dt className="text-muted-foreground">Отображаемое имя</dt>
           <dd>{profile.displayName ?? '—'}</dd>
           <dt className="text-muted-foreground">Учётная запись</dt>

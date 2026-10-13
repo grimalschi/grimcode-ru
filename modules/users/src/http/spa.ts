@@ -5,6 +5,9 @@ import { Readable } from 'node:stream';
 
 import type { Env, Hono } from 'hono';
 
+import { parseCookies } from './cookies.js';
+import { issueCsrfToken } from './csrf.js';
+
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -112,5 +115,21 @@ function fileResponse(path: string, immutable: boolean): Response {
       // Admin surfaces are composed as same-origin iframes inside the central Admin shell.
       'x-content-type-options': 'nosniff',
     },
+  });
+}
+
+/** The double-submit token of this module's own scope, for its admin screen's changing calls. */
+export function mountCsrfEndpoint<E extends Env & { Bindings: { csrfCookieName: string } }>(
+  app: Hono<E>,
+  path: string,
+): void {
+  app.get(path, (c) => {
+    const { csrfCookieName } = c.env;
+    c.header('cache-control', 'no-store');
+    const existing = parseCookies(c.req.header('cookie'))[csrfCookieName];
+    if (existing && /^[A-Za-z0-9_-]{32}$/.test(existing)) return c.json({ token: existing });
+    const { token, cookie } = issueCsrfToken(csrfCookieName, { path: '/' });
+    c.header('set-cookie', cookie);
+    return c.json({ token });
   });
 }

@@ -25,4 +25,7 @@ export const userProfileSchema = z.object({
  */
 export const adminUserProfileSchema = userProfileSchema.extend({
   email: emailSchema.nullable(),
+  // Auth's view of the account, read with the address: whether it is blocked, and whether the panel protects it.
+  blockedAt: isoDateTimeSchema.nullable(),
+  blockingProtectedAt: isoDateTimeSchema.nullable(),
 });
