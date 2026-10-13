@@ -227,24 +227,6 @@ export const adminRouter = adminT.router({
       });
     }),
 
-  setIdentityBlocked: ownerMutation
-    .input(z.object({ userId: idSchema, blocked: z.boolean() }))
-    .output(okSchema)
-    .mutation(async ({ ctx, input }) => ctx.repo.withRegistryLock(async (repo) => {
-      await requireCurrentOwner(ctx, repo);
-      if (input.blocked && input.userId === ctx.adminContext.userId) {
-        throw new TRPCError({ code: 'CONFLICT', message: 'Нельзя заблокировать собственный аккаунт' });
-      }
-      // An owner is never blocked: Auth refuses it by the protection Admin set with the role.
-      // Auth records `identity.blocked` / `identity.unblocked` in its own audit, in the transaction
-      // that changes the account — the one place where the change and its record can commit together.
-      // Nothing is written to admin_audit for this action; the actor comes from the verified context.
-      await ctx.auth.setIdentityBlocked({
-        ...input, actor: { userId: ctx.adminContext.userId, role: ctx.adminContext.role },
-      });
-      return { ok: true as const };
-    })),
-
   listAudit: ownerProcedure
     .input(paginationInputSchema)
     .output(pageOf(adminAuditEntrySchema))

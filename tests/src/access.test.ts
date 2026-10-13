@@ -90,13 +90,18 @@ describe('administrator access matrix', () => {
     }
   });
 
+  it('keeps blocking from the Users screen to the owner, even for an administrator granted Users', async () => {
+    const result = await actor('users').rpc(moduleAdmin('users'), 'setBlocked', { identityId: plainUser.userId, blocked: true }, { csrf: true });
+    expect(result.status).toBe(403);
+    expect(errorCode(result.body)).toBe('FORBIDDEN');
+  });
+
   it.each(['empty', 'email', 'users'])('keeps owner procedures unavailable to %s administrators', async (role) => {
     const session = actor(role);
     for (const [procedure, input, mutation] of [
       ['listAdministrators', {}, false], ['listAudit', {}, false],
       ['searchUsers', { query: plainUser.email }, false],
       ['addAdministrator', { email: plainUser.email, role: 'owner', grants: [] }, true],
-      ['setIdentityBlocked', { userId: plainUser.userId, blocked: true }, true],
       ['database.schemas', {}, false], ['database.tables', { schema: 'admin' }, false],
       ['database.rows', { schema: 'admin', table: 'administrators' }, false],
       ...['insert', 'update', 'delete'].map((action) => [`database.${action}`, databaseProbe(action), true] as const),

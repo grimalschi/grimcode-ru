@@ -52,7 +52,7 @@ Owners add registered users by email, assign roles and module grants, and enable
 administrators. Administrator records, grants and their audit entry are saved in one transaction;
 a failed lookup or audit write leaves the previous access intact. Disabling keeps the administrator's history.
 
-Administrator additions, role changes and identity blocking share a registry lock. Inside it, Admin rechecks the actor's
+Administrator additions and role changes share a registry lock. Inside it, Admin rechecks the actor's
 session and role and asks Auth which remaining owners can sign in. This preserves an accessible
 owner when requests overlap.
 
@@ -65,12 +65,12 @@ block a protected identity itself, whoever asks; to block a former owner, take t
 «Администраторы». On every start Admin's `migrate()` asks Auth to mark every current owner, so an
 installation that predates the mark, or a hand-edited database, catches up; Auth writes nothing when
 the mark is already there. A mark left on a former owner is cleared by assigning the role and taking
-it away again. The “Блокировка аккаунтов” dialog searches all Auth identities; blocking
-revokes their sessions and recovery tokens through Auth's internal API. Admin passes the verified
-actor along, and Auth records `identity.blocked` / `identity.unblocked` (and `identity.protected` /
-`identity.unprotected`) in its own audit in the same transaction as the change — so those events
-live in Auth's audit (its module admin), not in `admin_audit`; rows written there before this change
-remain as history.
+it away again. Blocking itself is not done here any more: the owner blocks and unblocks accounts
+from the [Users screen](../users/README.md#blocking-from-the-profile-list) in the panel (the owner's
+choice, 13 October 2026), and Users asks Auth with the verified actor. Auth records
+`identity.blocked` / `identity.unblocked` and `identity.protected` / `identity.unprotected` in its
+own audit in the same transaction as the change — so those events live in Auth's audit (its module
+admin), not in `admin_audit`; rows written there before this change remain as history.
 
 The administrator list and its email search resolve current addresses through Auth.
 

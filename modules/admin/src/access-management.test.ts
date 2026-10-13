@@ -73,7 +73,7 @@ function fixture() {
       return { ok: true as const };
     },
   };
-  /** What Auth was told about each blocking: Auth writes the audit from this, so the actor must be the verified one. */
+  /** What Auth was told about each blocking (only the fixture itself asks now; Admin no longer does). */
   const blockedBy: { userId: string; blocked: boolean; actor: { userId: string; role: string } }[] = [];
   /** Every change of the protection the registry asked Auth for, in order. */
   const protection: { userId: string; protected: boolean; actor: { userId: string; role: string } }[] = [];
@@ -88,40 +88,18 @@ function fixture() {
 }
 
 describe('serialized access changes', () => {
-  it('blocks a person as the owner, with the verified actor and no audit row of Admin\'s own', async () => {
+  it('keeps the protection with the role: an owner stays protected while disabled, loses it with the role', async () => {
     const f = fixture();
-    await f.caller(first).setIdentityBlocked({ userId: third, blocked: true });
-    expect(f.identities.find((identity) => identity.id === third)!.blockedAt).not.toBeNull();
-    expect(f.blockedBy).toEqual([{ userId: third, blocked: true, actor: { userId: first, role: 'owner' } }]);
-    expect(f.auditEntries.filter((entry) => /identity\./.test(String((entry as { action: string }).action)))).toEqual([]);
-    // Blocking went through the registry lock, as a role change would.
-    expect(f.commit).toHaveBeenCalledTimes(1);
-  });
-
-  it('refuses a blocking request from an owner whose role was just taken away', async () => {
-    const f = fixture();
-    await f.caller(first).updateAdministrator({ userId: second, role: 'admin' });
-    await expect(f.caller(second).setIdentityBlocked({ userId: third, blocked: true }))
-      .rejects.toMatchObject({ code: 'FORBIDDEN' });
-    expect(f.identities.find((identity) => identity.id === third)!.blockedAt).toBeNull();
-    expect(f.blockedBy).toEqual([]);
-  });
-
-  it('never blocks an owner, enabled or not, until the role is gone — and the protection follows the role', async () => {
-    const f = fixture();
-    await expect(f.caller(first).setIdentityBlocked({ userId: second, blocked: true })).rejects.toMatchObject({ code: 'CONFLICT' });
     // Disabling keeps the role, so the protection stays.
     await f.caller(first).updateAdministrator({ userId: second, enabled: false });
     expect(f.protection).toEqual([]);
-    await expect(f.caller(first).setIdentityBlocked({ userId: second, blocked: true })).rejects.toMatchObject({ code: 'CONFLICT' });
-    // Taking the role away clears it, with the verified actor; blocking then goes through.
+    expect(f.identities.find((identity) => identity.id === second)!.blockingProtectedAt).not.toBeNull();
+    // Taking the role away clears it, with the verified actor.
     await f.caller(first).updateAdministrator({ userId: second, role: 'admin' });
     expect(f.protection).toEqual([{ userId: second, protected: false, actor: { userId: first, role: 'owner' } }]);
-    await f.caller(first).setIdentityBlocked({ userId: second, blocked: true });
-    expect(f.blockedBy).toEqual([{ userId: second, blocked: true, actor: { userId: first, role: 'owner' } }]);
-    // Oneself, never — refused before Auth is even asked.
-    await expect(f.caller(first).setIdentityBlocked({ userId: first, blocked: true })).rejects.toMatchObject({ code: 'CONFLICT' });
-    expect(f.blockedBy).toHaveLength(1);
+    expect(f.identities.find((identity) => identity.id === second)!.blockingProtectedAt).toBeNull();
+    // Admin has nothing of its own to write for blocking: the Users screen asks Auth directly.
+    expect(f.auditEntries.filter((entry) => /identity\./.test(String((entry as { action: string }).action)))).toEqual([]);
   });
 
   it('protects a new owner and rolls the registry back when Auth refuses to', async () => {
@@ -139,11 +117,11 @@ describe('serialized access changes', () => {
     expect(f.auditEntries.filter((entry) => (entry as { action: string }).action === 'administrator.updated')).toHaveLength(3);
   });
 
-  it('checks current Auth state when disabling another owner after a blocking operation', async () => {
-    // A blocked person can still be made an owner; such an owner does not count as able to enter.
+  it('checks current Auth state when disabling another owner after a blocking elsewhere', async () => {
+    // A blocked person (blocked from the Users screen, through Auth) can still be made an owner; such an owner does not count as able to enter.
     const f = fixture();
     await f.caller(first).updateAdministrator({ userId: second, role: 'admin' });
-    await f.caller(first).setIdentityBlocked({ userId: second, blocked: true });
+    await f.auth.setIdentityBlocked({ userId: second, blocked: true, actor: { userId: first, role: 'owner' } });
     await f.caller(first).updateAdministrator({ userId: second, role: 'owner' });
     await expect(f.caller(first).updateAdministrator({ userId: first, enabled: false }))
       .rejects.toMatchObject({ code: 'CONFLICT' });
