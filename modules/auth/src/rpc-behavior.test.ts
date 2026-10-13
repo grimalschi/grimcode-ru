@@ -84,7 +84,7 @@ describe('Auth RPC boundaries', () => {
     const { internalCaller } = createModule({ env, modules: { notifications: { emit: vi.fn() } } });
     const result = await internalCaller.getIdentityByEmail({ email: row.email });
     expect(result.identity).toEqual({
-      id, email: row.email, emailVerifiedAt: null, blockedAt: null, createdAt: '2026-01-01T00:00:00.000Z',
+      id, email: row.email, emailVerifiedAt: null, blockedAt: null, blockingProtectedAt: null, createdAt: '2026-01-01T00:00:00.000Z',
     });
 
     query.mockResolvedValue({ rows: [{ ...row, email: 'invalid-stored-email' }], rowCount: 1 });

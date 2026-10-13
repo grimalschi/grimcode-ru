@@ -20,7 +20,7 @@ const env: AuthEnv = {
 };
 const identity = {
   id: '00000000-0000-4000-8000-000000000001', email: 'person@example.test', password_hash: 'stored-hash',
-  email_verified_at: null, blocked_at: null, created_at: new Date('2026-01-01T00:00:00Z'), last_login_at: null,
+  email_verified_at: null, blocked_at: null, blocking_protected_at: null as Date | null, created_at: new Date('2026-01-01T00:00:00Z'), last_login_at: null,
 };
 
 function recorder(options: { auditFails?: boolean; commitFails?: boolean; addressTaken?: boolean } = {}) {
@@ -202,6 +202,45 @@ describe('a change and its audit entry share one transaction', () => {
       const audit = statements.find(({ text }) => text.includes('INSERT INTO auth_audit'));
       expect(audit?.on).toBe('tx1');
     }
+  });
+
+  it('refuses to block a protected identity after locking its row, writing nothing', async () => {
+    const { pool, statements } = recorder();
+    const actor = { userId: '00000000-0000-4000-8000-000000000002', role: 'owner' as const };
+    identity.blocking_protected_at = new Date('2026-02-01T00:00:00Z');
+    try {
+      await expect(internalRouter.createCaller({ repo: new AuthRepository(pool) }).setIdentityBlocked({ userId: identity.id, blocked: true, actor }))
+        .rejects.toMatchObject({ code: 'CONFLICT' });
+      const inside = transaction(statements);
+      // The row was locked and nothing else touched: no UPDATE, no audit, a rollback.
+      expect(inside.filter((text) => text.startsWith('UPDATE') || text.startsWith('INSERT'))).toEqual([]);
+      expect(inside.at(-1)).toBe('ROLLBACK');
+      // Unblocking a protected identity is not refused.
+      await internalRouter.createCaller({ repo: new AuthRepository(pool) }).setIdentityBlocked({ userId: identity.id, blocked: false, actor });
+    } finally {
+      identity.blocking_protected_at = null;
+    }
+  });
+
+  it('sets and clears the protection with its audit entry in one transaction, and stays quiet when nothing changes', async () => {
+    const actor = { userId: '00000000-0000-4000-8000-000000000002', role: 'owner' as const };
+    for (const isProtected of [true, false]) {
+      // The stored mark is the opposite of what is asked, so the call changes it.
+      identity.blocking_protected_at = isProtected ? null : new Date('2026-02-01T00:00:00Z');
+      const { pool, statements } = recorder();
+      await internalRouter.createCaller({ repo: new AuthRepository(pool) }).setBlockingProtection({ userId: identity.id, protected: isProtected, actor });
+      const inside = transaction(statements);
+      expect(inside[0]).toBe('BEGIN');
+      expect(inside).toEqual(expect.arrayContaining(['UPDATE identities SET', 'INSERT INTO auth_audit']));
+      expect(inside.at(-1)).toBe('COMMIT');
+      const audit = statements.find(({ text }) => text.includes('INSERT INTO auth_audit'))!;
+      expect(audit.values.slice(1, 5)).toEqual([identity.id, isProtected ? 'identity.protected' : 'identity.unprotected', actor.userId, 'owner']);
+    }
+    identity.blocking_protected_at = null;
+    // Asking for what is already there: the row is locked, nothing is written — the panel may ask on every start.
+    const { pool, statements } = recorder();
+    await internalRouter.createCaller({ repo: new AuthRepository(pool) }).setBlockingProtection({ userId: identity.id, protected: false, actor });
+    expect(transaction(statements).filter((text) => text.startsWith('UPDATE') || text.startsWith('INSERT'))).toEqual([]);
   });
 
   it('records the actor Admin verified and the account it acted on', async () => {

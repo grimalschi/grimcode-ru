@@ -21,6 +21,8 @@ export interface IdentityRow {
   password_hash: string;
   email_verified_at: Date | null;
   blocked_at: Date | null;
+  /** Set by the panel for its owners: a protected identity is never blocked. */
+  blocking_protected_at: Date | null;
   created_at: Date;
   last_login_at: Date | null;
 }
@@ -48,12 +50,13 @@ export function toIdentity(row: IdentityRow): Identity {
     email: row.email,
     emailVerifiedAt: row.email_verified_at?.toISOString() ?? null,
     blockedAt: row.blocked_at?.toISOString() ?? null,
+    blockingProtectedAt: row.blocking_protected_at?.toISOString() ?? null,
     createdAt: row.created_at.toISOString(),
   };
 }
 
 const IDENTITY_COLUMNS = `
-  id, email, password_hash, email_verified_at, blocked_at, created_at, last_login_at
+  id, email, password_hash, email_verified_at, blocked_at, blocking_protected_at, created_at, last_login_at
 `;
 
 /**
@@ -183,14 +186,33 @@ export class AuthRepository {
     });
   }
 
-  async setBlocked(identityId: string, blocked: boolean): Promise<boolean> {
+  /**
+   * Blocks or unblocks. The identity row is locked first, so a protection set or cleared by the
+   * panel in another transaction is seen in order; a protected identity is never blocked.
+   */
+  async setBlocked(identityId: string, blocked: boolean): Promise<'done' | 'missing' | 'protected'> {
     return this.inTransaction(async (client) => {
-      if (!await this.lockIdentity(client, identityId)) return false;
+      const identity = await this.lockIdentity(client, identityId);
+      if (!identity) return 'missing';
+      if (blocked && identity.blocking_protected_at !== null) return 'protected';
       await client.query(
         `UPDATE identities SET blocked_at = CASE WHEN $2 THEN now() ELSE NULL END, updated_at = now()
          WHERE id = $1`, [identityId, blocked]);
       if (blocked) await this.invalidateAccess(client, identityId);
-      return true;
+      return 'done';
+    });
+  }
+
+  /** The panel's mark on its owners. Idempotent: setting what is already set is `unchanged`, so the caller can keep its audit quiet. */
+  async setBlockingProtection(identityId: string, isProtected: boolean): Promise<'done' | 'unchanged' | 'missing'> {
+    return this.inTransaction(async (client) => {
+      const identity = await this.lockIdentity(client, identityId);
+      if (!identity) return 'missing';
+      if ((identity.blocking_protected_at !== null) === isProtected) return 'unchanged';
+      await client.query(
+        `UPDATE identities SET blocking_protected_at = CASE WHEN $2 THEN now() ELSE NULL END, updated_at = now()
+         WHERE id = $1`, [identityId, isProtected]);
+      return 'done';
     });
   }
 

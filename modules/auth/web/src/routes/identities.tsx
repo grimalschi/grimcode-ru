@@ -205,6 +205,8 @@ function IdentityDialog({
           </dd>
           <dt className="text-muted-foreground">Заблокирован</dt>
           <dd>{identity.blockedAt ? new Date(identity.blockedAt).toLocaleString() : 'Нет'}</dd>
+          <dt className="text-muted-foreground">Защищён от блокировки</dt>
+          <dd>{identity.blockingProtectedAt ? `Да, владелец панели с ${new Date(identity.blockingProtectedAt).toLocaleString()}` : 'Нет'}</dd>
           <dt className="text-muted-foreground">Сессии</dt>
           <dd>{identity.activeSessionCount}</dd>
         </dl>

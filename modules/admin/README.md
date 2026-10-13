@@ -54,11 +54,23 @@ a failed lookup or audit write leaves the previous access intact. Disabling keep
 
 Administrator additions, role changes and identity blocking share a registry lock. Inside it, Admin rechecks the actor's
 session and role and asks Auth which remaining owners can sign in. This preserves an accessible
-owner when requests overlap. The “Блокировка аккаунтов” dialog searches all Auth identities;
-blocking revokes their sessions and recovery tokens through Auth's internal API. Admin passes the
-verified actor along, and Auth records `identity.blocked` / `identity.unblocked` in its own audit in
-the same transaction as the change — so those events live in Auth's audit (its module admin), not in
-`admin_audit`; rows written there before this change remain as history.
+owner when requests overlap.
+
+**An owner is never blocked.** The rule lives in data, not in a call: with the owner role Admin sets
+Auth's protection from blocking on the identity (`setBlockingProtection`), and clears it when the
+role is taken away — on the first owner's bootstrap, in `addAdministrator` and in
+`updateAdministrator`, inside the registry lock after the change and its audit entry, so a failed
+call rolls the change back. Disabling keeps the role and therefore the protection. Auth refuses to
+block a protected identity itself, whoever asks; to block a former owner, take the role away first in
+«Администраторы». On every start Admin's `migrate()` asks Auth to mark every current owner, so an
+installation that predates the mark, or a hand-edited database, catches up; Auth writes nothing when
+the mark is already there. A mark left on a former owner is cleared by assigning the role and taking
+it away again. The “Блокировка аккаунтов” dialog searches all Auth identities; blocking
+revokes their sessions and recovery tokens through Auth's internal API. Admin passes the verified
+actor along, and Auth records `identity.blocked` / `identity.unblocked` (and `identity.protected` /
+`identity.unprotected`) in its own audit in the same transaction as the change — so those events
+live in Auth's audit (its module admin), not in `admin_audit`; rows written there before this change
+remain as history.
 
 The administrator list and its email search resolve current addresses through Auth.
 

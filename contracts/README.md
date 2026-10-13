@@ -87,6 +87,11 @@ context. Call deadlines, where used, are documented by the provider; they do not
 Use function properties such as `send: (input) => Promise<Result>` for API operations. This lets
 strict type checking reject an implementation that accepts fewer inputs than its contract.
 
+A rule one module owns but another must obey travels as data, not as a call back up the dependency
+order. Example: Admin knows its owners and marks their identities in Auth (`setBlockingProtection`,
+`Identity.blockingProtectedAt`); Auth refuses to block a marked identity on its own. Auth never calls
+Admin.
+
 ## Browser clients
 
 A module's own browser imports its router type from its server using relative `import type`.
