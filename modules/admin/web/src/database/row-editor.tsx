@@ -130,10 +130,11 @@ export function RowEditor({ schema, table, columns, primaryKey, readOnlyReason, 
         <DialogDescription>{schema}.{table}</DialogDescription>
       </DialogHeader>
       <form ref={form} onSubmit={(event) => void submit(event)} className="space-y-5">
-        <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
+        {/* Spans the dialog's own padding: the fields line up with the title on both sides, the scrollbar sits at the dialog's edge, the focus ring is never cut. */}
+        <div className="-mx-6 max-h-[60vh] space-y-4 overflow-y-auto px-6 py-1">
           {readOnlyReason && <p role="status" className="text-sm text-muted-foreground">Только чтение: {readOnlyReason}</p>}
-          {!readOnlyReason && notice && <p role="note" className="rounded-md border px-3 py-2 text-sm">{notice}</p>}
-          {!readOnlyReason && <p className="text-xs text-muted-foreground">Значения записываются в исходном текстовом формате PostgreSQL. Пустая строка, SQL NULL и значение по умолчанию выбираются отдельно.</p>}
+          {!readOnlyReason && notice && <p role="note" className="text-sm">{notice}</p>}
+          {!readOnlyReason && <p className="text-xs text-muted-foreground">Значения вводятся текстом, как их принимает PostgreSQL. Пустое поле сохраняется пустой строкой; SQL NULL и значение по умолчанию — в настройках поля, иконка справа от имени.</p>}
           {!inserting && primaryKey.length > 0 && <p className="text-xs text-muted-foreground">Ключ — только чтение: {primaryKey.join(', ')}</p>}
           {blockedInsert && <p role="alert" className="text-sm text-destructive">Добавление недоступно: обязательная колонка имеет неподдержанный тип.</p>}
           {fields.map((column) => {
@@ -169,15 +170,15 @@ export function RowEditor({ schema, table, columns, primaryKey, readOnlyReason, 
                     <TooltipContent className="max-w-72">Только чтение: {reason}</TooltipContent>
                   </Tooltip>
                   : <>
-                    {column.references && onFollow && (() => {
-                      // Across the key from the form: only with a value to follow and nothing unsaved, so leaving loses nothing.
+                    {column.references && onFollow && !inserting && (() => {
+                      // Across the key from a saved row only, with a value to follow and nothing unsaved, so leaving loses nothing.
                       let target: string | null = null;
                       try { target = current.mode === 'value' ? fieldValue(current) ?? null : null; } catch { target = null; }
-                      const blocked = busy || !target || (!inserting && changed);
+                      const blocked = busy || !target || changed;
                       const reference = column.references;
                       return <Button type="button" variant="ghost" size="icon" className="ml-auto size-7 text-muted-foreground" disabled={blocked}
                         aria-label={`Открыть ${reference.schema}.${reference.table} по ${column.name}`}
-                        title={!inserting && changed ? 'Сначала сохраните или отмените правки' : `Открыть ${reference.schema}.${reference.table}`}
+                        title={changed ? 'Сначала сохраните или отмените правки' : `Открыть ${reference.schema}.${reference.table}`}
                         onClick={() => target && onFollow(reference, target)}><ArrowUpRightIcon className="size-4" /></Button>;
                     })()}
                     <FieldSettings column={column} current={current} busy={busy}

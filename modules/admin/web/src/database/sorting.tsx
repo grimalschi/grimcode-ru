@@ -74,14 +74,16 @@ export function Sorting({ columns, order, onChange }: {
       })}
       </div>}
       <div className={`flex flex-wrap items-center justify-between gap-3 ${order.length ? 'pt-4' : ''}`}>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" disabled={!free.length} onClick={() => onChange([...order, { column: free[0]!.name, direction: 'asc' }])}>Добавить условие</Button>
-          {order.length > 0 && <Tooltip>
-            <TooltipTrigger asChild><button type="button" aria-label="Подсказка" className="text-muted-foreground hover:text-foreground"><InfoIcon className="size-4" /></button></TooltipTrigger>
-            <TooltipContent className="max-w-72">{LEVELS_HINT}</TooltipContent>
-          </Tooltip>}
-        </div>
-        {order.length > 0 && <Button size="sm" variant="ghost" onClick={() => onChange([])}>Очистить</Button>}
+        {(() => {
+          const add = (hint: boolean) => <Button size="sm" variant="outline" disabled={!free.length} onClick={() => onChange([...order, { column: free[0]!.name, direction: 'asc' }])}>
+            Добавить условие{hint && <InfoIcon className="size-4 text-muted-foreground" aria-hidden="true" />}
+          </Button>;
+          // The hint rides on the button itself once there is an order to explain (the owner, 13 October).
+          return order.length > 0
+            ? <Tooltip><TooltipTrigger asChild>{add(true)}</TooltipTrigger><TooltipContent className="max-w-72">{LEVELS_HINT}</TooltipContent></Tooltip>
+            : add(false);
+        })()}
+        {order.length > 0 && <Button size="sm" variant="ghost" onClick={() => onChange([])}>Очистить всё</Button>}
       </div>
     </section>
     </TooltipProvider>

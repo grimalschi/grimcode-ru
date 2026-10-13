@@ -203,7 +203,7 @@ test.describe('the native database page', () => {
     expect(page.url()).toBe(address);
 
     await page.getByRole('button', { name: /^Сортировка/ }).click();
-    await sorting(page).getByRole('button', { name: 'Очистить', exact: true }).click();
+    await sorting(page).getByRole('button', { name: 'Очистить всё', exact: true }).click();
     await expect.poll(labels).toEqual(['filled', 'empty-string', 'sql-null']);
     await expect(page.getByRole('button', { name: /^Сортировка/ })).toHaveText('Сортировка');
     expectNoPageErrors(problems);
@@ -619,6 +619,13 @@ test.describe('the native database page', () => {
     await filters(page).getByLabel('Значение', { exact: true }).fill('FILLED');
     await expect(rows(page)).toHaveCount(1);
     await expect(rows(page).first()).toContainText('filled');
+    // The switch's hint floats over the switch, not over the middle of the panel.
+    const caseSwitch = page.getByRole('checkbox', { name: 'Учитывать регистр', exact: true });
+    await caseSwitch.hover();
+    await expect(page.getByRole('tooltip')).toBeVisible();
+    const [box, hint] = [await caseSwitch.boundingBox(), await page.locator('[data-slot="tooltip-content"]').boundingBox()];
+    expect(hint!.x).toBeLessThanOrEqual(box!.x + box!.width);
+    expect(hint!.x + hint!.width).toBeGreaterThanOrEqual(box!.x);
     await page.getByRole('checkbox', { name: 'Учитывать регистр', exact: true }).click();
     await expect(rows(page).first()).toContainText('Строк нет');
     await page.getByRole('checkbox', { name: 'Учитывать регистр', exact: true }).click();
@@ -806,6 +813,13 @@ test.describe('the native database page', () => {
     await expect(editor(page)).toBeHidden();
     await expect(page.getByRole('heading', { name: `${fixtureSchema}.parents`, level: 2 })).toBeVisible();
     await expect(rows(page)).toHaveCount(1);
+
+    // A new row has nothing saved to follow from, so its dialog offers no arrow.
+    await openFixture(page, 'children');
+    await page.getByRole('button', { name: 'Добавить строку', exact: true }).click();
+    const create = page.getByRole('dialog', { name: 'Новая строка', exact: true });
+    await create.getByLabel('parent_id', { exact: true }).fill('1');
+    await expect(create.getByRole('button', { name: `Открыть ${fixtureSchema}.parents по parent_id`, exact: true })).toHaveCount(0);
   });
 
   test('hides migration tables in every module schema', async ({ page }) => {

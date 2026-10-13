@@ -46,7 +46,7 @@ const REGISTRY_NOTICE = 'Администраторов меняют на экр
 const isIdentities = (table: Table) => table.schema === 'auth' && table.name === 'identities';
 
 const IDENTITIES_NOTICE = 'Здесь аккаунты, под которыми входят владельцы панели. Строку последнего владельца, который может войти, '
-  + 'редактор не меняет: иначе в панель никто не попадёт. Блокировать администраторов — на экране «Администраторы».';
+  + 'редактор не меняет: иначе в панель никто не попадёт. Блокировать аккаунты — на экране «Users».';
 
 /**
  * The registry screen refuses to demote or disable the last owner who can still sign in; this editor

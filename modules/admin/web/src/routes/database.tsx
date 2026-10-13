@@ -199,7 +199,7 @@ export function DatabasePage() {
                 <Button variant="outline" size="sm" aria-expanded={panel === 'filters'}><FilterIcon />Фильтры{view.filters.length ? ` (${view.filters.length})` : ''}</Button>
               </PopoverTrigger>
               {/* No focus jump on open: it landed on the first control, the case checkbox, and its tooltip popped up uninvited. */}
-              <PopoverContent align="start" className="w-[min(64rem,calc(100vw-2rem))] p-0" onOpenAutoFocus={(event) => event.preventDefault()}>
+              <PopoverContent align="start" className="w-[min(58rem,calc(100vw-2rem))] p-0" onOpenAutoFocus={(event) => event.preventDefault()}>
                 <Filters columns={columns} filters={view.filters} caseSensitive={view.caseSensitive} onChange={(filters, caseSensitive) => setView({ ...view, filters, caseSensitive, page: 1 })} />
               </PopoverContent>
             </Popover>
@@ -221,7 +221,7 @@ export function DatabasePage() {
             </Popover>
             <Button className="ml-auto" size="sm" disabled={!page || loading || !currentTable || !!readOnlyReason || blockedInsert} onClick={() => currentTable && setEditor({ table: currentTable, columns, row: null })}>Добавить строку</Button>
           </div>
-          {notice && <p role="note" data-testid="database-notice" className="rounded-md border px-3 py-2 text-sm">{notice}</p>}
+          {notice && <p role="note" data-testid="database-notice" className="text-sm">{notice}</p>}
           {readOnlyReason && <p role="status" className="text-sm text-muted-foreground">Только чтение: {readOnlyReason}</p>}
           {!readOnlyReason && blockedInsert && <p className="text-xs text-muted-foreground">Добавление недоступно: обязательная колонка имеет неподдержанный тип.</p>}
           {!readOnlyReason && deleteReadOnlyReason && <p className="text-xs text-muted-foreground">Удаление недоступно: {deleteReadOnlyReason}</p>}

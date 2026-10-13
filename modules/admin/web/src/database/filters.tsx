@@ -95,15 +95,16 @@ export function Filters({ columns, filters, caseSensitive, onChange }: {
   return (
     <TooltipProvider delayDuration={250}>
       <section aria-label="Фильтры таблицы" className="space-y-2 p-4">
-        {filters.length > 0 && <Tooltip>
+        {/* The label hugs its text: stretched across the panel, the hint floated over the panel's middle. */}
+        {filters.length > 0 && <div className="flex justify-end"><Tooltip>
           <TooltipTrigger asChild>
-            <label className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
+            <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
               <Checkbox checked={caseSensitive} onCheckedChange={(checked) => onChange(filters, checked === true)} aria-label="Учитывать регистр" />
               Учитывать регистр
             </label>
           </TooltipTrigger>
           <TooltipContent className="max-w-72">{CASE_HINT}</TooltipContent>
-        </Tooltip>}
+        </Tooltip></div>}
         {/* Five conditions in view; the rest scroll inside the panel, the buttons below stay put. */}
         {filters.length > 0 && <div className="max-h-56 space-y-2 overflow-y-auto py-1.5 pr-1">
         {blocks.map((block) => <div key={block[0]} data-testid="database-filter-block" className="space-y-2">

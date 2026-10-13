@@ -259,7 +259,8 @@ Foreign keys are read with the columns (`pg_constraint`): a key of one column be
 `referencedBy` lists the keys arriving at a table, from any schema. On screen the column header
 carries a link icon whose tooltip names the target, the cell an arrow that opens the target table
 with `column = value` as a visible condition — the value's own click still copies — and the row
-dialog the same arrow, held back while the form has unsaved changes; a target the browser does not
+dialog of a saved row the same arrow, held back while the form has unsaved changes (a new row has
+none); a target the browser does not
 list is told of but not offered. The table title carries the same icon for "who points here".
 [`references.postgres.test.ts`](src/admin/database/references.postgres.test.ts) covers the catalogue.
 Foreign-key restrictions
