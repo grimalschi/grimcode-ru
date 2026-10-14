@@ -537,7 +537,7 @@ test.describe('the native database page', () => {
     await chooseTable(page, fixtureSchema, 'values');
     await expect(rows(page).first()).toBeVisible();
     // Eleven columns at 10rem each do not fit the viewport; the table scrolls sideways.
-    const scroller = page.getByTestId('database-table').locator('xpath=..');
+    const scroller = page.getByTestId('database-scroll');
     await scroller.evaluate((element) => { element.scrollLeft = 400; });
     expect(await scroller.evaluate((element) => element.scrollLeft)).toBe(400);
 
@@ -568,6 +568,32 @@ test.describe('the native database page', () => {
     await expect(rows(page).first()).toBeVisible();
     expect(await scroller.evaluate((element) => element.scrollLeft)).toBe(0);
     expectNoPageErrors(problems);
+  });
+
+  test('keeps the column names and lit row actions in view while the rows scroll', async ({ page }) => {
+    await database.query(`CREATE TABLE "${fixtureSchema}".tall (id integer PRIMARY KEY, label text NOT NULL)`);
+    await database.query(`INSERT INTO "${fixtureSchema}".tall SELECT g, 'row ' || g FROM generate_series(1, 40) g`);
+    await openDatabase(page);
+    await chooseSchema(page, fixtureSchema);
+    await chooseTable(page, fixtureSchema, 'tall');
+    await page.getByRole('combobox', { name: 'Строк на странице', exact: true }).click();
+    await page.getByRole('option', { name: '50 строк', exact: true }).click();
+    await expect(rows(page)).toHaveCount(40);
+    const scroller = page.getByTestId('database-scroll');
+    await scroller.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    expect(await scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    const [top, header] = [await scroller.boundingBox(), await page.getByTestId('database-table').locator('thead').boundingBox()];
+    expect(Math.abs(header!.y - top!.y)).toBeLessThanOrEqual(2);
+    // The hover tint lies under the row's buttons, not over them.
+    const last = rows(page).last();
+    await last.hover();
+    const pencil = last.getByRole('button', { name: 'Открыть строку', exact: true });
+    await expect.poll(() => pencil.evaluate((button) => {
+      const cell = button.closest('td')!;
+      const layer = (value: string) => (value === 'auto' ? 0 : Number(value));
+      const tint = getComputedStyle(cell, '::after');
+      return tint.opacity === '1' && layer(getComputedStyle(button.parentElement!).zIndex) > layer(tint.zIndex);
+    })).toBe(true);
   });
 
   test('shows where a dragged condition will land and drops it there', async ({ page }) => {

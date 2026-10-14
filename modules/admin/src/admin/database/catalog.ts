@@ -186,7 +186,7 @@ export async function readCatalogue(pool: Queryable, schema: string): Promise<Ca
         : row.unsafe_relation ? 'Таблица использует триггеры, правила, RLS, наследование или секционирование.'
         : row.unsafe_code ? 'Выражения таблицы используют неподдержанные функции или операторы.'
         : row.cascading_update ? 'Обновление строк этой таблицы может изменять другие строки через внешний ключ.' : null,
-      deleteReadOnlyReason: row.cascading_delete ? 'Удаление строк этой таблицы может изменять другие строки через внешний ключ.' : null,
+      deleteReadOnlyReason: row.cascading_delete ? 'Удаление недоступно: оно может изменить другие строки через внешний ключ.' : null,
     };
     table.columns.push(column);
     table.readOnlyReason ??= column.readOnlyReason;

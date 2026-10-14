@@ -64,7 +64,7 @@ Playwright retains a trace on failure; browser helpers collect console errors an
 | Admin navigation, embedded screens and theme | [admin-shell.spec.ts](browser/admin-shell.spec.ts) |
 | Administrator menus, direct links, revoked access and cross-origin requests | [admin-access.spec.ts](browser/admin-access.spec.ts) |
 | Blocking an account from the Users screen: the owner's button with a confirmation, none for the owner's own or another owner's account, none for an administrator with the grant | [users-blocking.spec.ts](browser/users-blocking.spec.ts) |
-| Database filters (conditions by column type, SQL NULL against the empty string, "or empty", И/ИЛИ chain and reordering, case switch, unfilled conditions, typing pause, calendar and time box, floating panels), multi-level sorting from its panel, column visibility from its panel, views listed read-only beside tables, following a foreign key from a cell and the row dialog, URL state and row editing | [database.spec.ts](browser/database.spec.ts) |
+| Database filters (conditions by column type, SQL NULL against the empty string, "or empty", И/ИЛИ chain and reordering, case switch, unfilled conditions, typing pause, calendar and time box, floating panels), multi-level sorting from its panel, column visibility from its panel, views listed read-only beside tables, following a foreign key from a cell and the row dialog, column names and row actions kept in view while the table scrolls, URL state and row editing | [database.spec.ts](browser/database.spec.ts) |
 | Email source editing, draft isolation, preview, publication and test sends | [email-admin.spec.ts](browser/email-admin.spec.ts) |
 | Sign-in flows, application navigation and public SSR pages | [app.spec.ts](browser/app.spec.ts) |
 

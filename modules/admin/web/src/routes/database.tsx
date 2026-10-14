@@ -224,7 +224,7 @@ export function DatabasePage() {
           {notice && <p role="note" data-testid="database-notice" className="text-sm">{notice}</p>}
           {readOnlyReason && <p role="status" className="text-sm text-muted-foreground">Только чтение: {readOnlyReason}</p>}
           {!readOnlyReason && blockedInsert && <p className="text-xs text-muted-foreground">Добавление недоступно: обязательная колонка имеет неподдержанный тип.</p>}
-          {!readOnlyReason && deleteReadOnlyReason && <p className="text-xs text-muted-foreground">Удаление недоступно: {deleteReadOnlyReason}</p>}
+          {!readOnlyReason && deleteReadOnlyReason && <p className="text-xs text-muted-foreground">{deleteReadOnlyReason}</p>}
           {listing.error ? <ErrorState error={listing.error} retry={listing.reload} /> : <TooltipProvider delayDuration={250}>
             {/*
               The scroll position is the table's own: filtering, sorting and paging redraw the rows in
@@ -232,15 +232,17 @@ export function DatabasePage() {
               stays in view while conditions are typed. Another table gets a fresh container (the key)
               and so starts at the top left — its columns are not these. Resetting the old container
               in an effect did not take: the browser had already clamped the position to the new width.
+              It scrolls both ways itself: the table's own wrapper would otherwise take the sideways
+              scroll, and a header pinned to the top of that wrapper never sees the rows go by.
             */}
-            <div key={`${view.schema}.${view.table}`} className="min-h-0 flex-1 overflow-auto rounded-lg border">
+            <div key={`${view.schema}.${view.table}`} data-testid="database-scroll" className="min-h-0 flex-1 overflow-auto rounded-lg border [&>[data-slot=table-container]]:overflow-visible">
               <Table data-testid="database-table" aria-busy={loading} className={loading && page ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
-                <TableHeader><TableRow>
+                <TableHeader className="sticky top-0 z-20 bg-background"><TableRow>
                   {shown.map((column) => {
                     // The header shows the sort — arrow, and the level number when there is more than one — but does not set it; the panel does.
                     const level = view.order.findIndex((order) => order.column === column.name);
                     const direction = level >= 0 ? view.order[level]!.direction : undefined;
-                    return <TableHead key={column.name} aria-sort={direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'} className="min-w-40">
+                    return <TableHead key={column.name} aria-sort={direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'} className={`min-w-40 ${HEADER_LINE}`}>
                       <DropdownMenu><DropdownMenuTrigger asChild><button type="button" aria-label={`Колонка ${column.name}`} className="inline-flex items-center gap-1.5 whitespace-nowrap py-2 font-medium">
                         {column.name}{direction === 'asc' ? <ArrowUpIcon className="size-3" /> : direction === 'desc' ? <ArrowDownIcon className="size-3" /> : null}
                         {direction && view.order.length > 1 && <span className="-ml-1 text-[10px] font-normal text-muted-foreground" data-testid="database-sort-level-mark">{level + 1}</span>}
@@ -262,14 +264,14 @@ export function DatabasePage() {
                     </TableHead>;
                   })}
                   {/* The actions stay at the right edge while the table scrolls sideways: no long trip to the pencil on a wide table (the owner, 9 October 2026). */}
-                  {page ? <TableHead className={STICKY_ACTIONS}><span className="sr-only">Действия</span></TableHead> : null}
+                  {page ? <TableHead className={`${STICKY_ACTIONS} shadow-[inset_0_-1px_0_var(--color-border),-8px_0_10px_-8px_rgb(0_0_0/0.25)]`}><span className="sr-only">Действия</span></TableHead> : null}
                 </TableRow></TableHeader>
                 <TableBody>
                   {loading && !page ? Array.from({ length: 5 }, (_, row) => <TableRow key={row}>{shown.map((column) => <TableCell key={column.name}><Skeleton className="h-4 w-28" /></TableCell>)}</TableRow>)
                     : page?.rows.map((row, index) => <TableRow className="group" key={page.primaryKey.length ? JSON.stringify(page.primaryKey.map((column) => row[column])) : index}>
                       {shown.map((column) => <TableCell key={column.name}><ValueCell column={column.name} value={row[column.name]}
                         reference={column.references && known(column.references) ? column.references : null} onFollow={follow} /></TableCell>)}
-                      {currentTable ? <TableCell className={`${STICKY_ACTIONS} group-hover:after:opacity-100 group-has-aria-expanded:after:opacity-100`}><div className="relative flex gap-1">
+                      {currentTable ? <TableCell className={`${STICKY_ACTIONS} group-hover:after:opacity-100 group-has-aria-expanded:after:opacity-100`}><div className="relative z-[1] flex gap-1">
                         <Button variant="ghost" size="icon" className="size-7" aria-label="Открыть строку" title="Открыть строку" onClick={() => setEditor({ table: currentTable, columns, row })}><PencilIcon className="size-4" /></Button>
                         <Button variant="ghost" size="icon" className="size-7 text-destructive" aria-label="Удалить строку" title={deleteReadOnlyReason ?? 'Удалить строку'} disabled={!!deleteReadOnlyReason} onClick={() => setDeleting({ table: currentTable, row })}><Trash2Icon className="size-4" /></Button>
                       </div></TableCell> : null}
@@ -307,7 +309,9 @@ export function DatabasePage() {
  * overlay (`after`) tints it the row's hover colour, because an opaque cell would otherwise sit
  * untinted in a highlighted row. A soft shadow on the left marks where the pinned part begins.
  */
-const STICKY_ACTIONS = 'sticky right-0 z-10 w-20 bg-background shadow-[-8px_0_10px_-8px_rgb(0_0_0/0.25)] after:pointer-events-none after:absolute after:inset-0 after:bg-muted/50 after:opacity-0 after:transition-opacity';
+// The pinned header keeps its line under it: a collapsed table's row border scrolls away with the rows.
+const HEADER_LINE = 'shadow-[inset_0_-1px_0_var(--color-border)]';
+const STICKY_ACTIONS ='sticky right-0 z-10 w-20 bg-background shadow-[-8px_0_10px_-8px_rgb(0_0_0/0.25)] after:pointer-events-none after:absolute after:inset-0 after:bg-muted/50 after:opacity-0 after:transition-opacity';
 
 function ValueCell({ column, value, reference = null, onFollow }: {
   column: string;
