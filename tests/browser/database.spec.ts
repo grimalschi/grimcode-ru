@@ -170,9 +170,16 @@ test.describe('the native database page', () => {
     const problems = collectPageErrors(page);
     await openDatabase(page);
     await chooseSchema(page, fixtureSchema);
+    const header = (name: string) => page.getByRole('columnheader').filter({ has: column(page, name) });
+    // A serial key is the order a table opens in: it shows on the key, but the button counts only what the person set.
+    await chooseTable(page, fixtureSchema, 'numbered');
+    await expect(header('id')).toHaveAttribute('aria-sort', 'ascending');
+    await expect(page.getByRole('button', { name: /^Сортировка/ })).toHaveText('Сортировка');
+    await addSortLevel(page, 'id', 'desc');
+    await expect(page.getByRole('button', { name: /^Сортировка/ })).toHaveText(/Сортировка\s*\(1\)/);
+    await page.keyboard.press('Escape');
     await chooseTable(page, fixtureSchema, 'blanks');
     const labels = async () => (await rows(page).allTextContents()).map((text) => /filled|empty-string|sql-null/.exec(text)?.[0]);
-    const header = (name: string) => page.getByRole('columnheader').filter({ has: column(page, name) });
     // No sort menu in the header any more: the panel is the one place.
     await column(page, 'grade').click();
     await expect(page.getByRole('menuitem', { name: /Сортировать/ })).toHaveCount(0);

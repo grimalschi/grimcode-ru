@@ -173,7 +173,10 @@ Sorting is set only in its panel ([`sorting.tsx`](web/src/database/sorting.tsx))
 they apply, the first deciding and each next breaking ties, a column used by one level not offered to
 another, levels reordered by dragging or arrow keys ([`drag-order.tsx`](web/src/database/drag-order.tsx),
 shared with the filter panel). The column header shows the arrow and, with several levels, the level
-number, but its menu does not sort. The server appends the key as the last level itself.
+number, but its menu does not sort. The server appends the key as the last level itself. A table
+with a natural order (a column the database numbers, or a time stamped with `now()`) opens sorted
+ascending by it; that level shows in the panel and the header, but the
+"Сортировка" button counts levels only once the order differs from it.
 
 A `date` or `timestamp` column gets a calendar beside each text box
 ([`date-field.tsx`](web/src/database/date-field.tsx), shadcn `Calendar` over `react-day-picker`):

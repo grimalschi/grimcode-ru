@@ -86,6 +86,8 @@ export function DatabasePage() {
   const blockedInsert = columns.some((column) => column.readOnlyReason && !column.generated && !column.hasDefault && !column.nullable);
   const shown = view.columns.length ? columns.filter((column) => view.columns.includes(column.name)) : columns;
   const loading = !!view.table && (listing.loading || !current);
+  // The order a table opens in is not a setting the person made: the button counts it only once changed (the owner, 14 October).
+  const openingOrder = view.order.length === 1 && view.order[0]!.column === selected?.naturalOrder && view.order[0]!.direction === 'asc';
 
   React.useEffect(() => {
     if (!schemas.data) return;
@@ -205,7 +207,7 @@ export function DatabasePage() {
             </Popover>
             <Popover open={panel === 'sort'} onOpenChange={(open) => setPanel(open ? 'sort' : null)}>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" aria-expanded={panel === 'sort'}><ArrowUpDownIcon />Сортировка{view.order.length ? ` (${view.order.length})` : ''}</Button>
+                <Button variant="outline" size="sm" aria-expanded={panel === 'sort'}><ArrowUpDownIcon />Сортировка{view.order.length && !openingOrder ? ` (${view.order.length})` : ''}</Button>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-[min(40rem,calc(100vw-2rem))] p-0" onOpenAutoFocus={(event) => event.preventDefault()}>
                 <Sorting columns={columns} order={view.order} onChange={(order) => setView({ ...view, order, page: 1 })} />
