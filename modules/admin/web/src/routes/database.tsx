@@ -201,7 +201,7 @@ export function DatabasePage() {
                 <Button variant="outline" size="sm" aria-expanded={panel === 'filters'}><FilterIcon />Фильтры{view.filters.length ? ` (${view.filters.length})` : ''}</Button>
               </PopoverTrigger>
               {/* No focus jump on open: it landed on the first control, the case checkbox, and its tooltip popped up uninvited. */}
-              <PopoverContent align="start" className="w-[min(58rem,calc(100vw-2rem))] p-0" onOpenAutoFocus={(event) => event.preventDefault()}>
+              <PopoverContent align="start" collisionPadding={PANEL_EDGE} className="w-[min(58rem,calc(100vw-2rem))] p-0" onOpenAutoFocus={(event) => event.preventDefault()}>
                 <Filters columns={columns} filters={view.filters} caseSensitive={view.caseSensitive} onChange={(filters, caseSensitive) => setView({ ...view, filters, caseSensitive, page: 1 })} />
               </PopoverContent>
             </Popover>
@@ -209,7 +209,7 @@ export function DatabasePage() {
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" aria-expanded={panel === 'sort'}><ArrowUpDownIcon />Сортировка{view.order.length && !openingOrder ? ` (${view.order.length})` : ''}</Button>
               </PopoverTrigger>
-              <PopoverContent align="start" className="w-[min(40rem,calc(100vw-2rem))] p-0" onOpenAutoFocus={(event) => event.preventDefault()}>
+              <PopoverContent align="start" collisionPadding={PANEL_EDGE} className="w-[min(24rem,calc(100vw-2rem))] p-0" onOpenAutoFocus={(event) => event.preventDefault()}>
                 <Sorting columns={columns} order={view.order} onChange={(order) => setView({ ...view, order, page: 1 })} />
               </PopoverContent>
             </Popover>
@@ -217,7 +217,7 @@ export function DatabasePage() {
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" aria-expanded={panel === 'visibility'}><EyeIcon />Видимость{view.columns.length ? ` (${columns.length - shown.length} скрыто)` : ''}</Button>
               </PopoverTrigger>
-              <PopoverContent align="start" className="w-[min(32rem,calc(100vw-2rem))] p-0" onOpenAutoFocus={(event) => event.preventDefault()}>
+              <PopoverContent align="start" collisionPadding={PANEL_EDGE} className="w-[min(32rem,calc(100vw-2rem))] p-0" onOpenAutoFocus={(event) => event.preventDefault()}>
                 <Visibility columns={columns} shown={view.columns} onChange={(visible) => setView({ ...view, columns: visible })} />
               </PopoverContent>
             </Popover>
@@ -311,6 +311,8 @@ export function DatabasePage() {
  * overlay (`after`) tints it the row's hover colour, because an opaque cell would otherwise sit
  * untinted in a highlighted row. A soft shadow on the left marks where the pinned part begins.
  */
+// A panel too wide for the room beside its button moves left until its right edge meets the table's: the page's own p-6.
+const PANEL_EDGE = { right: 24 };
 // The pinned header keeps its line under it: a collapsed table's row border scrolls away with the rows.
 const HEADER_LINE = 'shadow-[inset_0_-1px_0_var(--color-border)]';
 const STICKY_ACTIONS ='sticky right-0 z-10 w-20 bg-background shadow-[-8px_0_10px_-8px_rgb(0_0_0/0.25)] after:pointer-events-none after:absolute after:inset-0 after:bg-muted/50 after:opacity-0 after:transition-opacity';

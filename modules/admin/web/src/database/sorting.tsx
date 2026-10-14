@@ -57,7 +57,7 @@ export function Sorting({ columns, order, onChange }: {
         return <div key={index} data-testid="database-sort-level" className={`relative flex flex-wrap items-center gap-2 ${row.dimmed ? 'opacity-40' : ''}`} onDragOver={row.onDragOver} onDrop={row.onDrop}>
           <button {...drag.handle(index, `Переместить условие ${index + 1}`)}><GripVerticalIcon className="size-4" /></button>
           <Select value={level.column} onValueChange={(column) => set(index, { column })}>
-            <SelectTrigger aria-label={`Колонка условия ${index + 1}`} className="w-44"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label={`Колонка условия ${index + 1}`} className="w-56"><SelectValue /></SelectTrigger>
             <SelectContent>{columns.filter((column) => column.name === level.column || !used.has(column.name))
               .map((column) => <SelectItem key={column.name} value={column.name}>{column.name}</SelectItem>)}</SelectContent>
           </Select>

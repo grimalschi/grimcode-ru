@@ -332,6 +332,13 @@ test.describe('the native database page', () => {
     await expect(filters(page)).toBeVisible();
     // The table did not move: the panel floats instead of pushing the page down.
     expect(await title.boundingBox()).toEqual(before);
+    // Too wide for the room beside its button, the panel stops at the table's right edge, not the window's.
+    const table = (await page.getByTestId('database-scroll').boundingBox())!;
+    // Polled: the panel zooms in as it opens.
+    await expect.poll(async () => {
+      const panel = (await page.locator('[data-slot="popover-content"]').boundingBox())!;
+      return Math.round(panel.x + panel.width - (table.x + table.width));
+    }).toBe(0);
     await filters(page).getByRole('button', { name: 'Добавить условие', exact: true }).click();
     await page.getByRole('combobox', { name: 'Колонка условия 1', exact: true }).click();
     await page.getByRole('option', { name: 'email', exact: true }).click();
