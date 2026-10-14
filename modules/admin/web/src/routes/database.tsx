@@ -175,7 +175,7 @@ export function DatabasePage() {
         */}
         <Accordion type="multiple" value={open} onValueChange={setOpen} aria-label="Схемы">
           {schemas.data?.schemas.map(({ name }) => <AccordionItem key={name} value={name}>
-            <AccordionTrigger aria-label={`Схема ${name}`}><span className="truncate font-mono">{name}</span></AccordionTrigger>
+            <AccordionTrigger aria-label={`Схема ${name}`}><span className="truncate">{name}</span></AccordionTrigger>
             <AccordionContent>
               <SchemaTables schema={name} catalogue={catalogues[name]} selected={view.schema === name ? view.table : null} counts={counts} onOpen={openTable} onRetry={() => void loadCatalogue(name)} />
             </AccordionContent>
@@ -248,7 +248,7 @@ export function DatabasePage() {
                       <DropdownMenu><DropdownMenuTrigger asChild><button type="button" aria-label={`Колонка ${column.name}`} className="inline-flex items-center gap-1.5 whitespace-nowrap py-2 font-medium">
                         {column.name}{direction === 'asc' ? <ArrowUpIcon className="size-3" /> : direction === 'desc' ? <ArrowDownIcon className="size-3" /> : null}
                         {direction && view.order.length > 1 && <span className="-ml-1 text-[10px] font-normal text-muted-foreground" data-testid="database-sort-level-mark">{level + 1}</span>}
-                        <span className="text-xs font-normal text-muted-foreground" title={column.type}>{shortType(column.type)}</span>
+                        <span className="text-xs font-normal text-muted-foreground" title={column.sqlType}>{shortType(column.sqlType)}</span>
                       </button></DropdownMenuTrigger><DropdownMenuContent align="start">
                         <DropdownMenuItem onSelect={() => {
                           setView({ ...view, page: 1, filters: [...view.filters, { column: column.name, condition: column.conditions[0] ?? 'is', value: '' }] }); setPanel('filters');
@@ -289,7 +289,8 @@ export function DatabasePage() {
               <SelectContent>{PAGE_SIZES.map((size) => <SelectItem key={size} value={String(size)}>{size} строк</SelectItem>)}</SelectContent>
             </Select>
             <span className="inline-flex items-center gap-2 text-xs text-muted-foreground" data-testid="database-total">
-              {loading && page && <Loader2Icon className="size-3.5 animate-spin" aria-label="Загрузка" />}Всего: {page?.total ?? 0}
+              {/* With more than one page the pager says "1–20 из 60" already; the total is told once. */}
+              {loading && page && <Loader2Icon className="size-3.5 animate-spin" aria-label="Загрузка" />}{(page?.total ?? 0) <= view.size && `Всего: ${page?.total ?? 0}`}
             </span>
             <Pagination total={page?.total ?? 0} limit={view.size} offset={(view.page - 1) * view.size} onOffsetChange={(offset) => setView({ ...view, page: offset / view.size + 1 })} />
           </div>
@@ -299,23 +300,30 @@ export function DatabasePage() {
     {editor && <RowEditor schema={editor.table.schema} table={editor.table.name} columns={editor.columns} primaryKey={editor.table.primaryKey} readOnlyReason={editor.table.readOnlyReason} notice={notice} row={editor.row} onClose={() => setEditor(null)} onSave={save}
       onFollow={(reference, value) => { if (!known(reference)) return; setEditor(null); follow(reference, value); }} />}
     <Dialog open={!!deleting} onOpenChange={(open) => { if (!open && !busy) setDeleting(null); }}>
-      <DialogContent><DialogHeader><DialogTitle>Удалить строку?</DialogTitle><DialogDescription>Это нельзя отменить.</DialogDescription></DialogHeader>
+      <DialogContent><DialogHeader><DialogTitle>Удалить строку?</DialogTitle><DialogDescription>
+        {/* The key says which row, the one thing every deletable row has; a long one is cut, whole on hover. */}
+        {deleting && (() => {
+          const key = deleting.table.primaryKey.map((column) => `${column} = ${deleting.row[column] ?? 'NULL'}`).join(', ');
+          return <span className="block truncate font-medium text-foreground" title={key} data-testid="database-delete-key">{key}</span>;
+        })()}
+        Это нельзя отменить.
+      </DialogDescription></DialogHeader>
         <DialogFooter><Button variant="ghost" disabled={busy} onClick={() => setDeleting(null)}>Отмена</Button><Button variant="destructive" disabled={busy} onClick={() => void remove()}>Удалить</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </AdminPage>;
 }
 
+// A panel too wide for the room beside its button moves left until its right edge meets the table's: the page's own p-6.
+const PANEL_EDGE = { right: 24 };
+// The pinned header keeps its line under it: a collapsed table's row border scrolls away with the rows.
+const HEADER_LINE = 'shadow-[inset_0_-1px_0_var(--color-border)]';
 /*
  * A cell pinned to the right edge. Its own background hides the cells scrolling under it; the
  * overlay (`after`) tints it the row's hover colour, because an opaque cell would otherwise sit
  * untinted in a highlighted row. A soft shadow on the left marks where the pinned part begins.
  */
-// A panel too wide for the room beside its button moves left until its right edge meets the table's: the page's own p-6.
-const PANEL_EDGE = { right: 24 };
-// The pinned header keeps its line under it: a collapsed table's row border scrolls away with the rows.
-const HEADER_LINE = 'shadow-[inset_0_-1px_0_var(--color-border)]';
-const STICKY_ACTIONS ='sticky right-0 z-10 w-20 bg-background shadow-[-8px_0_10px_-8px_rgb(0_0_0/0.25)] after:pointer-events-none after:absolute after:inset-0 after:bg-muted/50 after:opacity-0 after:transition-opacity';
+const STICKY_ACTIONS = 'sticky right-0 z-10 w-20 bg-background shadow-[-8px_0_10px_-8px_rgb(0_0_0/0.25)] after:pointer-events-none after:absolute after:inset-0 after:bg-muted/50 after:opacity-0 after:transition-opacity';
 
 function ValueCell({ column, value, reference = null, onFollow }: {
   column: string;

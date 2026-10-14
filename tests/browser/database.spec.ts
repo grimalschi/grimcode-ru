@@ -179,6 +179,8 @@ test.describe('the native database page', () => {
     await expect(page.getByRole('button', { name: /^Сортировка/ })).toHaveText(/Сортировка\s*\(1\)/);
     await page.keyboard.press('Escape');
     await chooseTable(page, fixtureSchema, 'blanks');
+    // An array is labelled by what it holds, as PostgreSQL spells it, not by information_schema's "ARRAY".
+    await expect(header('tags')).toContainText('text[]');
     const labels = async () => (await rows(page).allTextContents()).map((text) => /filled|empty-string|sql-null/.exec(text)?.[0]);
     // No sort menu in the header any more: the panel is the one place.
     await column(page, 'grade').click();
@@ -304,7 +306,8 @@ test.describe('the native database page', () => {
     });
     let placeholderSeen = false;
     const watcher = page.getByTestId('database-table').locator('[data-slot="skeleton"]');
-    const poll = setInterval(() => { void watcher.count().then((count) => { if (count > 0) placeholderSeen = true; }); }, 50);
+    // A count still in flight when the test ends is refused; that refusal is no finding, so it is dropped.
+    const poll = setInterval(() => { void watcher.count().then((count) => { if (count > 0) placeholderSeen = true; }, () => undefined); }, 50);
     await page.getByRole('button', { name: /^Фильтры/ }).click();
     await filters(page).getByRole('button', { name: 'Добавить условие', exact: true }).click();
     await page.getByRole('combobox', { name: 'Колонка условия 1', exact: true }).click();
@@ -590,9 +593,13 @@ test.describe('the native database page', () => {
     await openDatabase(page);
     await chooseSchema(page, fixtureSchema);
     await chooseTable(page, fixtureSchema, 'tall');
+    // The count is told once: by the pager while there are pages, by "Всего" when one page holds it all.
+    await expect(page.getByText('1–20 из 40', { exact: true })).toBeVisible();
+    await expect(page.getByTestId('database-total')).not.toContainText('Всего');
     await page.getByRole('combobox', { name: 'Строк на странице', exact: true }).click();
     await page.getByRole('option', { name: '50 строк', exact: true }).click();
     await expect(rows(page)).toHaveCount(40);
+    await expect(page.getByTestId('database-total')).toHaveText('Всего: 40');
     const scroller = page.getByTestId('database-scroll');
     await scroller.evaluate((element) => { element.scrollTop = element.scrollHeight; });
     expect(await scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
@@ -681,6 +688,8 @@ test.describe('the native database page', () => {
     await rows(page).first().getByRole('button', { name: 'Удалить строку', exact: true }).click();
     const confirmation = page.getByRole('dialog', { name: 'Удалить строку?', exact: true });
     await expect(confirmation).toContainText('нельзя отменить');
+    // It names the row by its key, the first row of a table read in key order.
+    await expect(confirmation.getByTestId('database-delete-key')).toHaveText('id = 1');
     await confirmation.getByRole('button', { name: 'Отмена', exact: true }).click();
     await expect(confirmation).toBeHidden();
     await expect(rows(page)).toHaveCount(before);

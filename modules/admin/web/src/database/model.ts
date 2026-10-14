@@ -214,10 +214,20 @@ export function rowCountLabel(rows: TableInfo['rows']): string {
   return `${rows.kind === 'estimate' ? '~' : rows.kind === 'more' ? '>' : ''}${rows.count}`;
 }
 
+const SHORT_TYPES: Record<string, string> = { 'timestamp with time zone': 'timestamptz', 'timestamp without time zone': 'timestamp',
+  'time with time zone': 'timetz', 'time without time zone': 'time', 'character varying': 'varchar', 'double precision': 'float8',
+  boolean: 'bool', integer: 'int', smallint: 'int2', bigint: 'int8', real: 'float4', character: 'char' };
+
+/**
+ * The label beside a column name, from PostgreSQL's own spelling of its type (`format_type`):
+ * `character varying(3)[]` reads `varchar(3)[]`. The size, the precision and the brackets of an array
+ * stay — `information_schema` would say only "ARRAY". Anything else (a type of the base's own) as is.
+ */
 export function shortType(type: string): string {
-  return ({ 'timestamp with time zone': 'timestamptz', 'timestamp without time zone': 'timestamp',
-    'character varying': 'varchar', 'double precision': 'float8', boolean: 'bool', integer: 'int',
-    smallint: 'int2', bigint: 'int8', character: 'char' } as Record<string, string>)[type] ?? type;
+  const match = /^([a-z0-9_ ]+?)(\([\d,]+\))?( with(?:out)? time zone)?((?:\[\])*)$/.exec(type);
+  if (!match) return type;
+  const [, base, size = '', zone = '', array] = match;
+  return `${SHORT_TYPES[base + zone] ?? base + zone}${size}${array}`;
 }
 
 export function newUuid(): string {

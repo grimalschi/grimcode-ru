@@ -32,7 +32,7 @@ export function Visibility({ columns, shown, onChange }: {
           return <li key={column.name}>
             <label className={`flex items-center gap-2 text-sm ${last ? 'text-muted-foreground' : ''}`} title={last ? 'Последняя видимая колонка остаётся' : undefined}>
               <Checkbox checked={on} disabled={last} aria-label={`Показывать ${column.name}`} onCheckedChange={(checked) => toggle(column.name, checked === true)} />
-              <span className="font-mono">{column.name}</span>
+              <span>{column.name}</span>
             </label>
           </li>;
         })}

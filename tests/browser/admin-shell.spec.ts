@@ -17,7 +17,7 @@ test.describe('the admin shell', () => {
     await signIn(page);
     await page.goto('/admin/');
 
-    await expect(page.getByRole('link', { name: 'Auth' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Пользователи', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'База данных' })).toBeVisible();
 
     expectNoPageErrors(problems);
@@ -62,11 +62,12 @@ test.describe('the admin shell', () => {
     await signIn(page);
     await page.goto('/admin/');
 
-    await expect(page.getByRole('link', { name: /^(Email|Notifications|Auth|Users)$/ })).toHaveText([
-      'Email', 'Notifications', 'Auth', 'Users',
+    // The screen's own title, and beside it the module's name, as its schema is called in the database.
+    await expect(page.getByRole('link', { name: /^(Письма|События|Пользователи|Профили)$/ })).toHaveText([
+      /^Письма\s*email$/, /^События\s*notifications$/, /^Пользователи\s*auth$/, /^Профили\s*users$/,
     ]);
     await expect.poll(async () => {
-      const icons = await page.getByRole('link', { name: /^(Email|Notifications|Auth|Users)$/ })
+      const icons = await page.getByRole('link', { name: /^(Письма|События|Пользователи|Профили)$/ })
         .locator('svg').evaluateAll((nodes) => nodes.map((node) => node.innerHTML));
       return new Set(icons).size;
     }).toBe(4);
@@ -82,15 +83,15 @@ test.describe('the admin shell', () => {
     await signIn(page);
 
     await page.goto('/admin/module/auth#/');
-    await expect(page.getByRole('link', { name: 'Auth' })).toHaveAttribute('data-active', 'true');
-    await expect(page.getByRole('link', { name: 'Users' })).toHaveAttribute('data-active', 'false');
+    await expect(page.getByRole('link', { name: 'Пользователи', exact: true })).toHaveAttribute('data-active', 'true');
+    await expect(page.getByRole('link', { name: 'Профили', exact: true })).toHaveAttribute('data-active', 'false');
 
     await page.goto('/admin/administrators');
     await expect(page.getByRole('link', { name: 'Администраторы' })).toHaveAttribute(
       'data-active',
       'true',
     );
-    await expect(page.getByRole('link', { name: 'Auth' })).toHaveAttribute('data-active', 'false');
+    await expect(page.getByRole('link', { name: 'Пользователи', exact: true })).toHaveAttribute('data-active', 'false');
 
     await page.goto('/admin/database');
     await expect(page.getByRole('link', { name: 'База данных' })).toHaveAttribute(
@@ -157,7 +158,7 @@ test.describe('themes', () => {
     await signIn(page);
     await page.goto('/admin/module/auth#/');
 
-    const frame = page.frameLocator('iframe[title="Админка Auth"]');
+    const frame = page.frameLocator('iframe[title="Админка Пользователи"]');
     await expect(frame.getByRole('link', { name: 'Пользователи' })).toBeVisible();
 
     await page.getByRole('button', { name: /^Тема:/ }).click();
@@ -185,7 +186,7 @@ test.describe('the frame protocol', () => {
     await signIn(page);
     await page.goto('/admin/module/auth#/');
 
-    const frame = page.frameLocator('iframe[title="Админка Auth"]');
+    const frame = page.frameLocator('iframe[title="Админка Пользователи"]');
     await expect(frame.getByRole('link', { name: 'Пользователи' })).toBeVisible();
 
     // Navigation that starts inside the iframe.
@@ -212,23 +213,23 @@ test.describe('the frame protocol', () => {
     await page.goto('/admin/module/auth#/');
 
     await expect(
-      page.frameLocator('iframe[title="Админка Auth"]').getByRole('link', { name: 'Пользователи' }),
+      page.frameLocator('iframe[title="Админка Пользователи"]').getByRole('link', { name: 'Пользователи' }),
     ).toBeVisible();
 
-    await page.getByRole('link', { name: 'Email' }).click();
+    await page.getByRole('link', { name: 'Письма', exact: true }).click();
     await expect(
-      page.frameLocator('iframe[title="Админка Email"]').getByRole('heading', { name: 'Шаблоны' }),
+      page.frameLocator('iframe[title="Админка Письма"]').getByRole('heading', { name: 'Шаблоны' }),
     ).toBeVisible();
 
-    await page.getByRole('link', { name: 'Users' }).click();
+    await page.getByRole('link', { name: 'Профили', exact: true }).click();
     await expect(
-      page.frameLocator('iframe[title="Админка Users"]').getByRole('heading', { name: 'Профили' }),
+      page.frameLocator('iframe[title="Админка Профили"]').getByRole('heading', { name: 'Профили' }),
     ).toBeVisible();
 
     // And back again, which is where a cached frame would show the wrong module.
-    await page.getByRole('link', { name: 'Auth' }).click();
+    await page.getByRole('link', { name: 'Пользователи', exact: true }).click();
     await expect(
-      page.frameLocator('iframe[title="Админка Auth"]').getByRole('heading', { name: 'Пользователи' }),
+      page.frameLocator('iframe[title="Админка Пользователи"]').getByRole('heading', { name: 'Пользователи' }),
     ).toBeVisible();
   });
 
@@ -236,7 +237,7 @@ test.describe('the frame protocol', () => {
     await signIn(page);
     await page.goto('/admin/module/auth#/audit');
 
-    const frame = page.frameLocator('iframe[title="Админка Auth"]');
+    const frame = page.frameLocator('iframe[title="Админка Пользователи"]');
     await expect(frame.getByRole('heading', { name: 'Журнал безопасности' })).toBeVisible();
   });
 

@@ -46,14 +46,14 @@ for (const role of ['empty', 'email', 'users']) {
     await signInAs(page, users[role]!);
     await page.goto('/admin/');
     await expect(page.getByRole('heading', { name: 'Админка', exact: true })).toBeVisible();
-    for (const name of ['Email', 'Notifications', 'Auth', 'Users']) {
-      await expect(page.getByRole('link', { name, exact: true })).toHaveCount(grants[role]!.includes(name.toLowerCase()) ? 1 : 0);
+    for (const [name, module] of [['Письма', 'email'], ['События', 'notifications'], ['Пользователи', 'auth'], ['Профили', 'users']] as const) {
+      await expect(page.getByRole('link', { name, exact: true })).toHaveCount(grants[role]!.includes(module) ? 1 : 0);
     }
     for (const name of ['Администраторы', 'Журнал', 'База данных']) {
       await expect(page.getByRole('link', { name, exact: true })).toHaveCount(0);
     }
     if (role !== 'empty') {
-      await page.getByRole('link', { name: role === 'email' ? 'Email' : 'Users', exact: true }).click();
+      await page.getByRole('link', { name: role === 'email' ? 'Письма' : 'Профили', exact: true }).click();
       const frame = page.frameLocator('iframe');
       await expect(frame.getByRole('heading', { name: role === 'email' ? 'Шаблоны' : 'Профили', exact: true })).toBeVisible();
     }
@@ -90,7 +90,7 @@ test('an open module loses HTTP access after revocation and disappears on reload
     await page.reload();
     await expect(page.getByText('Такого модуля нет.', { exact: true })).toBeVisible();
     await expect(page.locator('iframe')).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Users', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Профили', exact: true })).toHaveCount(0);
   } finally {
     await owner.call(ADMIN, 'updateAdministrator', { userId: users.users!.userId, grants: ['users'] }, { csrf: true });
   }

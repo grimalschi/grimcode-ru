@@ -20,7 +20,7 @@ async function signInAs(page: Page, user: TestUser): Promise<void> {
   await page.waitForURL((url) => !url.pathname.startsWith('/app/login'));
 }
 
-const frame = (page: Page): FrameLocator => page.frameLocator('iframe[title="Админка Users"]');
+const frame = (page: Page): FrameLocator => page.frameLocator('iframe[title="Админка Профили"]');
 
 async function openProfiles(page: Page, email: string) {
   await page.goto('/admin/module/users#/');

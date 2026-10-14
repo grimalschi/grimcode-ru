@@ -35,7 +35,7 @@ return {
 | `publicFetch(request)` | Public HTTP handler |
 | `adminFetch(request, adminContext)` | Administrative HTTP handler with Router's verified `AdminContext` |
 | `internalCaller` | Ready tRPC caller implementing `Api` |
-| `admin: { title, icon, assignable? }` | Embedded screen metadata; `icon` is a [Lucide ID](https://lucide.dev/icons/), such as `mail`; `assignable: false` restricts access to owners |
+| `admin: { title, icon, assignable? }` | Embedded screen metadata; `title` is what the screen calls itself (the sidebar shows `id` beside it, as the module's schema is named); `icon` is a [Lucide ID](https://lucide.dev/icons/), such as `mail`; `assignable: false` restricts access to owners |
 | `migrate()` | Storage preparation at startup |
 
 Only `id` is required. Omit unused capabilities and factory inputs. HTTP handlers take a `Request`

@@ -15,7 +15,9 @@ The instance exposes `adminFetch`, `internalCaller` and `migrate`.
 IDs must be unique and path-safe. `assignable: false` makes a module owner-only; the default is true.
 The panel's `session` procedure returns the permitted descriptors, which drive navigation and grants.
 `icon` is a kebab-case ID from [Lucide](https://lucide.dev/icons/), for example `mail` or `key-round`.
-The sidebar loads icons locally on demand; an unknown ID falls back to `app-window`.
+The sidebar loads icons locally on demand; an unknown ID falls back to `app-window`. Beside each
+title it shows the module's `id` in small muted type: the title is the screen's own name in Russian,
+the `id` is the name its schema has in the database editor.
 
 | Address | Purpose |
 | --- | --- |
@@ -256,6 +258,10 @@ behavior are read-only. Views are listed after the tables of their schema under 
 own (`kind: 'view'`) and read like one — filters, sorting, visibility, copying — but never written; having
 neither key nor `ctid`, a view's rows come in its own order unless a sort is chosen. Materialized
 views are not listed: `information_schema` does not describe their columns.
+
+A column's label beside its name comes from `sqlType`, PostgreSQL's own spelling (`format_type`),
+shortened (`varchar(3)`, `text[]`, `timestamptz`); `type`, the `information_schema` family that says
+only "ARRAY" or "USER-DEFINED" for those, picks the filter conditions.
 
 Foreign keys are read with the columns (`pg_constraint`): a key of one column becomes the column's
 `references` (`schema.table.column`), a composite key stays on the table in `foreignKeys`, and

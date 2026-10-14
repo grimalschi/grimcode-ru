@@ -20,7 +20,7 @@ export function createModule({ env }: { env: EmailEnv }) {
   });
   return {
     id: 'email',
-    admin: { title: 'Email', icon: 'mail', assignable: true },
+    admin: { title: 'Письма', icon: 'mail', assignable: true },
     adminFetch: createAdminFetch({ env, context }),
     internalCaller: createInternalCaller(context),
     migrate: async () => { await database(); },

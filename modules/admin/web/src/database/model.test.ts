@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONDITION_LABELS, controlSegments, decodeControlSpelling, decodeFilterValues, fieldDraft, fieldValue, groupConditions, hasControlCharacters, spellControls, type Filter } from './model';
+import { CONDITION_LABELS, controlSegments, decodeControlSpelling, decodeFilterValues, fieldDraft, fieldValue, groupConditions, hasControlCharacters, shortType, spellControls, type Filter } from './model';
 import {
   ARRAY_CONDITIONS, BOOLEAN_CONDITIONS, JSON_CONDITIONS, PLAIN_CONDITIONS, RANGE_CONDITIONS,
   TEXT_CONDITIONS, UUID_CONDITIONS, VALUE_CONDITIONS,
@@ -124,5 +124,23 @@ describe('control characters in a table cell', () => {
     for (const text of ['plain', 'tab\tbed', 'crlf\r\n', '\u009f']) {
       expect(controlSegments(text).some((segment) => segment.control)).toBe(hasControlCharacters(text));
     }
+  });
+});
+
+describe('the type beside a column name', () => {
+  it('shortens PostgreSQL spelling and keeps sizes and array brackets', () => {
+    expect(shortType('integer')).toBe('int');
+    expect(shortType('text[]')).toBe('text[]');
+    expect(shortType('integer[]')).toBe('int[]');
+    expect(shortType('character varying(3)')).toBe('varchar(3)');
+    expect(shortType('character varying(20)[]')).toBe('varchar(20)[]');
+    expect(shortType('numeric(10,2)')).toBe('numeric(10,2)');
+    expect(shortType('timestamp with time zone')).toBe('timestamptz');
+    expect(shortType('timestamp(3) without time zone')).toBe('timestamp(3)');
+    expect(shortType('time without time zone[]')).toBe('time[]');
+    expect(shortType('int4range')).toBe('int4range');
+    // A type the base made itself is shown as PostgreSQL names it.
+    expect(shortType('samples.mood')).toBe('samples.mood');
+    expect(shortType('"Mood"')).toBe('"Mood"');
   });
 });

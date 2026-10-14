@@ -134,9 +134,7 @@ export function RowEditor({ schema, table, columns, primaryKey, readOnlyReason, 
         <div className="-mx-6 max-h-[60vh] space-y-4 overflow-y-auto px-6 py-1">
           {readOnlyReason && <p role="status" className="text-sm text-muted-foreground">Только чтение: {readOnlyReason}</p>}
           {!readOnlyReason && notice && <p role="note" className="text-sm">{notice}</p>}
-          {!readOnlyReason && <p className="text-xs text-muted-foreground">Значения вводятся текстом, как их принимает PostgreSQL. Пустое поле сохраняется пустой строкой; SQL NULL и значение по умолчанию — в настройках поля, иконка справа от имени.</p>}
-          {!inserting && primaryKey.length > 0 && <p className="text-xs text-muted-foreground">Ключ — только чтение: {primaryKey.join(', ')}</p>}
-          {blockedInsert && <p role="alert" className="text-sm text-destructive">Добавление недоступно: обязательная колонка имеет неподдержанный тип.</p>}
+          {!readOnlyReason && <p className="text-xs text-muted-foreground">Значения вводятся текстом, как их принимает PostgreSQL. Пустое поле сохраняется пустой строкой; SQL NULL и значение по умолчанию — в настройках поля, иконка справа от имени.</p>}          {blockedInsert && <p role="alert" className="text-sm text-destructive">Добавление недоступно: обязательная колонка имеет неподдержанный тип.</p>}
           {fields.map((column) => {
             const automatic = inserting && column.generated;
             const reason = readOnlyReason ?? column.readOnlyReason
@@ -160,12 +158,12 @@ export function RowEditor({ schema, table, columns, primaryKey, readOnlyReason, 
             return <div key={column.name} className="space-y-1.5" data-testid="database-field" data-column={column.name}>
               <div className="flex items-center gap-2">
                 <Label htmlFor={input.id}>{column.name}</Label>
-                <span className="text-xs text-muted-foreground" title={column.type}>{shortType(column.type)}</span>
+                <span className="text-xs text-muted-foreground" title={column.sqlType}>{shortType(column.sqlType)}</span>
                 {reason
                   // A lock beside the name; why the box is locked shows on hover over the lock (the owner, 12 October).
                   ? <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="inline-flex text-muted-foreground" tabIndex={0} aria-label={`Только чтение: ${reason}`}><LockIcon className="size-3.5" aria-hidden="true" /></span>
+                      <span className="inline-flex text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground" tabIndex={0} aria-label={`Только чтение: ${reason}`}><LockIcon className="size-3.5" aria-hidden="true" /></span>
                     </TooltipTrigger>
                     <TooltipContent className="max-w-72">Только чтение: {reason}</TooltipContent>
                   </Tooltip>

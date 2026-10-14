@@ -29,6 +29,8 @@ const reference = z.object({ schema: name, table: name, column: name });
 const foreignKey = z.object({ columns: z.array(name), target: z.object({ schema: name, table: name, columns: z.array(name) }) });
 const column = z.object({
   name, type: z.string(), nullable: z.boolean(), hasDefault: z.boolean(), generated: z.boolean(),
+  // PostgreSQL's own spelling, `format_type`: `varchar(3)`, `text[]`. `type` above is the information_schema family the conditions are picked by.
+  sqlType: z.string(),
   conditions: z.array(condition), readOnlyReason: z.string().nullable(),
   // The row this value points at, when the column alone is a foreign key.
   references: reference.nullable(),
