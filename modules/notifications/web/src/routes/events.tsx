@@ -5,10 +5,12 @@ import { api } from '@/api';
 import { AdminPage, ErrorState } from '@/components/layout/admin-page';
 import { DataTable, Pagination } from '@/components/layout/data-table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -172,7 +174,7 @@ function EventDialog({ id, onClose }: { id: string; onClose: () => void }) {
   if (!event) {
     return (
       <Dialog open onOpenChange={(open) => !open && onClose()}>
-        <DialogContent>
+        <DialogContent onOpenAutoFocus={(event) => { event.preventDefault(); (event.currentTarget as HTMLElement).focus(); }}>
           <DialogHeader>
             <DialogTitle>Событие</DialogTitle>
             <DialogDescription>Загружаем.</DialogDescription>
@@ -184,7 +186,8 @@ function EventDialog({ id, onClose }: { id: string; onClose: () => void }) {
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+      {/* Focus the card itself, not its first button: a ring on «Закрыть» or the cross read as a border, and differed card to card. */}
+      <DialogContent onOpenAutoFocus={(event) => { event.preventDefault(); (event.currentTarget as HTMLElement).focus(); }}>
         <DialogHeader>
           <DialogTitle>{event.type}</DialogTitle>
           <DialogDescription>
@@ -217,6 +220,12 @@ function EventDialog({ id, onClose }: { id: string; onClose: () => void }) {
             {event.error}
           </p>
         ) : null}
+
+        <DialogFooter>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Закрыть
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

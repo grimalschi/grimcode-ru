@@ -61,9 +61,11 @@ export function AuditPage() {
           {
             key: 'details',
             header: 'Подробности',
-            cell: (row) => (
-              <code className="text-muted-foreground text-xs">{JSON.stringify(row.details)}</code>
-            ),
+            // Most events record nothing extra; an empty `{}` in every row would only take the eye.
+            cell: (row) =>
+              row.details && Object.keys(row.details).length > 0 ? (
+                <code className="text-muted-foreground text-xs">{JSON.stringify(row.details)}</code>
+              ) : null,
           },
         ]}
       />

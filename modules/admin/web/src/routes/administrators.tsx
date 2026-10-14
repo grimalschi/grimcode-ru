@@ -246,11 +246,7 @@ function AddAdministrator({ onAdded }: { onAdded: () => void }) {
                   Выбрать другого
                 </button>
               </p>
-            ) : search === '' ? (
-              <p className="text-muted-foreground text-xs">
-                Добавить можно только того, у кого уже есть аккаунт — здесь он не создаётся.
-              </p>
-            ) : candidates.error ? (
+            ) : search === '' ? null : candidates.error ? (
               <ErrorState error={candidates.error} retry={candidates.reload} />
             ) : candidates.loading ? (
               <p className="text-muted-foreground text-xs">Ищем…</p>
@@ -364,7 +360,7 @@ function EditAdministrator({
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor={`role-${administrator.id}`}>Role</Label>
+            <Label htmlFor={`role-${administrator.id}`}>Роль</Label>
             <Select value={role} onValueChange={(value) => setRole(value as 'owner' | 'admin')}>
               <SelectTrigger id={`role-${administrator.id}`}>
                 <SelectValue />

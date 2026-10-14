@@ -119,7 +119,7 @@ export function ProfilesPage() {
           },
           {
             key: 'created',
-            header: 'С',
+            header: 'Профиль создан',
             className: 'whitespace-nowrap',
             cell: (row) => new Date(row.createdAt).toLocaleDateString(),
           },
@@ -201,8 +201,10 @@ function BlockButton({ profile, self, busy, onClick }: {
     : protectedOwner ? 'Владелец панели: сначала снимите роль в «Администраторах»' : undefined;
   return (
     <Button
-      variant={profile.blockedAt ? 'outline' : 'destructive'}
+      variant="outline"
       size="sm"
+      // A red outline at rest, filled red under the pointer: a list of people is not a wall of red (the owner, 14 October).
+      className={profile.blockedAt ? undefined : 'border-destructive/60 text-destructive hover:bg-destructive hover:text-white dark:border-destructive/60 dark:bg-transparent dark:hover:bg-destructive/60'}
       disabled={busy || reason !== undefined}
       title={reason}
       aria-label={`${profile.blockedAt ? 'Разблокировать' : 'Заблокировать'} ${profile.email}`}
@@ -229,7 +231,8 @@ function ProfileDialog({ id, onClose }: { id: string; onClose: () => void }) {
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+      {/* Focus the card itself, not its first button: a ring on «Закрыть» or the cross read as a border, and differed card to card. */}
+      <DialogContent onOpenAutoFocus={(event) => { event.preventDefault(); (event.currentTarget as HTMLElement).focus(); }}>
         <DialogHeader>
           <DialogTitle>{profile?.email ?? profile?.displayName ?? 'Профиль'}</DialogTitle>
           <DialogDescription>
@@ -257,7 +260,7 @@ function ProfileDialog({ id, onClose }: { id: string; onClose: () => void }) {
           <dd>
             <code className="text-xs break-all">{profile.id}</code>
           </dd>
-          <dt className="text-muted-foreground">С</dt>
+          <dt className="text-muted-foreground">Профиль создан</dt>
           <dd>{new Date(profile.createdAt).toLocaleString()}</dd>
         </dl>
         )}
