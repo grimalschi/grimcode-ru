@@ -38,6 +38,18 @@ The current password asked by the email and password changes has its own allowan
 account within fifteen minutes, shared by both procedures and separate from sign-in. Past it the
 password is not checked (`TOO_MANY_REQUESTS`), and the first refusal in a window is recorded once as
 `password.check.limited`. Both limits are constants in [`public/index.ts`](src/public/index.ts).
+
+Letters a person can trigger are limited where an account is known. Recovery sends one link per
+account in fifteen minutes and always answers `ok`. A fresh verification link and an email-change link
+go out at most once per account in five minutes; asking again inside the window gets
+`TOO_MANY_REQUESTS` saying so; the link in the welcome letter counts, so a fresh one can be asked for
+five minutes after registering. An email-change link also goes to one address at most once in five
+minutes whichever accounts ask, answered with a quiet `ok` like a taken address and journaled as
+`limited: 'address'` (`limited: 'account'` for the account window). These windows are rows in the
+database, so they survive a restart. **Registration is not limited:** an address registers once, so
+one person gets one welcome letter at most, but a script can register many addresses. Protecting it —
+a rate limit by client address at the edge proxy, a CAPTCHA, bot protection — belongs to whoever
+deploys the product; the application does not see the client address.
 The counters belong to the process, so multiple application processes each have that allowance.
 Configure client-address rate limits at the edge proxy.
 

@@ -534,6 +534,27 @@ describe('an email change', () => {
     expect(await requests(user.userId)).toEqual([{ email: other.email, taken: true }]);
   });
 
+  it('sends one link per account in five minutes, and says so to the person asking again', async () => {
+    const user = await createUser('email-change-twice');
+    const email = testEmail('email-change-twice-new');
+    expect(await user.session.call(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email })).toEqual({ ok: true });
+    const again = await user.session.rpc(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email: testEmail('email-change-twice-other') });
+    expect(again.status).toBe(429);
+    expect(errorMessage(again.body)).toBe('Письмо уже отправлено. Новое можно запросить не раньше чем через 5 минут');
+    expect(await events(testEmail('email-change-twice-other'))).toBe(0);
+    expect(await requests(user.userId)).toEqual([{ email }, { email: testEmail('email-change-twice-other'), limited: 'account' }]);
+  });
+
+  it('sends one link to an address in five minutes, whichever accounts ask for it, without telling them', async () => {
+    const first = await createUser('email-change-shared-1');
+    const second = await createUser('email-change-shared-2');
+    const email = testEmail('email-change-shared-target');
+    await first.session.call(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email });
+    expect(await second.session.call(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email })).toEqual({ ok: true });
+    expect(await events(email)).toBe(1);
+    expect(await requests(second.userId)).toEqual([{ email, limited: 'address' }]);
+  });
+
   it('with the password, records the request and sends the link that changes the address', async () => {
     const user = await createUser('email-change-ok');
     const email = testEmail('email-change-ok-new');
@@ -542,6 +563,25 @@ describe('an email change', () => {
     const token = await notificationToken(email, 'auth.email.change_requested', 'confirmUrl');
     await new Session().call(AUTH, 'confirmEmailChange', { token });
     expect((await signIn(email)).hasSession).toBe(true);
+  });
+});
+
+describe('a fresh verification link', () => {
+  it('is sent once in five minutes, counting the one in the welcome letter, and the person asking again is told so', async () => {
+    const user = await createUser('verification-resend');
+    const sent = async () => (await database.query(
+      "SELECT 1 FROM notifications.events WHERE recipient_email = $1 AND type = 'auth.email.verification_requested'", [user.email])).rowCount;
+    // Registration has just mailed a link of its own.
+    const early = await user.session.rpc(AUTH, 'resendOwnVerification', {});
+    expect(early.status).toBe(429);
+    expect(errorMessage(early.body)).toBe('Письмо уже отправлено. Новое можно запросить не раньше чем через 5 минут');
+    // Test database only: the welcome link is made six minutes old, as if the window had passed.
+    await database.query(
+      "UPDATE auth.auth_tokens SET created_at = created_at - interval '6 minutes' WHERE identity_id = $1 AND purpose = 'email-verification'",
+      [user.userId]);
+    expect(await user.session.call(AUTH, 'resendOwnVerification', {})).toEqual({ ok: true });
+    expect((await user.session.rpc(AUTH, 'resendOwnVerification', {})).status).toBe(429);
+    expect(await sent()).toBe(1);
   });
 });
 

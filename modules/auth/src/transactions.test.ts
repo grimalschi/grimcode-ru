@@ -23,7 +23,7 @@ const identity = {
   email_verified_at: null, blocked_at: null, blocking_protected_at: null as Date | null, created_at: new Date('2026-01-01T00:00:00Z'), last_login_at: null,
 };
 
-function recorder(options: { auditFails?: boolean; commitFails?: boolean; addressTaken?: boolean } = {}) {
+function recorder(options: { auditFails?: boolean; commitFails?: boolean; addressTaken?: boolean; recentLink?: boolean; recentAddress?: boolean } = {}) {
   /** Statements in order, tagged with the connection they ran on: `pool` or `tx<n>`. */
   const statements: { on: string; text: string; values: unknown[] }[] = [];
   let transactions = 0;
@@ -32,6 +32,9 @@ function recorder(options: { auditFails?: boolean; commitFails?: boolean; addres
     if (options.commitFails && text === 'COMMIT') throw new Error('commit lost');
     // The password change is visible to the session opened right after it, as it would be in one transaction.
     if (text.includes('SET password_hash = $2')) identity.password_hash = String(values[1]);
+    // The resend windows: a live link of this account issued a moment ago, or another account's to this address.
+    if (text.includes('make_interval') && text.includes("payload->>'email'")) return { rows: [], rowCount: options.recentAddress ? 1 : 0 };
+    if (text.includes('make_interval') && text.includes('AND used_at IS NULL')) return { rows: [], rowCount: options.recentLink ? 1 : 0 };
     // The "is this address registered" read: empty for a registration, the known account otherwise.
     if (text.includes('WHERE email = $1')) return options.addressTaken === false ? { rows: [], rowCount: 0 } : { rows: [identity], rowCount: 1 };
     if (text.includes('FROM identities') || text.includes('INSERT INTO identities') || text.includes('UPDATE sessions s')) {
@@ -221,6 +224,45 @@ describe('a change and its audit entry share one transaction', () => {
       const audit = statements.find(({ text }) => text.includes('INSERT INTO auth_audit'))!;
       expect(audit.values[2]).toBe('email.change_requested');
       expect(JSON.parse(String(audit.values[5]))).toEqual({ email: 'new@example.test', taken: true });
+      expect(context.notifier.emit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('letters a signed-in person asks for are limited', () => {
+    const audited = (statements: { text: string; values: unknown[] }[]) => statements
+      .filter(({ text }) => text.includes('INSERT INTO auth_audit'))
+      .map(({ values }) => ({ action: values[2], details: JSON.parse(String(values[5])) as unknown }));
+
+    it('refuses a fresh verification link inside the window, saying so, and sends nothing', async () => {
+      const { pool, statements } = recorder({ recentLink: true });
+      const context = publicContext(pool, 'session=some-token');
+      await expect(publicRouter.createCaller(context).resendOwnVerification({}))
+        .rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS', message: 'Письмо уже отправлено. Новое можно запросить не раньше чем через 5 минут' });
+      expect(statements.some(({ text }) => text.includes('INSERT INTO auth_tokens'))).toBe(false);
+      expect(context.notifier.emit).not.toHaveBeenCalled();
+    });
+
+    it('refuses an email-change link inside the account window, journals it, and sends nothing', async () => {
+      const { hashPassword } = await import('./crypto.js');
+      identity.password_hash = await hashPassword('current-password');
+      const { pool, statements } = recorder({ addressTaken: false, recentLink: true });
+      const context = publicContext(pool, 'session=some-token');
+      await expect(publicRouter.createCaller(context).requestEmailChange({ currentPassword: 'current-password', email: 'new@example.test' }))
+        .rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS' });
+      expect(statements.some(({ text }) => text.includes('INSERT INTO auth_tokens'))).toBe(false);
+      expect(audited(statements)).toEqual([{ action: 'email.change_requested', details: { email: 'new@example.test', limited: 'account' } }]);
+      expect(context.notifier.emit).not.toHaveBeenCalled();
+    });
+
+    it('answers ok without a letter when another account mailed the same address a moment ago', async () => {
+      const { hashPassword } = await import('./crypto.js');
+      identity.password_hash = await hashPassword('current-password');
+      const { pool, statements } = recorder({ addressTaken: false, recentAddress: true });
+      const context = publicContext(pool, 'session=some-token');
+      await expect(publicRouter.createCaller(context).requestEmailChange({ currentPassword: 'current-password', email: 'new@example.test' }))
+        .resolves.toEqual({ ok: true });
+      expect(statements.some(({ text }) => text.includes('INSERT INTO auth_tokens'))).toBe(false);
+      expect(audited(statements)).toEqual([{ action: 'email.change_requested', details: { email: 'new@example.test', limited: 'address' } }]);
       expect(context.notifier.emit).not.toHaveBeenCalled();
     });
   });

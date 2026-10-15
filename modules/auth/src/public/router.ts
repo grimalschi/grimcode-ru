@@ -38,6 +38,13 @@ export interface PublicContext extends RpcContext {
 const VERIFICATION_TTL_SECONDS = 60 * 60 * 24;
 
 const RESET_REQUEST_WINDOW_SECONDS = 15 * 60;
+/**
+ * Letters a signed-in person asks for — a fresh verification link, an email-change link — at most one
+ * per account in this window, and an email-change link at most one per target address. Without it the
+ * buttons mail any address in a loop.
+ */
+const RESEND_WINDOW_SECONDS = 5 * 60;
+const RESEND_REFUSAL = 'Письмо уже отправлено. Новое можно запросить не раньше чем через 5 минут';
 
 const RESET_TTL_SECONDS = 60 * 60;
 const EMAIL_CHANGE_TTL_SECONDS = 60 * 60;
@@ -263,9 +270,10 @@ export const publicRouter = t.router({
       if (identity && identity.blocked_at === null) {
         const token = newToken();
         const issued = await ctx.repo.withTransaction(async (repo) => {
+          // Too soon or not, the answer is the same `ok`: recovery never says whether an address is registered.
           const done = await repo.issueToken(identity.id, 'password-reset', token, RESET_TTL_SECONDS, {
             email: identity.email, resendAfterSeconds: RESET_REQUEST_WINDOW_SECONDS,
-          });
+          }) === 'issued';
           if (done) await repo.audit({ identityId: identity.id, action: 'password.reset.requested' });
           return done;
         });
@@ -352,9 +360,12 @@ export const publicRouter = t.router({
     if (row.email_verified_at !== null) return { ok: true as const };
 
     const token = newToken();
-    if (!await ctx.repo.issueToken(row.id, 'email-verification', token, VERIFICATION_TTL_SECONDS, { email: row.email })) {
-      throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Данные входа изменились. Войдите снова' });
-    }
+    const issued = await ctx.repo.issueToken(row.id, 'email-verification', token, VERIFICATION_TTL_SECONDS, {
+      email: row.email, resendAfterSeconds: RESEND_WINDOW_SECONDS,
+    });
+    // Said plainly: the person is signed in and asks about their own address.
+    if (issued === 'too-soon') throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: RESEND_REFUSAL });
+    if (issued === 'stale') throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Данные входа изменились. Войдите снова' });
 
     await ctx.notifier.emit(
       {
@@ -391,16 +402,27 @@ export const publicRouter = t.router({
         return { ok: true as const };
       }
 
+      // Another account mailed this address a moment ago: quietly `ok`, as for a taken address, so the
+      // answer does not tell that someone asked for it. Many accounts cannot take turns at one mailbox.
+      if (await ctx.repo.recentEmailChangeTo(input.email, row.id, RESEND_WINDOW_SECONDS)) {
+        await ctx.repo.audit({ identityId: row.id, action: 'email.change_requested', details: { email: input.email, limited: 'address' } });
+        return { ok: true as const };
+      }
+
       const token = newToken();
       // Requested and changed are two entries, as with password recovery; the link and its entry commit together.
       const issued = await ctx.repo.withTransaction(async (repo) => {
-        if (!await repo.issueToken(row.id, 'email-change', token, EMAIL_CHANGE_TTL_SECONDS, {
-          payload: { email: input.email }, passwordHash: row.password_hash, email: row.email,
-        })) return false;
-        await repo.audit({ identityId: row.id, action: 'email.change_requested', details: { email: input.email } });
-        return true;
+        const outcome = await repo.issueToken(row.id, 'email-change', token, EMAIL_CHANGE_TTL_SECONDS, {
+          payload: { email: input.email }, passwordHash: row.password_hash, email: row.email, resendAfterSeconds: RESEND_WINDOW_SECONDS,
+        });
+        if (outcome === 'issued') await repo.audit({ identityId: row.id, action: 'email.change_requested', details: { email: input.email } });
+        return outcome;
       });
-      if (!issued) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Данные входа изменились. Войдите снова' });
+      if (issued === 'too-soon') {
+        await ctx.repo.audit({ identityId: row.id, action: 'email.change_requested', details: { email: input.email, limited: 'account' } });
+        throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: RESEND_REFUSAL });
+      }
+      if (issued === 'stale') throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Данные входа изменились. Войдите снова' });
 
       await ctx.notifier.emit(
         {

@@ -117,7 +117,7 @@ export const adminRouter = t.router({
 
       const token = newToken(32);
       await ctx.repo.withTransaction(async (repo) => {
-        if (!await repo.issueToken(row.id, 'password-reset', token, RESET_TTL_SECONDS, { email: row.email })) {
+        if (await repo.issueToken(row.id, 'password-reset', token, RESET_TTL_SECONDS, { email: row.email }) !== 'issued') {
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'Аккаунт изменился или заблокирован' });
         }
         await repo.audit({
@@ -159,7 +159,7 @@ export const adminRouter = t.router({
 
       const token = newToken(32);
       await ctx.repo.withTransaction(async (repo) => {
-        if (!await repo.issueToken(row.id, 'email-verification', token, VERIFICATION_TTL_SECONDS, { email: row.email })) {
+        if (await repo.issueToken(row.id, 'email-verification', token, VERIFICATION_TTL_SECONDS, { email: row.email }) !== 'issued') {
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'Аккаунт изменился или заблокирован' });
         }
         await repo.audit({
