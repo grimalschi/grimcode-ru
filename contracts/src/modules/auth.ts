@@ -6,6 +6,8 @@ export interface Identity {
   email: string;
   emailVerifiedAt: string | null;
   blockedAt: string | null;
+  /** Since when the panel protects this identity from blocking (its owners); Auth refuses to block it. */
+  blockingProtectedAt: string | null;
   createdAt: string;
 }
 
@@ -45,6 +47,13 @@ export interface AuthApi {
    * audit with this actor, in the same transaction as the change and the revocation of access.
    */
   setIdentityBlocked: (input: { userId: string; blocked: boolean; actor: AuthActor }) => Promise<{ ok: true }>;
+  /**
+   * Marks an identity as protected from blocking, or clears the mark, and records
+   * `identity.protected` / `identity.unprotected` with this actor in the same transaction. The panel
+   * sets it for its owners as the role comes and goes; blocking a protected identity is refused by
+   * Auth itself, whoever asks. Idempotent.
+   */
+  setBlockingProtection: (input: { userId: string; protected: boolean; actor: AuthActor }) => Promise<{ ok: true }>;
   resolveSession: (input: { sessionToken: string }) => Promise<{ identity: Identity | null }>;
   revokeSessionByToken: (input: { sessionToken: string }) => Promise<{ ok: true }>;
   getFirstIdentity: (input: Record<string, never>) => Promise<{ identity: Identity | null }>;

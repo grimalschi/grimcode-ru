@@ -15,7 +15,9 @@ The instance exposes `adminFetch`, `internalCaller` and `migrate`.
 IDs must be unique and path-safe. `assignable: false` makes a module owner-only; the default is true.
 The panel's `session` procedure returns the permitted descriptors, which drive navigation and grants.
 `icon` is a kebab-case ID from [Lucide](https://lucide.dev/icons/), for example `mail` or `key-round`.
-The sidebar loads icons locally on demand; an unknown ID falls back to `app-window`.
+The sidebar loads icons locally on demand; an unknown ID falls back to `app-window`. Beside each
+title it shows the module's `id` in small muted type: the title is the screen's own name in Russian,
+the `id` is the name its schema has in the database editor.
 
 | Address | Purpose |
 | --- | --- |
@@ -52,13 +54,25 @@ Owners add registered users by email, assign roles and module grants, and enable
 administrators. Administrator records, grants and their audit entry are saved in one transaction;
 a failed lookup or audit write leaves the previous access intact. Disabling keeps the administrator's history.
 
-Administrator additions, role changes and identity blocking share a registry lock. Inside it, Admin rechecks the actor's
+Administrator additions and role changes share a registry lock. Inside it, Admin rechecks the actor's
 session and role and asks Auth which remaining owners can sign in. This preserves an accessible
-owner when requests overlap. The “Блокировка аккаунтов” dialog searches all Auth identities;
-blocking revokes their sessions and recovery tokens through Auth's internal API. Admin passes the
-verified actor along, and Auth records `identity.blocked` / `identity.unblocked` in its own audit in
-the same transaction as the change — so those events live in Auth's audit (its module admin), not in
-`admin_audit`; rows written there before this change remain as history.
+owner when requests overlap.
+
+**An owner is never blocked.** The rule lives in data, not in a call: with the owner role Admin sets
+Auth's protection from blocking on the identity (`setBlockingProtection`), and clears it when the
+role is taken away — on the first owner's bootstrap, in `addAdministrator` and in
+`updateAdministrator`, inside the registry lock after the change and its audit entry, so a failed
+call rolls the change back. Disabling keeps the role and therefore the protection. Auth refuses to
+block a protected identity itself, whoever asks; to block a former owner, take the role away first in
+«Администраторы». On every start Admin's `migrate()` asks Auth to mark every current owner, so an
+installation that predates the mark, or a hand-edited database, catches up; Auth writes nothing when
+the mark is already there. A mark left on a former owner is cleared by assigning the role and taking
+it away again. Blocking itself is not done here any more: the owner blocks and unblocks accounts
+from the [Users screen](../users/README.md#blocking-from-the-profile-list) in the panel (the owner's
+choice, 13 October 2026), and Users asks Auth with the verified actor. Auth records
+`identity.blocked` / `identity.unblocked` and `identity.protected` / `identity.unprotected` in its
+own audit in the same transaction as the change — so those events live in Auth's audit (its module
+admin), not in `admin_audit`; rows written there before this change remain as history.
 
 The administrator list and its email search resolve current addresses through Auth.
 
@@ -130,6 +144,56 @@ Every procedure requires owner; mutations also require Admin's CSRF token. Ident
 against PostgreSQL's catalogue and values are SQL parameters. System schemas and `schema_migrations`
 are excluded at the API boundary.
 
+Filter conditions are a closed list per column type ([`filters.ts`](src/admin/database/filters.ts)):
+text, numbers and dates, booleans, uuid, json, arrays, ranges and network addresses each get their
+own set, and a condition outside the column's set is refused. Every "… or empty" condition
+(`IS DISTINCT FROM`, `IS NULL OR … NOT ILIKE`) exists because SQL drops an empty cell from any
+negative comparison; "is empty" is SQL NULL only, and text has "empty string" separately. Arrays are
+asked about elements (`= ANY`, `@>` cast to the column's own type from the catalogue, `cardinality`),
+json about keys and dotted paths (`jsonb_exists`, `#>>`), ranges whether they contain a value (`@>`
+cast to the element type). Values are always parameters; the only type names in SQL come from the
+catalogue. [`filters.postgres.test.ts`](src/admin/database/filters.postgres.test.ts) runs every
+condition against real PostgreSQL.
+
+Conditions form a chain: each one after the first carries `join`, `and` or `or`, and the chain reads
+as SQL does — `and` binds tighter, so `a OR b AND c` is `a OR (b AND c)`. `whereClause` writes every
+group of `and`-joined conditions in parentheses, and the panel draws those groups as blocks, with a
+handle to reorder conditions. `caseSensitive` turns `ILIKE` into `LIKE` for the text-matching
+conditions; `=` and `IN` never ignore case. While any condition in the panel is unfilled the screen
+sends no request and keeps the last page: leaving one condition out of a chain would change what its
+neighbours' joins mean. Filters in the page URL carry `join` and `caseSensitive`; an address from
+before the chain (`combine`) is read as every join.
+
+The filter, sorting and visibility panels float over the table in a `Popover` under their buttons
+rather than pushing the table down; they close on a click outside or Escape, and what they set
+lives on in the page URL, with a count on each button. The calendar inside the filter panel is a
+nested popover. The visibility panel ([`visibility.tsx`](web/src/database/visibility.tsx)) is a box
+per column, the last visible one not to be unticked; "Скрыть колонку" in a column header hides it
+and opens the panel, as "Фильтровать" opens the filter panel with the new condition.
+
+Sorting is set only in its panel ([`sorting.tsx`](web/src/database/sorting.tsx)): levels in the order
+they apply, the first deciding and each next breaking ties, a column used by one level not offered to
+another, levels reordered by dragging or arrow keys ([`drag-order.tsx`](web/src/database/drag-order.tsx),
+shared with the filter panel). The column header shows the arrow and, with several levels, the level
+number, but its menu does not sort. The server appends the key as the last level itself. A table
+with a natural order (a column the database numbers, or a time stamped with `now()`) opens sorted
+ascending by it; that level shows in the panel and the header, but the
+"Сортировка" button counts levels only once the order differs from it.
+
+A `date` or `timestamp` column gets a calendar beside each text box
+([`date-field.tsx`](web/src/database/date-field.tsx), shadcn `Calendar` over `react-day-picker`):
+picking a day writes `YYYY-MM-DD`, and for a column with a time of day `YYYY-MM-DD HH:MM` with a time
+box under the month, midnight until changed. The text box stays free: seconds or a zone are typed
+by hand, and the value goes to PostgreSQL as typed, in the editor's UTC session.
+
+When PostgreSQL refuses a value a person typed — a data exception (class 22), a broken constraint
+(class 23) or a malformed `tsvector`/`tsquery` (`42601`, the one syntax error that is the value's
+fault) — the answer is 400. [`errors.ts`](src/admin/database/errors.ts) rewrites class-22 texts to say
+what the column takes and repeat the value (`Ожидается целое число, например 42. Получено: «abc»`);
+constraint texts stay PostgreSQL's, with the key from `detail` appended for duplicates and missing
+references. The original error remains the `cause`. Matching is against English messages; a server
+with another `lc_messages` falls back to the original text with the same status.
+
 ### Preservation comes first
 
 The editor must preserve data rather than guess a conversion. A type, value or table structure whose
@@ -144,7 +208,25 @@ Cells travel as PostgreSQL's native text or SQL NULL, using query-local text par
 JSON, array and binary values are never converted through JavaScript numbers, dates or objects on
 the write path. Connection formatting is fixed within the editor's transaction. The form distinguishes
 an empty string, the text `null`, SQL NULL and an omitted value that uses the column default.
+The mode (value, SQL NULL, default — only those the column allows) and the escaping box live in a
+popover behind a settings icon opposite the field name (`FieldSettings` in
+[`row-editor.tsx`](web/src/database/row-editor.tsx)); the icon is tinted while either is set, with
+no tooltip of its own, and a box in SQL NULL or default mode shows the mode as its placeholder.
+A locked field carries a lock beside its name, and why it is locked shows on hover over the lock.
+Such a box is not disabled: clicking into it switches the field to a value so one can type, and
+leaving it with nothing typed switches it back, so a stray click never turns NULL into an empty
+string; a mode picked in the panel stays.
 Control characters use a reversible JSON **string** wrapper; it does not parse the cell's JSON content.
+A table cell spells them out the same way (`\r`, `\n`, `\t`, `\u0001`), dimmed, instead of the space
+or nothing a browser draws for them (`controlSegments` in [`model.ts`](web/src/database/model.ts)):
+what the cell shows is what a text condition can be given: on a text column (one the server offers
+"empty string" to) a value for a matching condition is read back through `decodeFilterValues` —
+`\r`, `\n`, `\t`, `\b`, `\f`, `\uXXXX` become the characters, `\\` one backslash, any other
+backslash stays — before the request leaves the screen, while the page URL keeps the spelling.
+A paste into such a box that holds control characters (what a cell copies) lands as the spelling
+(`spellControls`, backslashes doubled), so the bytes a single-line box would drop are kept and found.
+The server sees characters only. The hover preview also breaks the line after `\n`; copying a cell
+hands over the original bytes.
 Paste captures the original clipboard text. Drag-and-drop is refused because browser text controls
 can normalize line endings before the editor receives the value.
 Copy uses the Clipboard API; if unavailable or denied, it reports failure.
@@ -172,7 +254,25 @@ can be corrected explicitly. Textual JSON retains its original whitespace and nu
 
 Supported built-in types are listed in [`catalog.ts`](src/admin/database/catalog.ts); their arrays
 and enum labels are supported too. Unknown codecs, domains, composites and unsupported relation
-behavior are read-only. Foreign-key restrictions
+behavior are read-only. Views are listed after the tables of their schema under a heading of their
+own (`kind: 'view'`) and read like one — filters, sorting, visibility, copying — but never written; having
+neither key nor `ctid`, a view's rows come in its own order unless a sort is chosen. Materialized
+views are not listed: `information_schema` does not describe their columns.
+
+A column's label beside its name comes from `sqlType`, PostgreSQL's own spelling (`format_type`),
+shortened (`varchar(3)`, `text[]`, `timestamptz`); `type`, the `information_schema` family that says
+only "ARRAY" or "USER-DEFINED" for those, picks the filter conditions.
+
+Foreign keys are read with the columns (`pg_constraint`): a key of one column becomes the column's
+`references` (`schema.table.column`), a composite key stays on the table in `foreignKeys`, and
+`referencedBy` lists the keys arriving at a table, from any schema. On screen the column header
+carries a link icon whose tooltip names the target, the cell an arrow that opens the target table
+with `column = value` as a visible condition — the value's own click still copies — and the row
+dialog of a saved row the same arrow, held back while the form has unsaved changes (a new row has
+none); a target the browser does not
+list is told of but not offered. The table title carries the same icon for "who points here".
+[`references.postgres.test.ts`](src/admin/database/references.postgres.test.ts) covers the catalogue.
+Foreign-key restrictions
 can disable deletion while permitting edits. The server checks these restrictions again when saving.
 
 These guarantees concern the editor's value transport and row operations. PostgreSQL and the schema's

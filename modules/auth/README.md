@@ -57,13 +57,18 @@ and origin. See [`src/http/cookies.ts`](src/http/cookies.ts).
 
 Administrators granted Auth access can search identities, inspect verification and blocking state,
 send recovery or verification links, revoke sessions and read the security audit.
-[Admin](../admin/README.md#managing-access-and-preserving-an-owner) manages blocking together
-with administrator rights to preserve an enabled owner. Its internal `setIdentityBlocked` call
-changes Auth state, revokes sessions and account links, and writes `identity.blocked` or
-`identity.unblocked` to `auth_audit` — all in one transaction, with the actor Admin passes from its
-verified administrator context. Auth's audit is where these events are found; Admin writes nothing
-of its own for them (entries recorded there before this change stay where they are). The call waits
-for the transaction to finish so Admin keeps its owner-preservation lock until the change completes.
+Blocking comes over the internal API (`setIdentityBlocked`), today from
+[Admin](../admin/README.md#managing-access-and-preserving-an-owner). The call locks the identity
+row, changes it, revokes sessions and account links, and writes `identity.blocked` or
+`identity.unblocked` to `auth_audit` — all in one transaction, with the actor the caller passes from
+its verified administrator context. Who may be blocked is Auth's own invariant, kept in data: an
+identity marked `blocking_protected_at` (migration 002) is never blocked, whoever asks — the call
+is refused with a conflict after the row lock, so a protection set or cleared in another
+transaction is seen in order. The panel sets and clears the mark for its owners through
+`setBlockingProtection`, which records `identity.protected` / `identity.unprotected` in the same
+transaction; Auth never asks the panel anything. Unblocking ignores the mark. Auth's audit is where
+all these events are found; the caller writes nothing of its own for them (entries recorded there
+before this change stay where they are).
 Router passes the verified [administrator context](../../contracts/README.md#http-context) as
 `adminFetch(request, adminContext)`. Each request's Hono bindings carry that context and the module
 settings; administrative identity does not come from HTTP headers. Administrative reads require

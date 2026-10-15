@@ -53,6 +53,8 @@ function whole(value: unknown, fallback: number, name: string): number {
  * it `ctid` — the physical address of the row — is unique and stable enough to page by.
  */
 function byKey(table: Table, alreadySorted: string[]): string[] {
+  // A view has no ctid and no key: its rows come in whatever order its query gives them.
+  if (table.kind === 'view') return [];
   if (table.primaryKey.length === 0) return ['ctid'];
 
   /*
@@ -68,12 +70,12 @@ function byKey(table: Table, alreadySorted: string[]): string[] {
 /** The rows of one page, and the statement that counts every row the same filters match. */
 export function selectRows(
   table: Table,
-  body: { filters?: unknown; combine?: unknown; order?: unknown; limit?: unknown; offset?: unknown },
+  body: { filters?: unknown; caseSensitive?: unknown; order?: unknown; limit?: unknown; offset?: unknown },
 ): { rows: Statement; total: Statement } {
   const page = pageOf(body);
 
   const rowParameters = new Parameters();
-  const where = whereClause(table, body.filters, body.combine, rowParameters);
+  const where = whereClause(table, body.filters, body.caseSensitive, rowParameters);
   const order = orderClause(table, body.order);
 
   const columns = returnedColumns(table);
@@ -84,7 +86,7 @@ export function selectRows(
    * an edit. With the key appended the order is total, and the sort a person chose still decides.
    */
   const levels = [...(order === null ? [] : [order.sql]), ...byKey(table, order?.columns ?? [])];
-  const sorted = ` ORDER BY ${levels.join(', ')}`;
+  const sorted = levels.length ? ` ORDER BY ${levels.join(', ')}` : '';
 
   const rows = {
     text:
@@ -99,7 +101,7 @@ export function selectRows(
    * of a table that shrank would be told the table is empty.
    */
   const countParameters = new Parameters();
-  const countWhere = whereClause(table, body.filters, body.combine, countParameters);
+  const countWhere = whereClause(table, body.filters, body.caseSensitive, countParameters);
 
   const total = {
     text: `SELECT count(*)::bigint AS total FROM ${qualify(table)}${

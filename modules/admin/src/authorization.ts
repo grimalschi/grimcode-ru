@@ -79,8 +79,11 @@ async function bootstrapFirstOwner(deps: ModuleContext): Promise<void> {
   const { identity: first } = await deps.auth.getFirstIdentity({});
   if (!first) return;
 
-  // The result says whether this call created the owner or found one; nothing reports it any more.
-  await deps.repo.bootstrapOwner(first.id, first.email);
+  const { created } = await deps.repo.bootstrapOwner(first.id, first.email);
+  // The first owner is protected from blocking in Auth, as every owner is; only the call that created the row does it.
+  if (created) {
+    await deps.auth.setBlockingProtection({ userId: first.id, protected: true, actor: { userId: first.id, role: 'owner' } });
+  }
 }
 
 /** Admin modules this administrator may open, used to build the shell's sidebar. */

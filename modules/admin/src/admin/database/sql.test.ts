@@ -133,13 +133,57 @@ describe('values never become SQL', () => {
         { column: 'email', condition: 'contains', value: "o'brien" },
         { column: 'attempts', condition: 'greater-than', value: 3 },
       ],
-      combine: 'and',
     });
 
     expect(statement.text).not.toContain("o'brien");
     expect(statement.values).toContain('%o\'brien%');
     expect(statement.values).toContain(3);
     expect(statement.text).toMatch(/ILIKE \$1 AND "attempts" > \$2/);
+  });
+
+  /*
+   * The chain reads as SQL does: И binds tighter than ИЛИ. The clause writes the groups out in
+   * parentheses, so the statement says the same thing the panel draws.
+   */
+  describe('a chain of conditions', () => {
+    const filter = (column: string, value: string, join?: 'and' | 'or') => ({ column, condition: 'contains', value, join });
+    const clause = (filters: unknown[]) => selectRows(rows, { filters }).rows.text.replace(/^.*WHERE /, '').replace(/ ORDER BY.*$/, '');
+
+    it('joins everything with AND when nothing says otherwise, without parentheses', () => {
+      expect(clause([filter('email', 'a'), filter('email', 'b'), filter('email', 'c', 'and')]))
+        .toBe('"email"::text ILIKE $1 AND "email"::text ILIKE $2 AND "email"::text ILIKE $3');
+    });
+
+    it('separates groups with OR and parenthesises every group of two or more', () => {
+      expect(clause([filter('email', 'a'), filter('email', 'b', 'and'), filter('email', 'c', 'or'), filter('email', 'd', 'or'), filter('email', 'e', 'and')]))
+        .toBe('("email"::text ILIKE $1 AND "email"::text ILIKE $2) OR "email"::text ILIKE $3 OR ("email"::text ILIKE $4 AND "email"::text ILIKE $5)');
+    });
+
+    it('ignores the join of the first condition and refuses any other word', () => {
+      expect(clause([filter('email', 'a', 'or'), filter('email', 'b', 'or')])).toBe('"email"::text ILIKE $1 OR "email"::text ILIKE $2');
+      expect(() => clause([filter('email', 'a'), { ...filter('email', 'b'), join: 'xor' }])).toThrow(/"and" or "or"/);
+    });
+  });
+
+  it('tells big letters from small only when asked, and only where the question is about text', () => {
+    const asked = (caseSensitive: unknown) => selectRows(rows, {
+      caseSensitive,
+      filters: [
+        { column: 'email', condition: 'contains', value: 'a' },
+        { column: 'email', condition: 'not-starts-with', value: 'a', join: 'and' },
+        { column: 'email', condition: 'not-contains-or-empty', value: 'a', join: 'and' },
+        { column: 'email', condition: 'is', value: 'a', join: 'and' },
+      ],
+    }).rows.text;
+    expect(asked(true)).toContain('"email"::text LIKE $1 AND "email"::text NOT LIKE $2 AND ("email" IS NULL OR "email"::text NOT LIKE $3) AND "email" = $4');
+    expect(asked(true)).not.toContain('ILIKE');
+    expect(asked(false)).toContain('ILIKE $1');
+    expect(asked(undefined)).toContain('ILIKE $1');
+    expect(asked('true')).toContain('ILIKE $1');
+    const key = selectRows({ ...rows, columns: [{ name: 'doc', type: 'jsonb', nullable: true }] }, {
+      caseSensitive: true, filters: [{ column: 'doc', condition: 'key-contains', value: ['city', 'x'] }],
+    }).rows.text;
+    expect(key).toContain('#>> $1 LIKE $2');
   });
 
   it('treats a wildcard the person typed as text, not as a pattern', () => {
@@ -517,17 +561,104 @@ describe('conditions by type', () => {
     expect(conditions).not.toContain('greater-than');
   });
 
-  it('offers a json document searching only', () => {
-    expect(conditionsFor('jsonb')).toEqual(['contains', 'not-contains', 'is-empty', 'is-not-empty']);
+  it('offers a json document searching, keys and whole-document equality; key tests only for jsonb', () => {
+    expect(conditionsFor('jsonb')).toEqual(expect.arrayContaining(['equals', 'contains', 'has-key', 'key-equals', 'key-contains', 'is-empty']));
+    expect(conditionsFor('json')).toEqual(expect.arrayContaining(['equals', 'contains', 'key-equals']));
+    expect(conditionsFor('json')).not.toContain('has-key');
+    expect(conditionsFor('jsonb')).not.toContain('greater-than');
   });
 
   it('offers numbers and dates the same range conditions', () => {
     for (const type of ['integer', 'numeric', 'timestamp with time zone', 'date']) {
       const conditions = conditionsFor(type);
       expect(conditions).toContain('between');
+      expect(conditions).toContain('not-between');
       expect(conditions).toContain('at-least');
       expect(conditions).toContain('at-most');
+      expect(conditions).not.toContain('contains');
     }
+  });
+
+  it('offers arrays, ranges and addresses matching but no ordering', () => {
+    for (const type of ['ARRAY', 'int4range', 'daterange', 'tstzmultirange', 'inet', 'cidr', 'macaddr']) {
+      const conditions = conditionsFor(type);
+      expect(conditions).toContain('equals');
+      expect(conditions).toContain('not-equals-or-empty');
+      expect(conditions).not.toContain('greater-than');
+      expect(conditions).not.toContain('between');
+    }
+    expect(conditionsFor('ARRAY')).toEqual(expect.arrayContaining(['array-has', 'array-lacks', 'array-has-all', 'count-over', 'count-under']));
+    expect(conditionsFor('int4range')).toContain('range-has');
+    expect(conditionsFor('inet')).not.toContain('range-has');
+  });
+
+  it('writes the "or empty" conditions so a missing value counts as different', () => {
+    const table = withColumn('city', 'text');
+    expect(selectRows(table, { filters: [{ column: 'city', condition: 'not-equals-or-empty', value: 'Москва' }] }).rows.text)
+      .toContain('"city" IS DISTINCT FROM $1');
+    const { rows: statement } = selectRows(table, { filters: [{ column: 'city', condition: 'not-contains-or-empty', value: 'моск' }] });
+    expect(statement.text).toContain(`("city" IS NULL OR "city"::text NOT ILIKE $1)`);
+    expect(statement.values[0]).toBe('%моск%');
+  });
+
+  it('asks text about the empty string and its length, and only text', () => {
+    const table = withColumn('name', 'character varying');
+    expect(selectRows(table, { filters: [{ column: 'name', condition: 'empty-string' }] }).rows.text).toContain(`"name" = ''`);
+    expect(selectRows(table, { filters: [{ column: 'name', condition: 'not-empty-string' }] }).rows.text).toContain(`"name" <> ''`);
+    expect(selectRows(table, { filters: [{ column: 'name', condition: 'length-over', value: '3' }] }).rows.text).toContain('length("name") > $1');
+    expect(selectRows(table, { filters: [{ column: 'name', condition: 'length-under', value: '3' }] }).rows.text).toContain('length("name") < $1');
+    for (const type of ['uuid', 'integer', 'date', 'jsonb', 'ARRAY']) {
+      expect(conditionsFor(type)).not.toContain('empty-string');
+      expect(conditionsFor(type)).not.toContain('length-over');
+    }
+  });
+
+  it('writes NOT BETWEEN for "outside", with the same two ends', () => {
+    const table = withColumn('amount', 'integer');
+    const { rows: statement } = selectRows(table, { filters: [{ column: 'amount', condition: 'not-between', value: [10, 20] }] });
+    expect(statement.text).toContain('"amount" NOT BETWEEN $1 AND $2');
+    expect(statement.values.slice(0, 2)).toEqual([10, 20]);
+    expect(() => selectRows(table, { filters: [{ column: 'amount', condition: 'not-between', value: [10] }] })).toThrow(/two values/);
+  });
+
+  it('asks an array about its elements, casting a list to the column\'s own type', () => {
+    const tags: Table = { schema: 'auth', name: 'sample', primaryKey: ['tags'],
+      columns: [{ name: 'tags', type: 'ARRAY', sqlType: 'uuid[]', nullable: true }] };
+    const text = (condition: string, value: unknown) => selectRows(tags, { filters: [{ column: 'tags', condition, value }] }).rows.text;
+    expect(text('array-has', 'a')).toContain('$1 = ANY("tags")');
+    expect(text('array-lacks', 'a')).toContain('NOT ($1 = ANY("tags"))');
+    expect(text('array-has-all', ['a', 'b'])).toContain('"tags" @> ARRAY[$1, $2]::uuid[]');
+    expect(text('count-over', '2')).toContain('cardinality("tags") > $1');
+    expect(text('count-under', '2')).toContain('cardinality("tags") < $1');
+    // The cast is the catalogue's word; without one there is no cast rather than a guess.
+    const untyped = withColumn('tags', 'ARRAY');
+    expect(selectRows(untyped, { filters: [{ column: 'tags', condition: 'array-has-all', value: ['a'] }] }).rows.text).toContain('@> ARRAY[$1]');
+    expect(selectRows(untyped, { filters: [{ column: 'tags', condition: 'array-has-all', value: ['a'] }] }).rows.text).not.toContain('::');
+  });
+
+  it('asks a json document about a key and a path, walking the path as a text array', () => {
+    const table = withColumn('payload', 'jsonb');
+    const statement = (condition: string, value: unknown) => selectRows(table, { filters: [{ column: 'payload', condition, value }] }).rows;
+    expect(statement('has-key', 'city').text).toContain('jsonb_exists("payload", $1)');
+    expect(statement('lacks-key', 'city').text).toContain('NOT jsonb_exists("payload", $1)');
+    const equals = statement('key-equals', ['nested.deep', 'true']);
+    expect(equals.text).toContain('"payload" #>> $1 = $2');
+    expect(equals.values.slice(0, 2)).toEqual([['nested', 'deep'], 'true']);
+    const contains = statement('key-contains', ['city', 'моск']);
+    expect(contains.text).toContain('"payload" #>> $1 ILIKE $2');
+    expect(contains.values.slice(0, 2)).toEqual([['city'], '%моск%']);
+    expect(() => statement('key-equals', ['city', ''])).toThrow(/both the key and the value/);
+    expect(() => statement('key-equals', 'city')).toThrow(/two values/);
+    expect(statement('equals', '{}').text).toContain('"payload" = $1');
+  });
+
+  it('asks a range whether it contains a value, cast to what the range holds', () => {
+    expect(selectRows(withColumn('ages', 'int4range'), { filters: [{ column: 'ages', condition: 'range-has', value: '25' }] }).rows.text)
+      .toContain('"ages" @> $1::integer');
+    expect(selectRows(withColumn('days', 'datemultirange'), { filters: [{ column: 'days', condition: 'range-has', value: '2026-10-07' }] }).rows.text)
+      .toContain('"days" @> $1::date');
+    expect(selectRows(withColumn('when', 'tstzrange'), { filters: [{ column: 'when', condition: 'range-has', value: 'x' }] }).rows.text)
+      .toContain('::timestamptz');
   });
 
   it('writes the loose comparisons as >= and <=', () => {
@@ -606,12 +737,12 @@ describe('conditions by type', () => {
 });
 
 /**
- * "Is empty" asks the question the column can answer.
+ * "Is empty" asks about null and only null, for every type.
  *
- * For text, empty covers both null and the empty string: a person looking at a blank cell does not know
- * or care which one is there. For everything else there is only null — and this was a real refusal, not
- * a nicety. `uuid` and `jsonb` were counted as textual, so "is empty" on an id column asked `id = ''`
- * and PostgreSQL answered `invalid input syntax for type uuid: ""`.
+ * Until 8 October 2026 text counted the empty string as empty too. The owner's decision: the two look
+ * alike on screen but are different values, and text now has "empty string" as its own condition. The
+ * older refusal still matters: `uuid` and `jsonb` were once counted as textual, so "is empty" on an id
+ * column asked `id = ''` and PostgreSQL answered `invalid input syntax for type uuid: ""`.
  */
 describe('asking whether a cell is empty', () => {
   const withColumn = (name: string, type: string): Table => ({
@@ -628,13 +759,8 @@ describe('asking whether a cell is empty', () => {
     return statement.text;
   };
 
-  it('counts the empty string as empty for text', () => {
-    expect(clauseFor('text', 'is-empty')).toContain(`("value" IS NULL OR "value" = '')`);
-    expect(clauseFor('character varying', 'is-empty')).toContain(`OR "value" = ''`);
-  });
-
-  it('asks only about null for a type that cannot hold an empty string', () => {
-    for (const type of ['uuid', 'jsonb', 'json', 'integer', 'timestamp with time zone', 'boolean']) {
+  it('asks only about null, for text as for everything else', () => {
+    for (const type of ['text', 'character varying', 'uuid', 'jsonb', 'json', 'integer', 'timestamp with time zone', 'boolean', 'ARRAY', 'int4range']) {
       const clause = clauseFor(type, 'is-empty');
 
       expect(clause).toContain('"value" IS NULL');
@@ -653,11 +779,13 @@ describe('asking whether a cell is empty', () => {
     expect(clauseFor('USER-DEFINED', 'is-empty')).toContain('"value" IS NULL');
     expect(clauseFor('USER-DEFINED', 'is-empty')).not.toContain(`= ''`);
     expect(conditionsFor('USER-DEFINED')).not.toContain('contains');
+    expect(conditionsFor('USER-DEFINED')).not.toContain('empty-string');
   });
 
   it('negates the same question for "is not empty"', () => {
-    expect(clauseFor('uuid', 'is-not-empty')).toContain('NOT "value" IS NULL');
-    expect(clauseFor('text', 'is-not-empty')).toContain(`NOT ("value" IS NULL OR "value" = '')`);
+    expect(clauseFor('uuid', 'is-not-empty')).toContain('"value" IS NOT NULL');
+    expect(clauseFor('text', 'is-not-empty')).toContain('"value" IS NOT NULL');
+    expect(clauseFor('text', 'is-not-empty')).not.toContain(`''`);
   });
 });
 

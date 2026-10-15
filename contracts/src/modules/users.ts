@@ -10,6 +10,10 @@ export interface UserProfile {
 
 export interface AdminUserProfile extends UserProfile {
   email: string | null;
+  /** Auth's blocking state of the account, read with the address; `null` when Auth has no such identity. */
+  blockedAt: string | null;
+  /** Since when the panel protects the account from blocking (an owner); the screen offers no blocking then. */
+  blockingProtectedAt: string | null;
 }
 
 /** Browser HTTP contract; runtime validation is implemented by Users. */

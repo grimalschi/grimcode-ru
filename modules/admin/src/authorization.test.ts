@@ -73,11 +73,18 @@ class FakeRepo {
  * `authorize` itself: it calls through `ModuleContext`, so a renamed or reshaped procedure stops
  * compiling there.
  */
+/** Every protection the bootstrap asked Auth for, in order; reset with the repository. */
+let protection: { userId: string; protected: boolean; actor: { userId: string; role: string } }[] = [];
+
 function fakeAuth(options: { session?: Identity | null; first?: Identity | null }): AuthApi {
   return {
     resolveSession: async () => ({ identity: options.session ?? null }),
     getFirstIdentity: async () => ({ identity: options.first ?? null }),
     getIdentityByEmail: async () => ({ identity: null }),
+    setBlockingProtection: async (input: { userId: string; protected: boolean; actor: { userId: string; role: string } }) => {
+      protection.push(input);
+      return { ok: true as const };
+    },
   } as unknown as AuthApi;
 }
 
@@ -87,6 +94,7 @@ let repo: FakeRepo;
 
 beforeEach(() => {
   repo = new FakeRepo();
+  protection = [];
 });
 
 function deps(auth: AuthApi) {
@@ -187,6 +195,8 @@ describe('first owner bootstrap', () => {
       deps(fakeAuth({ session: FIRST, first: FIRST })),
     );
     expect(result).toMatchObject({ state: 'allowed', role: 'owner', userId: FIRST.id });
+    // The first owner is protected from blocking in Auth, by itself as the actor.
+    expect(protection).toEqual([{ userId: FIRST.id, protected: true, actor: { userId: FIRST.id, role: 'owner' } }]);
   });
 
   it('gives ownership to the first Auth user even when someone else opens the panel', async () => {
@@ -212,6 +222,8 @@ describe('first owner bootstrap', () => {
     expect(b).toMatchObject({ state: 'allowed', userId: FIRST.id });
     expect(repo.rows.size).toBe(1);
     expect(repo.auditEntries).toEqual(['owner.bootstrapped']);
+    // Only the call that created the owner protects it; the other does not repeat it.
+    expect(protection).toHaveLength(1);
   });
 
   it('stops attempting the bootstrap once any administrator exists', async () => {

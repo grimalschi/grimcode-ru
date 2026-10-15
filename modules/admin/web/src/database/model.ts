@@ -5,6 +5,7 @@ type Inputs = inferRouterInputs<AdminPanelRouter>['database'];
 type Outputs = inferRouterOutputs<AdminPanelRouter>['database'];
 export type TableInfo = Outputs['tables']['tables'][number];
 export type Column = TableInfo['columns'][number];
+export type Reference = NonNullable<Column['references']>;
 export type Filter = NonNullable<Inputs['rows']['filters']>[number];
 export type Order = NonNullable<Inputs['rows']['order']>[number];
 export type Row = Outputs['rows']['rows'][number];
@@ -21,6 +22,66 @@ export function hasControlCharacters(value: string): boolean {
     if (code < 32 || (code >= 127 && code <= 159)) return true;
   }
   return false;
+}
+
+export interface TextSegment { text: string; control: boolean }
+
+/**
+ * Splits a cell value into plain runs and control characters, each control character spelled as the
+ * row dialog spells it in its JSON string (`\r`, `\n`, `\t`, `\u0001`) — so the table shows that the
+ * value holds a line break where the browser would otherwise draw nothing or a space.
+ */
+export function controlSegments(value: string): TextSegment[] {
+  const segments: TextSegment[] = [];
+  let plain = '';
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (code >= 32 && (code < 127 || code > 159)) { plain += character; continue; }
+    if (plain) { segments.push({ text: plain, control: false }); plain = ''; }
+    const spelled = code < 32 ? JSON.stringify(character).slice(1, -1) : `\\u${code.toString(16).padStart(4, '0')}`;
+    segments.push({ text: spelled, control: true });
+  }
+  if (plain) segments.push({ text: plain, control: false });
+  return segments;
+}
+
+/**
+ * The way back: a filter value typed the way the cell spells control characters becomes the bytes
+ * the cell stands for, so what the table shows is what a condition can be given. `\\` is one
+ * backslash; a backslash before anything else is left alone, so `C:\data` still means itself and
+ * only `\n`, `\r`, `\t`, `\b`, `\f` and `\uXXXX` are read as spelling.
+ */
+export function decodeControlSpelling(text: string): string {
+  return text.replace(/\\(u[0-9a-fA-F]{4}|[nrtbf\\])/g, (_, code: string) => {
+    if (code === '\\') return '\\';
+    if (code.startsWith('u')) return String.fromCharCode(Number.parseInt(code.slice(1), 16));
+    return { n: '\n', r: '\r', t: '\t', b: '\b', f: '\f' }[code] ?? code;
+  });
+}
+
+/**
+ * The spelling of a text that holds control characters, as a filter box should receive it when the
+ * text is pasted: what a cell copies (the bytes) becomes what the cell shows, with every backslash
+ * doubled so that `decodeControlSpelling` gives the pasted bytes back exactly.
+ */
+export function spellControls(text: string): string {
+  return controlSegments(text).map((segment) => segment.control ? segment.text : segment.text.replaceAll('\\', '\\\\')).join('');
+}
+
+/** Text columns are the ones the server offers "empty string" to; the spelling is read only for them. */
+export const isTextColumn = (column: { conditions: readonly string[] } | undefined): boolean => column?.conditions.includes('empty-string') ?? false;
+
+/** Conditions whose value is matched against the column's text, where the spelling means something. */
+const SPELLED_CONDITIONS = new Set(['is', 'is-not', 'not-equals-or-empty', 'contains', 'not-contains', 'not-contains-or-empty', 'starts-with', 'not-starts-with', 'ends-with', 'not-ends-with', 'one-of', 'not-one-of']);
+
+/** Filters as the server should see them: the spelling of control characters turned into the characters on text columns. */
+export function decodeFilterValues(filters: Filter[], columns: readonly { name: string; conditions: readonly string[] }[]): Filter[] {
+  return filters.map((filter) => {
+    if (!SPELLED_CONDITIONS.has(filter.condition) || !isTextColumn(columns.find((column) => column.name === filter.column))) return filter;
+    const value = Array.isArray(filter.value) ? filter.value.map((entry) => decodeControlSpelling(String(entry)))
+      : typeof filter.value === 'string' ? decodeControlSpelling(filter.value) : filter.value;
+    return { ...filter, value };
+  });
 }
 
 export function fieldDraft(value: string | null | undefined): FieldDraft {
@@ -44,8 +105,10 @@ export function fieldValue(field: FieldDraft): string | null | undefined {
 export interface View {
   schema: string;
   table: string;
+  /** A chain: each filter after the first carries `join`, how it attaches to the one before. */
   filters: Filter[];
-  combine: 'and' | 'or';
+  /** Whether "contains" and its kin tell big letters from small. */
+  caseSensitive: boolean;
   order: Order[];
   columns: string[];
   size: number;
@@ -53,16 +116,27 @@ export interface View {
 }
 
 export const PAGE_SIZES = [20, 50, 100, 200, 500];
-export const emptyView = (): View => ({ schema: '', table: '', filters: [], combine: 'and', order: [], columns: [], size: 20, page: 1 });
+export const emptyView = (): View => ({ schema: '', table: '', filters: [], caseSensitive: false, order: [], columns: [], size: 20, page: 1 });
+
+/** The first condition joins nothing; every other one joins with И unless it says ИЛИ. */
+export function chained(filters: Filter[]): Filter[] {
+  return filters.map((filter, index) => {
+    const { join, ...rest } = filter;
+    return index === 0 ? rest : { ...rest, join: join === 'or' ? 'or' : 'and' };
+  });
+}
 
 export function readView(): View {
   try {
-    const value = JSON.parse(decodeURIComponent(window.location.hash.slice(1))) as Partial<View>;
+    const value = JSON.parse(decodeURIComponent(window.location.hash.slice(1))) as Partial<View> & { combine?: unknown };
     if (typeof value.schema !== 'string' || typeof value.table !== 'string') return emptyView();
+    const filters = Array.isArray(value.filters)
+      ? value.filters.filter((entry) => entry && typeof entry.column === 'string' && typeof entry.condition === 'string') : [];
     return {
       ...emptyView(), schema: value.schema, table: value.table,
-      filters: Array.isArray(value.filters) ? value.filters.filter((entry) => entry && typeof entry.column === 'string' && typeof entry.condition === 'string') : [],
-      combine: value.combine === 'or' ? 'or' : 'and',
+      // An address from before the chain carried one word for the whole panel; it becomes every join.
+      filters: chained(value.combine === 'or' ? filters.map((entry) => ({ ...entry, join: 'or' as const })) : filters),
+      caseSensitive: value.caseSensitive === true,
       order: Array.isArray(value.order) ? value.order.filter((entry) => entry && typeof entry.column === 'string' && ['asc', 'desc'].includes(entry.direction)) : [],
       columns: Array.isArray(value.columns) ? value.columns.filter((entry) => typeof entry === 'string') : [],
       size: PAGE_SIZES.includes(value.size ?? 0) ? value.size! : 20,
@@ -74,29 +148,64 @@ export function readView(): View {
 }
 
 export const CONDITION_LABELS: Record<string, string> = {
-  is: 'равно', 'is-not': 'не равно', contains: 'содержит', 'not-contains': 'не содержит',
+  is: 'равно', 'is-not': 'не равно', 'not-equals-or-empty': 'не равно или пусто',
+  contains: 'содержит', 'not-contains': 'не содержит', 'not-contains-or-empty': 'не содержит или пусто',
   'starts-with': 'начинается с', 'not-starts-with': 'не начинается с', 'ends-with': 'заканчивается на',
   'not-ends-with': 'не заканчивается на', equals: 'равно', 'not-equals': 'не равно',
   'greater-than': 'больше', 'at-least': 'не меньше', 'less-than': 'меньше', 'at-most': 'не больше',
-  between: 'между', 'one-of': 'одно из', 'not-one-of': 'ни одно из', 'is-true': 'да',
-  'is-false': 'нет', 'is-empty': 'пусто', 'is-not-empty': 'не пусто',
+  between: 'от … до', 'not-between': 'вне от … до', 'one-of': 'одно из', 'not-one-of': 'ни одно из',
+  'is-true': 'да', 'is-false': 'нет', 'is-empty': 'пусто', 'is-not-empty': 'не пусто',
+  'empty-string': 'пустая строка', 'not-empty-string': 'не пустая строка',
+  'length-over': 'длина больше', 'length-under': 'длина меньше',
+  'array-has': 'содержит значение', 'array-lacks': 'не содержит значение', 'array-has-all': 'содержит все перечисленные',
+  'count-over': 'элементов больше', 'count-under': 'элементов меньше',
+  'has-key': 'есть ключ', 'lacks-key': 'нет ключа', 'key-equals': 'значение ключа равно', 'key-contains': 'значение ключа содержит',
+  'range-has': 'содержит значение',
 };
 
-export function filterShape(condition: string) {
-  if (['is-empty', 'is-not-empty', 'is-true', 'is-false'].includes(condition)) return 'none';
-  if (condition === 'between') return 'range';
-  if (['one-of', 'not-one-of'].includes(condition)) return 'list';
+/**
+ * Headings for the condition menu, in the order they appear. Eighteen conditions for a text column
+ * read as a wall without them; the owner chose grouping over dropping any (8 October 2026).
+ */
+const CONDITION_GROUPS: [string, string[]][] = [
+  ['Сравнение', ['is', 'is-not', 'equals', 'not-equals', 'not-equals-or-empty', 'one-of', 'not-one-of', 'is-true', 'is-false']],
+  ['Порядок', ['greater-than', 'at-least', 'less-than', 'at-most', 'between', 'not-between']],
+  ['По тексту', ['contains', 'not-contains', 'not-contains-or-empty', 'starts-with', 'not-starts-with', 'ends-with', 'not-ends-with']],
+  ['Элементы', ['array-has', 'array-lacks', 'array-has-all', 'count-over', 'count-under', 'range-has']],
+  ['Ключи', ['has-key', 'lacks-key', 'key-equals', 'key-contains']],
+  ['Пустое', ['is-empty', 'is-not-empty', 'empty-string', 'not-empty-string']],
+  ['Длина', ['length-over', 'length-under']],
+];
+
+/** A column's conditions under their headings, in menu order; a condition no group names comes last, unheaded. */
+export function groupConditions(conditions: readonly string[]): { label: string; conditions: string[] }[] {
+  const groups = CONDITION_GROUPS
+    .map(([label, members]) => ({ label, conditions: members.filter((condition) => conditions.includes(condition)) }))
+    .filter((group) => group.conditions.length > 0);
+  const placed = new Set(groups.flatMap((group) => group.conditions));
+  const rest = conditions.filter((condition) => !placed.has(condition));
+  return rest.length ? [...groups, { label: '', conditions: rest }] : groups;
+}
+
+/** What a condition needs typed in: nothing, one value, a number, a start and end, a list, or a key and value. */
+export function filterShape(condition: string): 'none' | 'one' | 'number' | 'range' | 'list' | 'pair' {
+  if (['is-empty', 'is-not-empty', 'is-true', 'is-false', 'empty-string', 'not-empty-string'].includes(condition)) return 'none';
+  if (['between', 'not-between'].includes(condition)) return 'range';
+  if (['one-of', 'not-one-of', 'array-has-all'].includes(condition)) return 'list';
+  if (['length-over', 'length-under', 'count-over', 'count-under'].includes(condition)) return 'number';
+  if (['key-equals', 'key-contains'].includes(condition)) return 'pair';
   return 'one';
 }
+
+const filled = (value: unknown): boolean => value !== undefined && value !== null && String(value) !== '';
 
 export function isFilterReady(filter: Filter): boolean {
   if (!filter.column) return false;
   const shape = filterShape(filter.condition);
   if (shape === 'none') return true;
-  if (shape === 'range') return Array.isArray(filter.value) && filter.value.length === 2
-    && filter.value.every((value) => value !== null && String(value ?? '') !== '');
+  if (shape === 'range' || shape === 'pair') return Array.isArray(filter.value) && filter.value.length === 2 && filter.value.every(filled);
   if (shape === 'list') return Array.isArray(filter.value) && filter.value.length > 0;
-  return filter.value !== undefined && filter.value !== null && String(filter.value) !== '';
+  return filled(filter.value);
 }
 
 export const cellText = (value: string | null | undefined): string => value ?? '';
@@ -105,10 +214,20 @@ export function rowCountLabel(rows: TableInfo['rows']): string {
   return `${rows.kind === 'estimate' ? '~' : rows.kind === 'more' ? '>' : ''}${rows.count}`;
 }
 
+const SHORT_TYPES: Record<string, string> = { 'timestamp with time zone': 'timestamptz', 'timestamp without time zone': 'timestamp',
+  'time with time zone': 'timetz', 'time without time zone': 'time', 'character varying': 'varchar', 'double precision': 'float8',
+  boolean: 'bool', integer: 'int', smallint: 'int2', bigint: 'int8', real: 'float4', character: 'char' };
+
+/**
+ * The label beside a column name, from PostgreSQL's own spelling of its type (`format_type`):
+ * `character varying(3)[]` reads `varchar(3)[]`. The size, the precision and the brackets of an array
+ * stay — `information_schema` would say only "ARRAY". Anything else (a type of the base's own) as is.
+ */
 export function shortType(type: string): string {
-  return ({ 'timestamp with time zone': 'timestamptz', 'timestamp without time zone': 'timestamp',
-    'character varying': 'varchar', 'double precision': 'float8', boolean: 'bool', integer: 'int',
-    smallint: 'int2', bigint: 'int8', character: 'char' } as Record<string, string>)[type] ?? type;
+  const match = /^([a-z0-9_ ]+?)(\([\d,]+\))?( with(?:out)? time zone)?((?:\[\])*)$/.exec(type);
+  if (!match) return type;
+  const [, base, size = '', zone = '', array] = match;
+  return `${SHORT_TYPES[base + zone] ?? base + zone}${size}${array}`;
 }
 
 export function newUuid(): string {

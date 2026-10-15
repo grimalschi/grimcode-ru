@@ -273,21 +273,26 @@ describe('recovery', () => {
 });
 
 describe('an administrator acting on an identity', () => {
-  it('serializes concurrent owner blocks and rechecks the acting session', async () => {
-    const pair = await Promise.all([createUser('owner-race-a'), createUser('owner-race-b')]);
+  it('never blocks an owner, from either side, until the role is taken away', async () => {
+    const pair = await Promise.all([createUser('owner-pair-a'), createUser('owner-pair-b')]);
     for (const user of pair) {
       await restore.remember(user.userId);
       await owner.call(ADMIN, 'addAdministrator', { email: user.email, role: 'owner', grants: [] }, { csrf: true });
     }
     try {
+      // Two owners trying to block each other at once: both are owners, so both are refused and nobody is blocked.
       const results = await Promise.all(pair.map((user, index) => user.session.rpc(
-        ADMIN, 'setIdentityBlocked', { userId: pair[1 - index]!.userId, blocked: true }, { csrf: true },
+        moduleAdmin('users'), 'setBlocked', { identityId: pair[1 - index]!.userId, blocked: true }, { csrf: true },
       )));
-      expect(results.filter(({ status }) => status === 200)).toHaveLength(1);
-      expect(results.filter(({ status }) => [401, 403, 409].includes(status))).toHaveLength(1);
+      expect(results.map(({ status }) => status)).toEqual([409, 409]);
+      for (const user of pair) expect((await signIn(user.email)).hasSession).toBe(true);
+      // The role gone, the same person can be blocked.
+      await owner.call(ADMIN, 'updateAdministrator', { userId: pair[1]!.userId, role: 'admin', grants: [] }, { csrf: true });
+      const blocked = await owner.rpc(moduleAdmin('users'), 'setBlocked', { identityId: pair[1]!.userId, blocked: true }, { csrf: true });
+      expect(blocked.status).toBe(200);
     } finally {
       for (const user of pair) {
-        await owner.call(ADMIN, 'setIdentityBlocked', { userId: user.userId, blocked: false }, { csrf: true });
+        await owner.call(moduleAdmin('users'), 'setBlocked', { identityId: user.userId, blocked: false }, { csrf: true });
         await owner.call(ADMIN, 'updateAdministrator', { userId: user.userId, role: 'admin', enabled: false, grants: [] }, { csrf: true });
       }
     }
@@ -310,11 +315,12 @@ describe('an administrator acting on an identity', () => {
   it('cannot block anyone unless they are the owner', async () => {
     const user = await createUser('blocktarget');
 
+    // An administrator without the Users grant is stopped at the surface, before any CSRF token
+    // could even be issued; one with the grant is refused by the procedure (access.test.ts).
     const refused = await authAdmin.session.rpc(
-      ADMIN,
-      'setIdentityBlocked',
-      { userId: user.userId, blocked: true },
-      { csrf: true },
+      moduleAdmin('users'),
+      'setBlocked',
+      { identityId: user.userId, blocked: true },
     );
     expect(refused.status).toBe(403);
   });
@@ -323,9 +329,9 @@ describe('an administrator acting on an identity', () => {
     const user = await createUser('blocked');
 
     await owner.call(
-      ADMIN,
-      'setIdentityBlocked',
-      { userId: user.userId, blocked: true },
+      moduleAdmin('users'),
+      'setBlocked',
+      { identityId: user.userId, blocked: true },
       { csrf: true },
     );
 
@@ -337,9 +343,9 @@ describe('an administrator acting on an identity', () => {
 
     // And it is reversible.
     await owner.call(
-      ADMIN,
-      'setIdentityBlocked',
-      { userId: user.userId, blocked: false },
+      moduleAdmin('users'),
+      'setBlocked',
+      { identityId: user.userId, blocked: false },
       { csrf: true },
     );
     const allowed = await signIn(user.email);
@@ -350,22 +356,24 @@ describe('an administrator acting on an identity', () => {
     const acting = await owner.call<{ userId: string }>(ADMIN, 'session');
     const { items } = await owner.call<{ items: { userId: string; role: string; enabled: boolean }[] }>(ADMIN, 'listAdministrators', { limit: 100, offset: 0 });
     if (items.some((row) => row.userId !== acting.userId && row.role === 'owner' && row.enabled)) skip();
+    // An owner is never blocked, so the blocked owner here is made one after the blocking.
     const second = await createUser('secondowner');
     await restore.remember(second.userId);
     await owner.call(
       ADMIN,
       'addAdministrator',
-      { email: second.email, role: 'owner', grants: [] },
+      { email: second.email, role: 'admin', grants: [] },
       { csrf: true },
     );
 
     const blocked = await owner.rpc(
-      ADMIN,
-      'setIdentityBlocked',
-      { userId: second.userId, blocked: true },
+      moduleAdmin('users'),
+      'setBlocked',
+      { identityId: second.userId, blocked: true },
       { csrf: true },
     );
     expect(blocked.status).toBe(200);
+    await owner.call(ADMIN, 'updateAdministrator', { userId: second.userId, role: 'owner', grants: [] }, { csrf: true });
 
     // 409: the other owner is blocked, so giving up these rights would leave nobody able to enter.
     const refused = await owner.rpc(
@@ -378,9 +386,9 @@ describe('an administrator acting on an identity', () => {
 
     // Unblocked, that owner counts again, and the ordinary last-owner path still allows the change.
     await owner.call(
-      ADMIN,
-      'setIdentityBlocked',
-      { userId: second.userId, blocked: false },
+      moduleAdmin('users'),
+      'setBlocked',
+      { identityId: second.userId, blocked: false },
       { csrf: true },
     );
     const allowed = await owner.rpc(
@@ -396,9 +404,9 @@ describe('an administrator acting on an identity', () => {
     const state = await owner.call<{ userId: string }>(ADMIN, 'session');
 
     const result = await owner.rpc(
-      ADMIN,
-      'setIdentityBlocked',
-      { userId: state.userId, blocked: true },
+      moduleAdmin('users'),
+      'setBlocked',
+      { identityId: state.userId, blocked: true },
       { csrf: true },
     );
 

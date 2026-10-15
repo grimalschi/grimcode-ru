@@ -175,7 +175,7 @@ function IdentityDialog({
   if (state.loading || !identity) {
     return (
       <Dialog open onOpenChange={(open) => !open && onClose()}>
-        <DialogContent>
+        <DialogContent onOpenAutoFocus={(event) => { event.preventDefault(); (event.currentTarget as HTMLElement).focus(); }}>
           <DialogHeader>
             <DialogTitle>Пользователь</DialogTitle>
             <DialogDescription>{state.error ? messageOf(state.error) : 'Загружаем.'}</DialogDescription>
@@ -188,7 +188,8 @@ function IdentityDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+      {/* Focus the card itself, not its first button: a ring on «Закрыть» or the cross read as a border, and differed card to card. */}
+      <DialogContent onOpenAutoFocus={(event) => { event.preventDefault(); (event.currentTarget as HTMLElement).focus(); }}>
         <DialogHeader>
           <DialogTitle>{identity.email}</DialogTitle>
           <DialogDescription>
@@ -205,11 +206,14 @@ function IdentityDialog({
           </dd>
           <dt className="text-muted-foreground">Заблокирован</dt>
           <dd>{identity.blockedAt ? new Date(identity.blockedAt).toLocaleString() : 'Нет'}</dd>
+          <dt className="text-muted-foreground">Защищён от блокировки</dt>
+          <dd>{identity.blockingProtectedAt ? `Да, владелец панели с ${new Date(identity.blockingProtectedAt).toLocaleString()}` : 'Нет'}</dd>
           <dt className="text-muted-foreground">Сессии</dt>
           <dd>{identity.activeSessionCount}</dd>
         </dl>
 
-        <div className="flex flex-wrap gap-2">
+        {/* One column of equal buttons: wrapping left them ragged, two on a line and one below. */}
+        <div className="flex flex-col items-stretch gap-2 sm:items-start sm:[&>button]:w-72">
           <Button
             variant="outline"
             size="sm"
@@ -249,7 +253,7 @@ function IdentityDialog({
           </Button>
         </div>
 
-        <DialogFooter className="sm:justify-between">
+        <DialogFooter>
           <Button variant="ghost" size="sm" onClick={onClose}>
             Закрыть
           </Button>

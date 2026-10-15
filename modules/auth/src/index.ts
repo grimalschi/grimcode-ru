@@ -27,7 +27,7 @@ export function createModule({ env: settings, modules }: {
 
   return {
     id: 'auth',
-    admin: { title: 'Auth', icon: 'key-round', assignable: true },
+    admin: { title: 'Пользователи', icon: 'key-round', assignable: true },
     publicFetch: createPublicFetch({ env, repository, notifier }),
     adminFetch: createAdminFetch({ env, repository, notifier }),
     internalCaller: createInternalCaller(repository),

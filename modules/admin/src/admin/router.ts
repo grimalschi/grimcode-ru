@@ -43,6 +43,17 @@ export function lastOwnerGuard(userId: string) {
   };
 }
 
+/**
+ * The protection from blocking follows the owner role into Auth. Called inside the registry lock,
+ * after the registry change and its audit entry, so a failed call rolls the whole change back;
+ * Auth writes `identity.protected` / `identity.unprotected` in its own audit with this actor.
+ */
+async function protectOwner(ctx: AdminRpcContext, userId: string, isProtected: boolean): Promise<void> {
+  await ctx.auth.setBlockingProtection({
+    userId, protected: isProtected, actor: { userId: ctx.adminContext.userId, role: ctx.adminContext.role },
+  });
+}
+
 /** Auth resolves which registry owners can sign in while the registry lock is held. */
 export async function ownersAbleToSignIn(
   userIds: readonly string[],
@@ -167,6 +178,8 @@ export const adminRouter = adminT.router({
           subjectUserId: identity.id,
           details: { role: input.role, grants: input.grants },
         });
+        // An owner is protected from blocking in Auth; a failed call rolls the registry change back.
+        if (input.role === 'owner') await protectOwner(ctx, identity.id, true);
 
         return { ok: true as const, administrator: toAdministrator(row) };
       });
@@ -188,6 +201,7 @@ export const adminRouter = adminT.router({
         await requireCurrentOwner(ctx, repo);
         const existing = await repo.findByUserId(input.userId);
         if (!existing) throw new TRPCError({ code: 'NOT_FOUND', message: 'Администратор не найден' });
+        const previousRole = existing.role;
 
         const { identities } = await ctx.auth.getIdentitiesByIds({ ids: [input.userId] });
         const eligible = await ownersAbleToSignIn(await repo.otherActiveOwnerIds(input.userId), ctx.auth);
@@ -202,6 +216,8 @@ export const adminRouter = adminT.router({
             grants: input.grants ?? null,
           },
         });
+        // The protection follows the role, not `enabled`: a disabled owner is still an owner.
+        if (input.role && input.role !== previousRole) await protectOwner(ctx, input.userId, input.role === 'owner');
 
         // Build and validate the response before commit, together with the update and audit.
         const administrator = administratorSchema.parse(toAdministrator({
@@ -210,28 +226,6 @@ export const adminRouter = adminT.router({
         return { ok: true as const, administrator };
       });
     }),
-
-  setIdentityBlocked: ownerMutation
-    .input(z.object({ userId: idSchema, blocked: z.boolean() }))
-    .output(okSchema)
-    .mutation(async ({ ctx, input }) => ctx.repo.withRegistryLock(async (repo) => {
-      await requireCurrentOwner(ctx, repo);
-      if (input.blocked && input.userId === ctx.adminContext.userId) {
-        throw new TRPCError({ code: 'CONFLICT', message: 'Нельзя заблокировать собственный аккаунт' });
-      }
-      const target = await repo.findByUserId(input.userId);
-      if (input.blocked && target?.role === 'owner' && target.enabled) {
-        const eligible = await ownersAbleToSignIn(await repo.otherActiveOwnerIds(input.userId), ctx.auth);
-        lastOwnerGuard(input.userId)({ role: 'owner', enabled: false }, eligible.length);
-      }
-      // Auth records `identity.blocked` / `identity.unblocked` in its own audit, in the transaction
-      // that changes the account — the one place where the change and its record can commit together.
-      // Nothing is written to admin_audit for this action; the actor comes from the verified context.
-      await ctx.auth.setIdentityBlocked({
-        ...input, actor: { userId: ctx.adminContext.userId, role: ctx.adminContext.role },
-      });
-      return { ok: true as const };
-    })),
 
   listAudit: ownerProcedure
     .input(paginationInputSchema)

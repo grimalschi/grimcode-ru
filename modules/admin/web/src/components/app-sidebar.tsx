@@ -93,7 +93,9 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
                           reload and the browser's back button. */}
                       <Link to="/module/$module" params={{ module: module.id }} hash="/">
                         <DynamicIcon name={module.icon} fallback={() => <AppWindowIcon />} />
-                        <span>{module.label}</span>
+                        <span className="truncate">{module.label}</span>
+                        {/* The module's own name, the one its schema has in the database (the owner, 14 October). */}
+                        <span className="ml-auto text-xs text-sidebar-foreground/50" aria-hidden="true">{module.id}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

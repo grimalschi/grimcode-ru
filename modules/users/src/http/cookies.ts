@@ -1,3 +1,11 @@
+export interface CookieOptions {
+  maxAge?: number;
+  path?: string;
+  httpOnly?: boolean;
+  secure?: boolean;
+  sameSite?: 'Strict' | 'Lax' | 'None';
+}
+
 export function parseCookies(header: string | null | undefined): Record<string, string> {
   const result: Record<string, string> = {};
   if (!header) return result;
@@ -15,4 +23,14 @@ export function parseCookies(header: string | null | undefined): Record<string, 
     }
   }
   return result;
+}
+
+export function serializeCookie(name: string, value: string, options: CookieOptions = {}): string {
+  const parts = [`${name}=${encodeURIComponent(value)}`];
+  parts.push(`Path=${options.path ?? '/'}`);
+  if (options.maxAge !== undefined) parts.push(`Max-Age=${Math.floor(options.maxAge)}`);
+  if (options.httpOnly !== false) parts.push('HttpOnly');
+  if (options.secure) parts.push('Secure');
+  parts.push(`SameSite=${options.sameSite ?? 'Lax'}`);
+  return parts.join('; ');
 }

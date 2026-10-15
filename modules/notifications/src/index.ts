@@ -18,7 +18,7 @@ export function createModule({ env, modules }: {
   const repository = async () => new NotificationsRepository(await database());
   return {
     id: 'notifications',
-    admin: { title: 'Notifications', icon: 'bell', assignable: true },
+    admin: { title: 'События', icon: 'bell', assignable: true },
     adminFetch: createAdminFetch({ env, repository }),
     internalCaller: createInternalCaller(async () => ({
       repo: await repository(),

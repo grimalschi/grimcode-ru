@@ -8,6 +8,7 @@ export const identitySchema = z.object({
   email: emailSchema,
   emailVerifiedAt: isoDateTimeSchema.nullable(),
   blockedAt: isoDateTimeSchema.nullable(),
+  blockingProtectedAt: isoDateTimeSchema.nullable(),
   createdAt: isoDateTimeSchema,
 });
 

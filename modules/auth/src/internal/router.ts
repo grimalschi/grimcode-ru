@@ -19,8 +19,8 @@ const t = initTRPC.context<InternalContext>().create();
 export const internalRouter = t.router({
   /**
    * The change, the revocation of the account's sessions and tokens, and the audit entry commit
-   * together. Admin decides who may block whom and holds its registry lock while this runs; Auth
-   * only records the actor Admin verified.
+   * together. Who may block whom is settled in data: a protected identity (the panel's owners) is
+   * refused here, whoever asks; the caller verifies the actor and Auth only records it.
    */
   setIdentityBlocked: t.procedure
     .input(z.object({
@@ -30,12 +30,36 @@ export const internalRouter = t.router({
     .output(okSchema)
     .mutation(async ({ input, ctx }) => {
       await ctx.repo.withTransaction(async (repo) => {
-        if (!await repo.setBlocked(input.userId, input.blocked)) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Пользователь не найден' });
+        const result = await repo.setBlocked(input.userId, input.blocked);
+        if (result === 'missing') throw new TRPCError({ code: 'NOT_FOUND', message: 'Пользователь не найден' });
+        if (result === 'protected') {
+          throw new TRPCError({ code: 'CONFLICT', message: 'Владельца нельзя заблокировать: сначала снимите роль в «Администраторах»' });
         }
         await repo.audit({
           identityId: input.userId,
           action: input.blocked ? 'identity.blocked' : 'identity.unblocked',
+          actorUserId: input.actor.userId,
+          actorRole: input.actor.role,
+        });
+      });
+      return { ok: true as const };
+    }),
+
+  /** The panel's mark on its owners, with its audit entry in the same transaction; a mark already as asked writes nothing. */
+  setBlockingProtection: t.procedure
+    .input(z.object({
+      userId: idSchema, protected: z.boolean(),
+      actor: z.object({ userId: idSchema, role: z.enum(['owner', 'admin']) }),
+    }))
+    .output(okSchema)
+    .mutation(async ({ input, ctx }) => {
+      await ctx.repo.withTransaction(async (repo) => {
+        const result = await repo.setBlockingProtection(input.userId, input.protected);
+        if (result === 'missing') throw new TRPCError({ code: 'NOT_FOUND', message: 'Пользователь не найден' });
+        if (result === 'unchanged') return;
+        await repo.audit({
+          identityId: input.userId,
+          action: input.protected ? 'identity.protected' : 'identity.unprotected',
           actorUserId: input.actor.userId,
           actorRole: input.actor.role,
         });

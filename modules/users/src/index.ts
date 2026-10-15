@@ -19,7 +19,7 @@ export function createModule({ env, modules }: {
 
   return {
     id: 'users',
-    admin: { title: 'Users', icon: 'users', assignable: true },
+    admin: { title: 'Профили', icon: 'users', assignable: true },
     publicFetch: createPublicFetch({ env, repository, auth: modules.auth }),
     adminFetch: createAdminFetch({ env, repository, auth: modules.auth }),
     migrate: async () => { await database(); },

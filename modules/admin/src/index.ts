@@ -34,6 +34,16 @@ export function createModule({ env, modules, catalogue: installed }: {
     id: 'admin',
     adminFetch: createAdminFetch({ env, context }),
     internalCaller: createInternalCaller(context),
-    migrate: async () => { await database(); },
+    migrate: async () => {
+      await database();
+      // Every owner carries Auth's protection from blocking. Set with the role from now on; asked
+      // for here on each start so an installation that predates the mark, or a hand-edited
+      // database, catches up. Auth writes nothing when the mark is already there.
+      const repo = new AdminRepository(await database());
+      for (const row of await repo.list()) {
+        if (row.role !== 'owner') continue;
+        await modules.auth.setBlockingProtection({ userId: row.user_id, protected: true, actor: { userId: row.user_id, role: 'owner' } });
+      }
+    },
   } satisfies ModuleInstance<AdminApi>;
 }

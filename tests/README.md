@@ -63,7 +63,8 @@ Playwright retains a trace on failure; browser helpers collect console errors an
 | Notifications, MJML publication and sending, profile flows | [flows.test.ts](src/flows.test.ts) |
 | Admin navigation, embedded screens and theme | [admin-shell.spec.ts](browser/admin-shell.spec.ts) |
 | Administrator menus, direct links, revoked access and cross-origin requests | [admin-access.spec.ts](browser/admin-access.spec.ts) |
-| Database filters, URL state and row editing | [database.spec.ts](browser/database.spec.ts) |
+| Blocking an account from the Users screen: the owner's button with a confirmation, none for the owner's own or another owner's account, none for an administrator with the grant | [users-blocking.spec.ts](browser/users-blocking.spec.ts) |
+| Database filters (conditions by column type, SQL NULL against the empty string, "or empty", И/ИЛИ chain and reordering, case switch, unfilled conditions, typing pause, calendar and time box, floating panels), multi-level sorting from its panel, column visibility from its panel, views listed read-only beside tables, following a foreign key from a cell and the row dialog, column names and row actions kept in view while the table scrolls, URL state and row editing | [database.spec.ts](browser/database.spec.ts) |
 | Email source editing, draft isolation, preview, publication and test sends | [email-admin.spec.ts](browser/email-admin.spec.ts) |
 | Sign-in flows, application navigation and public SSR pages | [app.spec.ts](browser/app.spec.ts) |
 
@@ -71,9 +72,18 @@ Keep local validation and business rules in module tests; use these suites for b
 module boundaries or depends on a browser. General checks are in the [development guide](../docs/development.md#checks).
 
 PostgreSQL type and preservation checks belong to [Admin's database tests](../modules/admin/README.md#tests).
-The database browser suite here verifies form input, exact strings, SQL NULL and escaped control characters.
+The database browser suite here verifies form input, exact strings, SQL NULL and escaped control characters, including how a cell and its hover preview spell them out and how a filter value typed in that spelling finds the row.
+It edits microsecond timestamps, high-precision numbers and JSON containing large numbers directly
+through the form in UTC and Europe/Moscow. These checks compare the submitted patch and complete
+stored row, then reload the page to verify the value survives the full round trip unchanged.
 
 ## Test data
+
+Recovery-flow tests never extract a secret from the notification journal. They assert that its
+link is masked, then replace the hash on the issued Auth token row with a known test token's hash,
+preserving expiry and consumption state. This fixture writes only to the verified disposable
+test database. Notifications module tests separately check that Email receives the original link
+while SQL receives the masked copy.
 
 HTTP [fixtures](src/fixtures.ts) create accounts under a unique run prefix and reuse templates by
 stable keys. Created accounts remain in the database. Cleanup restores changed administrator rights;

@@ -3,10 +3,12 @@ import * as React from 'react';
 import { api, messageOf } from '@/api';
 import { AdminPage, ErrorState } from '@/components/layout/admin-page';
 import { DataTable, Pagination } from '@/components/layout/data-table';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -179,7 +181,8 @@ function DeliveryDialog({ id, onClose }: { id: string; onClose: () => void }) {
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[min(48rem,calc(100vw-2rem))] max-w-none">
+      {/* Focus the card itself, not its first button: a ring on «Закрыть» or the cross read as a border, and differed card to card. */}
+      <DialogContent className="w-[min(48rem,calc(100vw-2rem))] max-w-none" onOpenAutoFocus={(event) => { event.preventDefault(); (event.currentTarget as HTMLElement).focus(); }}>
         <DialogHeader>
           <DialogTitle>{delivery?.subject ?? 'Письмо'}</DialogTitle>
           <DialogDescription>
@@ -231,6 +234,12 @@ function DeliveryDialog({ id, onClose }: { id: string; onClose: () => void }) {
             {delivery.error}
           </p>
         ) : null}
+
+        <DialogFooter>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Закрыть
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

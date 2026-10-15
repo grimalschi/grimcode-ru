@@ -64,7 +64,7 @@ export function AdministratorsPage() {
     <AdminPage
       title="Администраторы"
       description="Кто может открыть админку и до каких модулей доходит."
-      actions={<><IdentityAccess /><AddAdministrator onAdded={onChanged} /></>}
+      actions={<AddAdministrator onAdded={onChanged} />}
     >
       <DataTable
         loading={list.loading}
@@ -133,56 +133,6 @@ export function AdministratorsPage() {
       />
     </AdminPage>
   );
-}
-
-function IdentityAccess() {
-  const session = useSession();
-  const [open, setOpen] = React.useState(false);
-  const [query, setQuery] = React.useState('');
-  const [search, setSearch] = React.useState('');
-  const [busy, setBusy] = React.useState<string | null>(null);
-  React.useEffect(() => {
-    const timer = setTimeout(() => setSearch(query.trim()), 250);
-    return () => clearTimeout(timer);
-  }, [query]);
-  const candidates = useAsync(
-    () => open && search ? api.searchUsers.query({ query: search }) : Promise.resolve({ users: [] }),
-    [open, search],
-  );
-  async function change(userId: string, blocked: boolean) {
-    setBusy(userId);
-    try {
-      await api.setIdentityBlocked.mutate({ userId, blocked });
-      candidates.reload();
-      toast.success(blocked ? 'Аккаунт заблокирован' : 'Аккаунт разблокирован');
-    } catch (error) {
-      toast.error(messageOf(error));
-    } finally {
-      setBusy(null);
-    }
-  }
-  return <Dialog open={open} onOpenChange={setOpen}>
-    <DialogTrigger asChild><Button variant="outline">Блокировка аккаунтов</Button></DialogTrigger>
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>Блокировка аккаунтов</DialogTitle>
-        <DialogDescription>Блокировка запрещает вход и завершает сессии пользователя.</DialogDescription>
-      </DialogHeader>
-      <Input aria-label="Поиск аккаунта" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Адрес электронной почты" />
-      {candidates.error ? <ErrorState error={candidates.error} retry={candidates.reload} />
-        : candidates.loading ? <p>Ищем…</p>
-        : <ul className="space-y-3">
-          {candidates.data?.users.map((user) => <li key={user.userId} className="flex items-center justify-between gap-3">
-            <span className="truncate text-sm">{user.email}</span>
-            <Button variant="outline" size="sm" disabled={busy !== null || user.userId === session.userId}
-              onClick={() => void change(user.userId, user.blockedAt === null)}>
-              {user.blockedAt ? 'Разблокировать' : 'Заблокировать'}
-            </Button>
-          </li>)}
-          {search && candidates.data?.users.length === 0 && <li className="text-sm text-muted-foreground">Аккаунты не найдены.</li>}
-        </ul>}
-    </DialogContent>
-  </Dialog>;
 }
 
 function EnabledSwitch({
@@ -296,11 +246,7 @@ function AddAdministrator({ onAdded }: { onAdded: () => void }) {
                   Выбрать другого
                 </button>
               </p>
-            ) : search === '' ? (
-              <p className="text-muted-foreground text-xs">
-                Добавить можно только того, у кого уже есть аккаунт — здесь он не создаётся.
-              </p>
-            ) : candidates.error ? (
+            ) : search === '' ? null : candidates.error ? (
               <ErrorState error={candidates.error} retry={candidates.reload} />
             ) : candidates.loading ? (
               <p className="text-muted-foreground text-xs">Ищем…</p>
@@ -414,7 +360,7 @@ function EditAdministrator({
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor={`role-${administrator.id}`}>Role</Label>
+            <Label htmlFor={`role-${administrator.id}`}>Роль</Label>
             <Select value={role} onValueChange={(value) => setRole(value as 'owner' | 'admin')}>
               <SelectTrigger id={`role-${administrator.id}`}>
                 <SelectValue />

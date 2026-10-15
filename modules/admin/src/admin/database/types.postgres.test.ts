@@ -655,3 +655,34 @@ describe('columns the database numbers itself', () => {
     expect((await stored('ident'))[0]).toEqual({ id: '1', ticket: '1', bumped: '101', plain: '6', label: 'auto' });
   });
 });
+
+describe('refusals of typed values are explained', () => {
+  const table = 'refused';
+  const rows = (column: string, condition: string, value: unknown) =>
+    api.rows({ schema, table, filters: [{ column, condition: condition as never, value }] });
+
+  beforeEach(async () => {
+    await database.query(`CREATE TABLE ${tableSql(table)} (
+      id integer PRIMARY KEY, n integer, d date, u uuid, tags text[], q tsquery, code text UNIQUE)`);
+    await database.query(`INSERT INTO ${tableSql(table)} (id, code) VALUES (1, 'taken')`);
+  });
+
+  it.each([
+    ['n', 'equals', 'abc', 'Ожидается целое число, например 42. Получено: «abc»'],
+    ['d', 'equals', '07.10.2026', 'Неверная дата или время. Формат ГГГГ-ММ-ДД или ГГГГ-ММ-ДД ЧЧ:ММ, например 2026-10-07 12:30. Получено: «07.10.2026»'],
+    ['u', 'is', '1111', 'Ожидается uuid вида 11111111-1111-1111-1111-111111111111. Получено: «1111»'],
+    ['tags', 'equals', 'a,b', 'Массив записывается в фигурных скобках: {a,b}. Получено: «a,b»'],
+    // Class 42, not 22: PostgreSQL parses the value as a language. Before 8 October 2026 this was a 500.
+    ['q', 'equals', 'a &', 'Неверная запись для типа tsquery. Получено: «a &»'],
+  ])('a filter on %s %s %j answers 400 in plain words', async (column, condition, value, message) => {
+    await expect(rows(column, condition, value)).rejects.toMatchObject({ code: 'BAD_REQUEST', message });
+  });
+
+  it('names the duplicate key of a refused insert', async () => {
+    await expect(api.insert({ schema, table, values: { id: '2', code: 'taken' } })).rejects.toMatchObject({
+      code: 'BAD_REQUEST', message: expect.stringContaining('Key (code)=(taken) already exists.'),
+    });
+    const { rows: kept } = await database.query(`SELECT count(*)::int AS n FROM ${tableSql(table)}`);
+    expect(kept[0].n).toBe(1);
+  });
+});
