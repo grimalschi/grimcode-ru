@@ -23,7 +23,10 @@ const identity = {
   email_verified_at: null, blocked_at: null, blocking_protected_at: null as Date | null, created_at: new Date('2026-01-01T00:00:00Z'), last_login_at: null,
 };
 
-function recorder(options: { auditFails?: boolean; commitFails?: boolean; addressTaken?: boolean; recentLink?: boolean; recentAddress?: boolean } = {}) {
+const CURRENT_SESSION = '00000000-0000-4000-8000-0000000000c1';
+const OTHER_SESSION = '00000000-0000-4000-8000-0000000000c2';
+
+function recorder(options: { auditFails?: boolean; commitFails?: boolean; addressTaken?: boolean; recentLink?: boolean; recentAddress?: boolean; sessionGone?: boolean } = {}) {
   /** Statements in order, tagged with the connection they ran on: `pool` or `tx<n>`. */
   const statements: { on: string; text: string; values: unknown[] }[] = [];
   let transactions = 0;
@@ -37,7 +40,11 @@ function recorder(options: { auditFails?: boolean; commitFails?: boolean; addres
     if (text.includes('make_interval') && text.includes('AND used_at IS NULL')) return { rows: [], rowCount: options.recentLink ? 1 : 0 };
     // The "is this address registered" read: empty for a registration, the known account otherwise.
     if (text.includes('WHERE email = $1')) return options.addressTaken === false ? { rows: [], rowCount: 0 } : { rows: [identity], rowCount: 1 };
-    if (text.includes('FROM identities') || text.includes('INSERT INTO identities') || text.includes('UPDATE sessions s')) {
+    // Ending one session by id: nothing matches when it is another account's or already ended.
+    if (text.includes('UPDATE sessions SET revoked_at = now() WHERE id = $1')) return { rows: [], rowCount: options.sessionGone ? 0 : 1 };
+    // The session behind the cookie resolves to this browser's own session.
+    if (text.includes('UPDATE sessions s')) return { rows: [{ ...identity, session_id: CURRENT_SESSION }], rowCount: 1 };
+    if (text.includes('FROM identities') || text.includes('INSERT INTO identities')) {
       return { rows: [identity], rowCount: 1 };
     }
     if (text.includes('FROM auth_tokens WHERE token_hash')) return { rows: [{ identity_id: identity.id }], rowCount: 1 };
@@ -225,6 +232,48 @@ describe('a change and its audit entry share one transaction', () => {
       expect(audit.values[2]).toBe('email.change_requested');
       expect(JSON.parse(String(audit.values[5]))).toEqual({ email: 'new@example.test', taken: true });
       expect(context.notifier.emit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('a person ends their own sign-ins', () => {
+    const audits = (statements: { text: string; values: unknown[] }[]) => statements
+      .filter(({ text }) => text.includes('INSERT INTO auth_audit'))
+      .map(({ on, values }) => ({ on, action: values[2], details: JSON.parse(String(values[5])) as unknown }));
+
+    it('ends one other sign-in and records it in the same transaction', async () => {
+      const { pool, statements } = recorder();
+      await expect(publicRouter.createCaller(publicContext(pool, 'session=some-token')).revokeOwnSession({ id: OTHER_SESSION }))
+        .resolves.toEqual({ ok: true });
+      const inside = transaction(statements);
+      expect(inside).toEqual(['BEGIN', 'UPDATE sessions SET', 'INSERT INTO auth_audit', 'COMMIT']);
+      const revoke = statements.find(({ text }) => text.includes('WHERE id = $1 AND identity_id = $2'))!;
+      // Bound to the caller's account: another account's session id matches nothing.
+      expect(revoke.values).toEqual([OTHER_SESSION, identity.id]);
+      expect(audits(statements)).toEqual([{ on: 'tx1', action: 'session.revoked.self', details: { sessionId: OTHER_SESSION } }]);
+    });
+
+    it('answers ok and records nothing when the id matches no live session of the caller', async () => {
+      const { pool, statements } = recorder({ sessionGone: true });
+      await expect(publicRouter.createCaller(publicContext(pool, 'session=some-token')).revokeOwnSession({ id: OTHER_SESSION }))
+        .resolves.toEqual({ ok: true });
+      expect(audits(statements)).toEqual([]);
+    });
+
+    it('does not end this browser from the list: that is signing out', async () => {
+      const { pool, statements } = recorder();
+      await expect(publicRouter.createCaller(publicContext(pool, 'session=some-token')).revokeOwnSession({ id: CURRENT_SESSION }))
+        .rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Это текущий браузер — используйте «Выйти»' });
+      expect(statements.some(({ text }) => text.includes('SET revoked_at'))).toBe(false);
+    });
+
+    it('ends every other sign-in, keeps this one and its cookie, and records how many', async () => {
+      const { pool, statements } = recorder();
+      const context = publicContext(pool, 'session=some-token');
+      await expect(publicRouter.createCaller(context).revokeOtherSessions({})).resolves.toEqual({ ok: true });
+      const revoke = statements.find(({ text }) => text.includes('AND id <> $2'))!;
+      expect(revoke.values).toEqual([identity.id, CURRENT_SESSION]);
+      expect(audits(statements)).toEqual([{ on: 'tx1', action: 'sessions.revoked.others', details: { count: 1 } }]);
+      expect(context.resHeaders.get('set-cookie')).toBeNull();
     });
   });
 

@@ -319,6 +319,24 @@ export class AuthRepository {
     );
   }
 
+  /** One live session of this account; another account's id matches nothing. */
+  async revokeSession(identityId: string, sessionId: string): Promise<number> {
+    const { rowCount } = await this.sql.query(
+      'UPDATE sessions SET revoked_at = now() WHERE id = $1 AND identity_id = $2 AND revoked_at IS NULL',
+      [sessionId, identityId],
+    );
+    return rowCount ?? 0;
+  }
+
+  /** Every live session of this account but the one given — the browser asking stays signed in. */
+  async revokeOtherSessions(identityId: string, keepSessionId: string): Promise<number> {
+    const { rowCount } = await this.sql.query(
+      'UPDATE sessions SET revoked_at = now() WHERE identity_id = $1 AND id <> $2 AND revoked_at IS NULL',
+      [identityId, keepSessionId],
+    );
+    return rowCount ?? 0;
+  }
+
   async revokeAllSessions(identityId: string): Promise<number> {
     const { rowCount } = await this.sql.query(
       'UPDATE sessions SET revoked_at = now() WHERE identity_id = $1 AND revoked_at IS NULL',

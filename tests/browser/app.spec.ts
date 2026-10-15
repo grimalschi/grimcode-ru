@@ -126,6 +126,36 @@ test.describe('a signed-in person', () => {
     await expect(page.getByRole('tab', { name: 'Безопасность' })).toBeVisible();
   });
 
+  test('ends one other sign-in from the list, and keeps this browser in', async ({ page, browser, baseURL }) => {
+    const problems = collectPageErrors(page);
+    await signIn(page);
+
+    // A second browser of the same person; its own list says which session it is.
+    const elsewhere = await browser.newContext({ baseURL });
+    const other = await elsewhere.newPage();
+    await signIn(other);
+    const listed = await other.request.post('/module/auth/rpc/listOwnSessions', { data: {} });
+    const { sessions } = (await listed.json() as { result: { data: { sessions: { id: string; current: boolean }[] } } }).result.data;
+    const otherId = sessions.find((session) => session.current)!.id;
+
+    await page.goto('/app/settings');
+    await page.getByRole('tab', { name: 'Безопасность' }).click();
+    const current = page.getByTestId('own-session').filter({ hasText: 'этот браузер' });
+    await expect(current.getByRole('button', { name: 'Завершить' })).toHaveCount(0);
+    const row = page.locator(`[data-session-id="${otherId}"]`);
+    await row.getByRole('button', { name: 'Завершить', exact: true }).click();
+    await expect(row).toHaveCount(0);
+
+    // That browser is out; this one is not.
+    await other.goto('/app/settings');
+    await other.waitForURL(/\/app\/login/);
+    await page.reload();
+    await expect(page.getByRole('tab', { name: 'Безопасность' })).toBeVisible();
+    await elsewhere.close();
+
+    expectNoPageErrors(problems);
+  });
+
   test('is put back out when the session ends', async ({ page }) => {
     await signIn(page);
     await page.goto('/app/settings');

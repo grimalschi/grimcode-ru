@@ -278,16 +278,32 @@ function PasswordSection() {
 function SessionsSection() {
   const state = useAsync(() => auth.listOwnSessions.query({}), []);
   const [busy, setBusy] = React.useState(false);
+  const others = (state.data?.sessions ?? []).filter((session) => !session.current).length;
 
-  // Auth revokes every session of the caller, this browser included — that is what makes it a
-  // useful answer to "someone else may have my session".
-  const revokeAll = async () => {
+  // One sign-in ended from its row: an unfamiliar device goes, every other stays.
+  const revokeOne = async (id: string) => {
     setBusy(true);
     try {
-      await auth.revokeOwnSessions.mutate({});
-      window.location.assign('/app/login');
+      await auth.revokeOwnSession.mutate({ id });
+      state.reload();
     } catch (error) {
       toast.error(messageOf(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Every sign-in but this browser's — someone else's session ends, the person asking stays in.
+  // This browser itself is ended by "Выйти".
+  const revokeOthers = async () => {
+    setBusy(true);
+    try {
+      await auth.revokeOtherSessions.mutate({});
+      toast.success('Остальные сессии завершены');
+      state.reload();
+    } catch (error) {
+      toast.error(messageOf(error));
+    } finally {
       setBusy(false);
     }
   };
@@ -316,7 +332,9 @@ function SessionsSection() {
             {(state.data?.sessions ?? []).map((session) => (
               <li
                 key={session.id}
-                className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"
+                data-testid="own-session"
+                data-session-id={session.id}
+                className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1"
               >
                 <span className="min-w-0 flex-1">
                   <span className="block">
@@ -330,16 +348,21 @@ function SessionsSection() {
                 <span className="text-muted-foreground shrink-0 text-xs whitespace-nowrap">
                   Активна {new Date(session.lastSeenAt).toLocaleString()}
                 </span>
+                {session.current ? null : (
+                  <Button variant="outline" size="sm" disabled={busy} onClick={() => void revokeOne(session.id)}>
+                    Завершить
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
         )}
 
-        <Button variant="outline" onClick={() => void revokeAll()} disabled={busy}>
-          Выйти везде
+        <Button variant="outline" onClick={() => void revokeOthers()} disabled={busy || others === 0}>
+          Завершить все остальные
         </Button>
         <p className="text-muted-foreground text-xs">
-          Завершит сессии во всех браузерах, включая этот.
+          Этот браузер останется в системе. Чтобы выйти и из него — «Выйти» вверху.
         </p>
       </CardContent>
     </Card>

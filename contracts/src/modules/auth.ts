@@ -74,7 +74,8 @@ export type AuthPublicRouter<Context extends object = object> = TRPCBuiltRouter<
   logout: TRPCMutationProcedure<{ input: Record<string, never>; output: { ok: true }; meta: object }>;
   currentSession: TRPCQueryProcedure<{ input: Record<string, never>; output: { identity: Identity | null }; meta: object }>;
   listOwnSessions: TRPCQueryProcedure<{ input: Record<string, never>; output: { sessions: SessionSummary[] }; meta: object }>;
-  revokeOwnSessions: TRPCMutationProcedure<{ input: Record<string, never>; output: { ok: true }; meta: object }>;
+  revokeOwnSession: TRPCMutationProcedure<{ input: { id: string }; output: { ok: true }; meta: object }>;
+  revokeOtherSessions: TRPCMutationProcedure<{ input: Record<string, never>; output: { ok: true }; meta: object }>;
   requestPasswordReset: TRPCMutationProcedure<{ input: { email: string }; output: { ok: true }; meta: object }>;
   resetPassword: TRPCMutationProcedure<{ input: { token: string; password: string }; output: { ok: true }; meta: object }>;
   changePassword: TRPCMutationProcedure<{ input: { currentPassword: string; password: string }; output: { ok: true }; meta: object }>;

@@ -1,6 +1,6 @@
 import type { inferRouterInputs } from '@trpc/server';
 import type { AuthPublicRouter as PublicContract, Identity } from '@template/contracts/modules/auth';
-import { emailSchema, okSchema } from '../primitives.js';
+import { emailSchema, idSchema, okSchema } from '../primitives.js';
 import { z } from 'zod';
 import { expiredSessionCookie, parseCookies, sessionCookie } from '../http/cookies.js';
 import type { RpcContext } from '../trpc/context.js';
@@ -63,7 +63,7 @@ const t = initTRPC.context<PublicContext>().create({
   }),
 });
 
-async function currentIdentity(ctx: PublicContext): Promise<{ row: IdentityRow; token: string }> {
+async function currentIdentity(ctx: PublicContext): Promise<{ row: IdentityRow; token: string; sessionId: string }> {
   const token = parseCookies(ctx.request.headers.get('cookie'))[ctx.env.sessionCookieName];
   if (!token) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Сессия не активна' });
 
@@ -71,7 +71,7 @@ async function currentIdentity(ctx: PublicContext): Promise<{ row: IdentityRow; 
   if (!resolved || resolved.identity.blocked_at !== null) {
     throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Сессия не активна' });
   }
-  return { row: resolved.identity, token };
+  return { row: resolved.identity, token, sessionId: resolved.session.id };
 }
 
 function appUrl(publicOrigin: string, path: string, token: string): string {
@@ -244,17 +244,40 @@ export const publicRouter = t.router({
     },
   ),
 
-  revokeOwnSessions: t.procedure
+  /**
+   * One sign-in of the caller's own, ended from the list — an unfamiliar device closed while every
+   * other stays. Not this browser: that is "sign out". Another account's id, or one already ended in
+   * another tab, matches nothing and still answers `ok`: nothing about other sessions is told.
+   */
+  revokeOwnSession: t.procedure
+    .input(z.object({ id: idSchema }))
+    .output(okSchema)
+    .mutation(
+    async ({ input, ctx }) => {
+      const { row, sessionId } = await currentIdentity(ctx);
+      if (input.id === sessionId) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Это текущий браузер — используйте «Выйти»' });
+      }
+      await ctx.repo.withTransaction(async (repo) => {
+        if (await repo.revokeSession(row.id, input.id)) {
+          await repo.audit({ identityId: row.id, action: 'session.revoked.self', details: { sessionId: input.id } });
+        }
+      });
+      return { ok: true as const };
+    },
+  ),
+
+  /** Every sign-in but this browser's: the answer to "someone else may have my session" that keeps you in. */
+  revokeOtherSessions: t.procedure
     .input(z.object({}))
     .output(okSchema)
     .mutation(
     async ({ ctx }) => {
-      const { row } = await currentIdentity(ctx);
+      const { row, sessionId } = await currentIdentity(ctx);
       await ctx.repo.withTransaction(async (repo) => {
-        await repo.revokeAllSessions(row.id);
-        await repo.audit({ identityId: row.id, action: 'sessions.revoked.self' });
+        const count = await repo.revokeOtherSessions(row.id, sessionId);
+        if (count) await repo.audit({ identityId: row.id, action: 'sessions.revoked.others', details: { count } });
       });
-      ctx.resHeaders.append('set-cookie', expiredSessionCookie(ctx.env));
       return { ok: true as const };
     },
   ),

@@ -58,8 +58,11 @@ consumed in the same transaction as the account change. Credential operations se
 identity row; login rechecks the verified password hash and email before creating a session.
 Issuing a replacement invalidates earlier tokens for the same purpose.
 Password and email changes revoke all sessions and outstanding account links. A password change
-opens a fresh session on the current device; an email change requires signing in again. Users can
-also list and revoke their own sessions.
+opens a fresh session on the current device; an email change requires signing in again. Users see
+their own sessions and end any one of them (`revokeOwnSession`, journaled as `session.revoked.self`)
+or every one but the current browser (`revokeOtherSessions`, `sessions.revoked.others` with the count);
+the current browser is ended by signing out. Another account's session id ends nothing and still
+answers `ok`.
 The public API accepts JSON RPC requests; cookies use `SameSite=Lax`.
 
 ### Session cookies

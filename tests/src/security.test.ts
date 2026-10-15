@@ -95,16 +95,43 @@ describe('sessions', () => {
     expect(user.session.hasSession).toBe(true);
   });
 
-  it('closes protected endpoints as soon as it is revoked', async () => {
+  it('closes protected endpoints as soon as it is revoked, while the browser that asked stays in', async () => {
     const user = await createUser('revoked');
 
     // Works while the session is valid.
     await user.session.call(USERS, 'getOwnProfile');
 
-    await user.session.call(AUTH, 'revokeOwnSessions');
+    const elsewhere = await signIn(user.email);
+    await elsewhere.call(AUTH, 'revokeOtherSessions');
 
     const after = await user.session.rpc(USERS, 'getOwnProfile');
     expect(after.status).toBe(401);
+    expect((await elsewhere.rpc(USERS, 'getOwnProfile')).status).toBe(200);
+  });
+
+  it('ends one sign-in from the list and leaves the others — and never another account\'s', async () => {
+    type Listed = { sessions: { id: string; current: boolean }[] };
+    const own = async (session: Session) => (await session.call<Listed>(AUTH, 'listOwnSessions')).sessions.find((entry) => entry.current)!.id;
+    const user = await createUser('one-session');
+    const second = await signIn(user.email);
+    const third = await signIn(user.email);
+
+    expect(await user.session.call(AUTH, 'revokeOwnSession', { id: await own(second) })).toEqual({ ok: true });
+    expect((await second.rpc(USERS, 'getOwnProfile')).status).toBe(401);
+    expect((await third.rpc(USERS, 'getOwnProfile')).status).toBe(200);
+    expect((await user.session.rpc(USERS, 'getOwnProfile')).status).toBe(200);
+
+    // This browser is ended by signing out, not from the list.
+    expect((await user.session.rpc(AUTH, 'revokeOwnSession', { id: await own(user.session) })).status).toBe(400);
+
+    // Another account's session id ends nothing, and the answer does not say it exists.
+    const other = await createUser('one-session-other');
+    expect(await user.session.call(AUTH, 'revokeOwnSession', { id: await own(other.session) })).toEqual({ ok: true });
+    expect((await other.session.rpc(USERS, 'getOwnProfile')).status).toBe(200);
+
+    const { rows } = await database.query<{ action: string }>(
+      "SELECT action FROM auth.auth_audit WHERE identity_id = $1 AND action LIKE 'session%' ORDER BY created_at", [user.userId]);
+    expect(rows.map((row) => row.action)).toEqual(['session.revoked.self']);
   });
 
   /**
