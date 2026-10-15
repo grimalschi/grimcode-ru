@@ -34,7 +34,11 @@ an occupied address, which gets no link); the change itself as `email.changed`. 
 a dummy password hash when the identity is missing.
 
 Sign-in permits ten attempts per email within fifteen minutes; success clears the counter.
-The counter belongs to the process, so multiple application processes each have that allowance.
+The current password asked by the email and password changes has its own allowance: ten checks per
+account within fifteen minutes, shared by both procedures and separate from sign-in. Past it the
+password is not checked (`TOO_MANY_REQUESTS`), and the first refusal in a window is recorded once as
+`password.check.limited`. Both limits are constants in [`public/index.ts`](src/public/index.ts).
+The counters belong to the process, so multiple application processes each have that allowance.
 Configure client-address rate limits at the edge proxy.
 
 Verification links last 24 hours; recovery and email-change links last one hour. Tokens are

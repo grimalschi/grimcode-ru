@@ -61,6 +61,7 @@ function publicContext(pool: Pool, cookie?: string): PublicContext {
     repo: new AuthRepository(pool), notifier: { emit: vi.fn(async () => undefined) } as unknown as Notifier,
     request: new Request('https://example.test/module/auth/rpc', { headers: cookie ? { cookie } : {} }),
     resHeaders: new Headers(), env, loginAttempts: createRateLimiter({ limit: 10, windowMs: 60_000 }),
+    passwordChecks: createRateLimiter({ limit: 10, windowMs: 60_000 }),
   };
 }
 
@@ -221,6 +222,51 @@ describe('a change and its audit entry share one transaction', () => {
       expect(audit.values[2]).toBe('email.change_requested');
       expect(JSON.parse(String(audit.values[5]))).toEqual({ email: 'new@example.test', taken: true });
       expect(context.notifier.emit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('guessing the current password is counted per account', () => {
+    /** One context, so its counter carries across calls; two attempts allowed to keep the cases short. */
+    const counted = async () => {
+      const { hashPassword } = await import('./crypto.js');
+      identity.password_hash = await hashPassword('current-password');
+      const { pool, statements } = recorder({ addressTaken: false });
+      const context = { ...publicContext(pool, 'session=some-token'), passwordChecks: createRateLimiter({ limit: 2, windowMs: 60_000 }) };
+      const caller = publicRouter.createCaller(context);
+      return {
+        statements,
+        change: (currentPassword: string) => caller.changePassword({ currentPassword, password: 'another-long-password' }),
+        email: (currentPassword: string) => caller.requestEmailChange({ currentPassword, email: 'new@example.test' }),
+        limited: () => statements.filter(({ text, values }) => text.includes('INSERT INTO auth_audit') && values[2] === 'password.check.limited'),
+      };
+    };
+
+    it('refuses past the allowance without checking, even the right password, and journals the first refusal once', async () => {
+      const { change, limited } = await counted();
+      await expect(change('wrong-1')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(change('wrong-2')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(change('current-password')).rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS', message: 'Слишком много попыток. Попробуйте позже' });
+      await expect(change('current-password')).rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS' });
+      expect(limited()).toHaveLength(1);
+      expect(limited()[0]!.values[1]).toBe(identity.id);
+      expect(JSON.parse(String(limited()[0]!.values[5]))).toEqual({ procedure: 'changePassword' });
+    });
+
+    it('shares one allowance between the email change and the password change', async () => {
+      const { change, email, limited } = await counted();
+      await expect(email('wrong-1')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(change('wrong-2')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(email('current-password')).rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS' });
+      expect(JSON.parse(String(limited()[0]!.values[5]))).toEqual({ procedure: 'requestEmailChange' });
+    });
+
+    it('starts the count over after the right password', async () => {
+      const { email, limited } = await counted();
+      await expect(email('wrong-1')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(email('current-password')).resolves.toEqual({ ok: true });
+      await expect(email('wrong-2')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(email('wrong-3')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      expect(limited()).toEqual([]);
     });
   });
 

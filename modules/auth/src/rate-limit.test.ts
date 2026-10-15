@@ -13,6 +13,15 @@ describe('rate limiting', () => {
     expect(limiter.attempt('b')).toBe(true);
   });
 
+  it('tells the first refusal in a window from the ones after it', async () => {
+    const limiter = createRateLimiter({ limit: 2, windowMs: 20 });
+
+    expect([1, 2, 3, 4].map(() => limiter.check('a'))).toEqual(['allowed', 'allowed', 'first-refusal', 'refused']);
+    // A new window has its own first refusal.
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect([1, 2, 3].map(() => limiter.check('a'))).toEqual(['allowed', 'allowed', 'first-refusal']);
+  });
+
   it('starts over once the window has passed', async () => {
     const limiter = createRateLimiter({ limit: 1, windowMs: 20 });
 

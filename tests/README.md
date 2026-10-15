@@ -59,7 +59,7 @@ Playwright retains a trace on failure; browser helpers collect console errors an
 | Area | Test files |
 | --- | --- |
 | Roles, module grants, CSRF and routing | [access.test.ts](src/access.test.ts) |
-| Sessions, recovery, the password behind an email change, blocking and owner preservation | [security.test.ts](src/security.test.ts) |
+| Sessions, sign-in and current-password limits, recovery, the password behind an email change, blocking and owner preservation | [security.test.ts](src/security.test.ts) |
 | Notifications, MJML publication and sending, profile flows | [flows.test.ts](src/flows.test.ts) |
 | Admin navigation, embedded screens and theme | [admin-shell.spec.ts](browser/admin-shell.spec.ts) |
 | Administrator menus, direct links, revoked access and cross-origin requests | [admin-access.spec.ts](browser/admin-access.spec.ts) |

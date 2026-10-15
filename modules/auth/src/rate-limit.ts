@@ -14,6 +14,11 @@
 export interface RateLimiter {
   /** Records an attempt and answers whether it is still within the allowance. */
   attempt(key: string): boolean;
+  /**
+   * The same count, telling the first refusal in a window apart from the ones after it — the moment
+   * guessing hit the limit is worth one journal entry, every refusal after it is not.
+   */
+  check(key: string): 'allowed' | 'first-refusal' | 'refused';
   /** Forgets a key, so a success does not leave the previous failures counting. */
   clear(key: string): void;
 }
@@ -39,8 +44,12 @@ export function createRateLimiter({
     }
   };
 
-  return {
+  const limiter: RateLimiter = {
     attempt(key) {
+      return limiter.check(key) === 'allowed';
+    },
+
+    check(key) {
       const now = Date.now();
       const current = windows.get(key);
 
@@ -54,15 +63,16 @@ export function createRateLimiter({
         }
 
         windows.set(key, { count: 1, expiresAt: now + windowMs });
-        return true;
+        return 'allowed';
       }
 
       current.count += 1;
-      return current.count <= limit;
+      return current.count <= limit ? 'allowed' : current.count === limit + 1 ? 'first-refusal' : 'refused';
     },
 
     clear(key) {
       windows.delete(key);
     },
   };
+  return limiter;
 }

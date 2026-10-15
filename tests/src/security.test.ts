@@ -227,6 +227,39 @@ describe('sign-in attempts', () => {
     const other = await createUser('unaffected');
     expect(other.session.hasSession).toBe(true);
   });
+
+  /**
+   * An open session is not proof of the password: guessing the current password through the email
+   * and password changes is counted per account, one allowance for both, apart from sign-in.
+   */
+  it('count guessing the current password from an open session, without locking sign-in', async () => {
+    const user = await createUser('current-password-guess');
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const procedure = attempt % 2 ? 'changePassword' : 'requestEmailChange';
+      const input = procedure === 'changePassword'
+        ? { currentPassword: `wrong-${attempt}`, password: `${PASSWORD}-new` }
+        : { currentPassword: `wrong-${attempt}`, email: testEmail('current-password-guess-new') };
+      statuses.push((await user.session.rpc(AUTH, procedure, input)).status);
+    }
+    expect(statuses).toEqual(Array(10).fill(401));
+
+    // The right password is refused too while the window lasts, through either procedure.
+    const right = await user.session.rpc(AUTH, 'changePassword', { currentPassword: PASSWORD, password: `${PASSWORD}-new` });
+    expect(right.status).toBe(429);
+    expect(errorMessage(right.body)).toBe('Слишком много попыток. Попробуйте позже');
+    expect((await user.session.rpc(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email: testEmail('current-password-guess-new') })).status).toBe(429);
+
+    // One journal entry for the moment the limit was reached, not one per refusal.
+    const { rows } = await database.query<{ details: Record<string, unknown> }>(
+      "SELECT details FROM auth.auth_audit WHERE identity_id = $1 AND action = 'password.check.limited'", [user.userId]);
+    expect(rows).toEqual([{ details: { procedure: 'changePassword' } }]);
+
+    // Signing in with the password still works, and another account still can change its own.
+    expect((await signIn(user.email)).hasSession).toBe(true);
+    const other = await createUser('current-password-unaffected');
+    expect((await other.session.rpc(AUTH, 'changePassword', { currentPassword: PASSWORD, password: `${PASSWORD}-new` })).status).toBe(200);
+  });
 });
 
 describe('recovery', () => {

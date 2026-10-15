@@ -27,6 +27,12 @@ export interface PublicContext extends RpcContext {
    * application instead of one per module load, and its limits are constants in this surface’s factory.
    */
   loginAttempts: RateLimiter;
+  /**
+   * Guessing the current password from an open session, counted per account and shared by every
+   * procedure that asks for it, so alternating them does not double the allowance. Separate from
+   * sign-in: running out here does not lock the person out of signing in, nor the other way round.
+   */
+  passwordChecks: RateLimiter;
 }
 
 const VERIFICATION_TTL_SECONDS = 60 * 60 * 24;
@@ -71,6 +77,25 @@ function appUrl(publicOrigin: string, path: string, token: string): string {
  * takes the session row back, but not a header already added to the response, and a browser would
  * replace its working cookie with the token of a session that does not exist.
  */
+/**
+ * The current password, asked before changing what recovers the account. Past the allowance it is
+ * not checked at all, as with sign-in; the first refusal in a window is journaled once, the ones
+ * after it are not. A match clears the count.
+ */
+async function checkCurrentPassword(ctx: PublicContext, row: IdentityRow, password: string, procedure: string): Promise<void> {
+  const allowance = ctx.passwordChecks.check(row.id);
+  if (allowance !== 'allowed') {
+    if (allowance === 'first-refusal') {
+      await ctx.repo.audit({ identityId: row.id, action: 'password.check.limited', details: { procedure } });
+    }
+    throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Слишком много попыток. Попробуйте позже' });
+  }
+  if (!(await verifyPassword(password, row.password_hash))) {
+    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Текущий пароль неверен' });
+  }
+  ctx.passwordChecks.clear(row.id);
+}
+
 async function openSession(ctx: PublicContext, repo: AuthRepository, identity: IdentityRow): Promise<string> {
   const token = newToken();
   const ttl = ctx.env.sessionTtlSeconds;
@@ -287,10 +312,7 @@ export const publicRouter = t.router({
     .mutation(
     async ({ input, ctx }) => {
       const { row } = await currentIdentity(ctx);
-
-      if (!(await verifyPassword(input.currentPassword, row.password_hash))) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Текущий пароль неверен' });
-      }
+      await checkCurrentPassword(ctx, row, input.currentPassword, 'changePassword');
 
       const passwordHash = await hashPassword(input.password);
       const cookie = await ctx.repo.withTransaction(async (repo) => {
@@ -359,9 +381,7 @@ export const publicRouter = t.router({
       // An open session is not proof of who is at the keyboard, and the address is what recovers the
       // password. Asked first, before the address is looked at: without the password nothing about
       // the address is told. The token below is bound to this very hash, so a change in between fails.
-      if (!(await verifyPassword(input.currentPassword, row.password_hash))) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Текущий пароль неверен' });
-      }
+      await checkCurrentPassword(ctx, row, input.currentPassword, 'requestEmailChange');
 
       const taken = await ctx.repo.findIdentityByEmail(input.email);
       if (taken) {

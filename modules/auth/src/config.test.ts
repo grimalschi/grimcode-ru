@@ -57,6 +57,7 @@ function publicContext(deps: ReturnType<typeof dependencies>, cookie?: string): 
     resHeaders: new Headers(),
     env,
     loginAttempts: createRateLimiter({ limit: 10, windowMs: 60_000 }),
+    passwordChecks: createRateLimiter({ limit: 10, windowMs: 60_000 }),
   };
 }
 

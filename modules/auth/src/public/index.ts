@@ -8,6 +8,9 @@ import { publicRouter } from './router.js';
 
 const LOGIN_ATTEMPT_LIMIT = 10;
 const LOGIN_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+// The current password asked before an email or password change: the same allowance, per account.
+const PASSWORD_CHECK_LIMIT = 10;
+const PASSWORD_CHECK_WINDOW_MS = 15 * 60 * 1000;
 
 /** Public authentication HTTP surface; no administrative routes or middleware are loaded here. */
 export function createPublicFetch({ env, repository, notifier }: HttpDependencies) {
@@ -15,6 +18,7 @@ export function createPublicFetch({ env, repository, notifier }: HttpDependencie
   app.get('/healthz', (c) => c.json({ ok: true, module: 'auth' }));
 
   const loginAttempts = createRateLimiter({ limit: LOGIN_ATTEMPT_LIMIT, windowMs: LOGIN_ATTEMPT_WINDOW_MS });
+  const passwordChecks = createRateLimiter({ limit: PASSWORD_CHECK_LIMIT, windowMs: PASSWORD_CHECK_WINDOW_MS });
   mountTrpc(app, '/module/auth/rpc', publicRouter, async ({ request, resHeaders, env }) => ({
     repo: await repository(),
     notifier,
@@ -22,6 +26,7 @@ export function createPublicFetch({ env, repository, notifier }: HttpDependencie
     resHeaders,
     env,
     loginAttempts,
+    passwordChecks,
   }));
 
   return (request: Request) => app.fetch(request, env);
