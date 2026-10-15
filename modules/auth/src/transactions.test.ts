@@ -168,6 +168,62 @@ describe('a change and its audit entry share one transaction', () => {
     }
   });
 
+  describe('an email change asks for the password', () => {
+    const request = (pool: Pool, currentPassword: string, context = publicContext(pool, 'session=some-token')) => ({
+      context, call: publicRouter.createCaller(context).requestEmailChange({ currentPassword, email: 'new@example.test' }),
+    });
+
+    it('refuses a wrong password before looking at the address, writing and sending nothing', async () => {
+      const { hashPassword } = await import('./crypto.js');
+      identity.password_hash = await hashPassword('current-password');
+      const { pool, statements } = recorder({ addressTaken: false });
+      const { context, call } = request(pool, 'not-the-password');
+      await expect(call).rejects.toMatchObject({ code: 'UNAUTHORIZED', message: 'Текущий пароль неверен' });
+      // The address was never read: who lacks the password learns nothing about it.
+      expect(statements.some(({ text }) => text.includes('WHERE email = $1'))).toBe(false);
+      expect(statements.some(({ text }) => text.trim().startsWith('INSERT'))).toBe(false);
+      expect(context.notifier.emit).not.toHaveBeenCalled();
+    });
+
+    it('issues the link and records the request in one transaction, and only then hands it to Notifications', async () => {
+      const { hashPassword } = await import('./crypto.js');
+      for (const auditFails of [false, true]) {
+        identity.password_hash = await hashPassword('current-password');
+        const { pool, statements } = recorder({ addressTaken: false, auditFails });
+        const { context, call } = request(pool, 'current-password');
+        if (auditFails) await expect(call).rejects.toThrow('audit storage refused');
+        else await expect(call).resolves.toEqual({ ok: true });
+
+        const inside = transaction(statements);
+        expect(inside[0]).toBe('BEGIN');
+        expect(inside.filter((text) => text === 'BEGIN')).toHaveLength(1);
+        expect(inside).toEqual(expect.arrayContaining(['INSERT INTO auth_tokens', 'INSERT INTO auth_audit']));
+        expect(inside.at(-1)).toBe(auditFails ? 'ROLLBACK' : 'COMMIT');
+        if (auditFails) {
+          expect(context.notifier.emit).not.toHaveBeenCalled();
+        } else {
+          const audit = statements.find(({ text }) => text.includes('INSERT INTO auth_audit'))!;
+          expect(audit.values.slice(1, 3)).toEqual([identity.id, 'email.change_requested']);
+          expect(JSON.parse(String(audit.values[5]))).toEqual({ email: 'new@example.test' });
+          expect(context.notifier.emit).toHaveBeenCalledOnce();
+        }
+      }
+    });
+
+    it('records a request for a registered address but answers ok without a link or a letter', async () => {
+      const { hashPassword } = await import('./crypto.js');
+      identity.password_hash = await hashPassword('current-password');
+      const { pool, statements } = recorder();
+      const { context, call } = request(pool, 'current-password');
+      await expect(call).resolves.toEqual({ ok: true });
+      expect(statements.some(({ text }) => text.includes('INSERT INTO auth_tokens'))).toBe(false);
+      const audit = statements.find(({ text }) => text.includes('INSERT INTO auth_audit'))!;
+      expect(audit.values[2]).toBe('email.change_requested');
+      expect(JSON.parse(String(audit.values[5]))).toEqual({ email: 'new@example.test', taken: true });
+      expect(context.notifier.emit).not.toHaveBeenCalled();
+    });
+  });
+
   it('verifies the address and records it together, joining the token transaction instead of opening a second one', async () => {
     const { pool, statements } = recorder();
     await publicRouter.createCaller(publicContext(pool)).verifyEmail({ token: 'a-token-that-is-long-enough' });

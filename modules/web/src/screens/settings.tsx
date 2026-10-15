@@ -120,13 +120,14 @@ function ProfileSection() {
 function AccountSection() {
   const { identity, refresh } = useSession();
   const [email, setEmail] = React.useState('');
+  const [password, setPassword] = React.useState('');
   const [busy, setBusy] = React.useState(false);
 
   const requestChange = async (event: React.FormEvent) => {
     event.preventDefault();
     setBusy(true);
     try {
-      await auth.requestEmailChange.mutate({ email });
+      await auth.requestEmailChange.mutate({ currentPassword: password, email });
       // The address only changes once the link in the new mailbox is opened; saying so avoids the
       // impression that it already did.
       toast.success('Подтвердите изменение по ссылке, отправленной на новый адрес');
@@ -134,6 +135,8 @@ function AccountSection() {
     } catch (error) {
       toast.error(messageOf(error));
     } finally {
+      // The password never stays in the form; the new address does, so a mistyped password costs one field.
+      setPassword('');
       setBusy(false);
     }
   };
@@ -168,23 +171,40 @@ function AccountSection() {
           )}
         </div>
 
-        <form onSubmit={requestChange} className="space-y-2">
-          <Label htmlFor="newEmail">Сменить адрес</Label>
-          <div className="flex gap-2">
+        <form onSubmit={requestChange} className="space-y-3">
+          {/*
+            An address and a password read as a sign-in form to a password manager, which would then
+            offer to save this password under the new, unconfirmed address. The current address,
+            marked as the username, tells it which account the password belongs to.
+          */}
+          <input type="text" name="username" autoComplete="username" value={identity?.email ?? ''} readOnly hidden />
+          <div className="space-y-2">
+            <Label htmlFor="newEmail">Сменить адрес</Label>
             <Input
               id="newEmail"
               type="email"
+              autoComplete="email"
               value={email}
               placeholder="new@example.com"
               onChange={(event) => setEmail(event.target.value)}
             />
-            <Button type="submit" disabled={busy || email.trim() === ''}>
-              Отправить
-            </Button>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="emailChangePassword">Подтвердите пароль</Label>
+            <Input
+              id="emailChangePassword"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
           </div>
           <p className="text-muted-foreground text-xs">
             Новый адрес нужно подтвердить, а старому мы сообщим об изменении.
           </p>
+          <Button type="submit" disabled={busy || email.trim() === '' || password === ''}>
+            Отправить
+          </Button>
         </form>
 
         <Button variant="ghost" size="sm" onClick={() => void refresh()}>

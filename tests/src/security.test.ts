@@ -442,7 +442,7 @@ describe('recovery token lifecycle across modules', () => {
     const email = testEmail('new-mailbox');
     await new Session().call(AUTH, 'requestPasswordReset', { email: user.email });
     const oldToken = await notificationToken(user.email, 'auth.password.reset_requested', 'resetUrl');
-    await user.session.call(AUTH, 'requestEmailChange', { email });
+    await user.session.call(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email });
     const token = await notificationToken(email, 'auth.email.change_requested', 'confirmUrl');
     await user.session.call(AUTH, 'confirmEmailChange', { token });
     const stale = await new Session().rpc(AUTH, 'resetPassword', { token: oldToken, password: `${PASSWORD}-stale` });
@@ -463,6 +463,54 @@ interface BatchReply {
   result?: { data: unknown };
   error?: { data: { code: string } };
 }
+
+describe('an email change', () => {
+  const events = async (email: string) => (await database.query(
+    'SELECT 1 FROM notifications.events WHERE recipient_email = $1', [email])).rowCount;
+  const requests = async (identityId: string) => (await database.query<{ details: Record<string, unknown> }>(
+    "SELECT details FROM auth.auth_audit WHERE identity_id = $1 AND action = 'email.change_requested' ORDER BY created_at",
+    [identityId])).rows.map((row) => row.details);
+
+  it('needs the current password: without it or with a wrong one nothing is sent or recorded', async () => {
+    const user = await createUser('email-change-password');
+    const email = testEmail('email-change-password-new');
+    expect((await user.session.rpc(AUTH, 'requestEmailChange', { email })).status).toBe(400);
+    const wrong = await user.session.rpc(AUTH, 'requestEmailChange', { currentPassword: `${PASSWORD}-wrong`, email });
+    expect(wrong.status).toBe(401);
+    expect(errorMessage(wrong.body)).toBe('Текущий пароль неверен');
+    expect(await events(email)).toBe(0);
+    expect(await requests(user.userId)).toEqual([]);
+    // The session survives a wrong password: it is a refusal, not a sign-out.
+    expect(await user.session.call(AUTH, 'currentSession')).toMatchObject({ identity: { id: user.userId } });
+  });
+
+  it('answers a registered address with a wrong password like any other wrong password', async () => {
+    const user = await createUser('email-change-taken-wrong');
+    const other = await createUser('email-change-taken-other');
+    const wrong = await user.session.rpc(AUTH, 'requestEmailChange', { currentPassword: `${PASSWORD}-wrong`, email: other.email });
+    expect(wrong.status).toBe(401);
+    expect(await requests(user.userId)).toEqual([]);
+  });
+
+  it('records a request for a registered address without sending anything to it', async () => {
+    const user = await createUser('email-change-taken');
+    const other = await createUser('email-change-taken-owner');
+    const before = await events(other.email);
+    expect(await user.session.call(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email: other.email })).toEqual({ ok: true });
+    expect(await events(other.email)).toBe(before);
+    expect(await requests(user.userId)).toEqual([{ email: other.email, taken: true }]);
+  });
+
+  it('with the password, records the request and sends the link that changes the address', async () => {
+    const user = await createUser('email-change-ok');
+    const email = testEmail('email-change-ok-new');
+    expect(await user.session.call(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email })).toEqual({ ok: true });
+    expect(await requests(user.userId)).toEqual([{ email }]);
+    const token = await notificationToken(email, 'auth.email.change_requested', 'confirmUrl');
+    await new Session().call(AUTH, 'confirmEmailChange', { token });
+    expect((await signIn(email)).hasSession).toBe(true);
+  });
+});
 
 describe('module HTTP boundaries', () => {
   it.each([

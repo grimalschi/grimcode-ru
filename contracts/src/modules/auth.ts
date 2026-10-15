@@ -80,6 +80,6 @@ export type AuthPublicRouter<Context extends object = object> = TRPCBuiltRouter<
   changePassword: TRPCMutationProcedure<{ input: { currentPassword: string; password: string }; output: { ok: true }; meta: object }>;
   verifyEmail: TRPCMutationProcedure<{ input: { token: string }; output: { ok: true }; meta: object }>;
   resendOwnVerification: TRPCMutationProcedure<{ input: Record<string, never>; output: { ok: true }; meta: object }>;
-  requestEmailChange: TRPCMutationProcedure<{ input: { email: string }; output: { ok: true }; meta: object }>;
+  requestEmailChange: TRPCMutationProcedure<{ input: { currentPassword: string; email: string }; output: { ok: true }; meta: object }>;
   confirmEmailChange: TRPCMutationProcedure<{ input: { token: string }; output: { ok: true }; meta: object }>;
 }>;

@@ -86,6 +86,34 @@ test.describe('a signed-in person', () => {
     expectNoPageErrors(problems);
   });
 
+  test('confirms an address change with the password, and keeps the address when the password is wrong', async ({ page }) => {
+    const problems = collectPageErrors(page);
+
+    await signIn(page);
+    await page.goto('/app/settings');
+    await page.getByRole('tab', { name: 'Аккаунт' }).click();
+
+    const address = page.getByLabel('Сменить адрес');
+    const password = page.getByLabel('Подтвердите пароль');
+    const send = page.getByRole('button', { name: 'Отправить', exact: true });
+    // A password manager is told which account the password belongs to, not offered the new address.
+    await expect(page.locator('input[autocomplete="username"]')).toHaveValue(OWNER_EMAIL);
+    await expect(address).toHaveAttribute('autocomplete', 'email');
+    await expect(password).toHaveAttribute('autocomplete', 'current-password');
+
+    await address.fill('someone-new@example.test');
+    await expect(send).toBeDisabled();
+    await password.fill(`${OWNER_PASSWORD}-wrong`);
+    await send.click();
+    await expect(page.getByText('Текущий пароль неверен')).toBeVisible();
+    // The address stays for a second try; the password does not stay in the form.
+    await expect(address).toHaveValue('someone-new@example.test');
+    await expect(password).toHaveValue('');
+
+    // The refusal of the wrong password is the one failed request the browser reports; anything else is a fault.
+    expectNoPageErrors(problems.filter((problem) => !/status of 401/.test(problem)));
+  });
+
   test('returns to the page they were sent away from', async ({ page }) => {
     await page.goto('/app/settings');
     await page.waitForURL(/\/app\/login/);

@@ -350,19 +350,35 @@ export const publicRouter = t.router({
   }),
 
   requestEmailChange: t.procedure
-    .input(z.object({ email: emailSchema }))
+    .input(z.object({ currentPassword: z.string().min(1).max(200), email: emailSchema }))
     .output(okSchema)
     .mutation(
     async ({ input, ctx }) => {
       const { row } = await currentIdentity(ctx);
 
+      // An open session is not proof of who is at the keyboard, and the address is what recovers the
+      // password. Asked first, before the address is looked at: without the password nothing about
+      // the address is told. The token below is bound to this very hash, so a change in between fails.
+      if (!(await verifyPassword(input.currentPassword, row.password_hash))) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Текущий пароль неверен' });
+      }
+
       const taken = await ctx.repo.findIdentityByEmail(input.email);
-      // Answering `ok` here too keeps the flow from confirming that an address is registered.
-      if (taken) return { ok: true as const };
+      if (taken) {
+        // Answering `ok` here too keeps the flow from confirming that an address is registered. The
+        // attempt is still a security event, and only administrators read the journal.
+        await ctx.repo.audit({ identityId: row.id, action: 'email.change_requested', details: { email: input.email, taken: true } });
+        return { ok: true as const };
+      }
 
       const token = newToken();
-      const issued = await ctx.repo.issueToken(row.id, 'email-change', token, EMAIL_CHANGE_TTL_SECONDS, {
-        payload: { email: input.email }, passwordHash: row.password_hash, email: row.email,
+      // Requested and changed are two entries, as with password recovery; the link and its entry commit together.
+      const issued = await ctx.repo.withTransaction(async (repo) => {
+        if (!await repo.issueToken(row.id, 'email-change', token, EMAIL_CHANGE_TTL_SECONDS, {
+          payload: { email: input.email }, passwordHash: row.password_hash, email: row.email,
+        })) return false;
+        await repo.audit({ identityId: row.id, action: 'email.change_requested', details: { email: input.email } });
+        return true;
       });
       if (!issued) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Данные входа изменились. Войдите снова' });
 
