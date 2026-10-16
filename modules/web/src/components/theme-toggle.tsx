@@ -11,9 +11,9 @@ import {
 import { useTheme } from "@/components/theme-provider"
 
 const LABELS: Record<ThemePreference, string> = {
-  light: "Light",
-  dark: "Dark",
-  system: "System",
+  light: "Светлая",
+  dark: "Тёмная",
+  system: "Как в системе",
 }
 
 const ICONS: Record<ThemePreference, typeof SunIcon> = {
@@ -33,7 +33,7 @@ export function ThemeToggle() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground data-[state=open]:text-foreground" aria-label={`Theme: ${LABELS[preference]}`}>
+        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground data-[state=open]:text-foreground" aria-label={`Тема: ${LABELS[preference]}`}>
           <Icon />
         </Button>
       </DropdownMenuTrigger>

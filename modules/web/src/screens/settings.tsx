@@ -154,7 +154,6 @@ function AccountSection() {
     <Card>
       <CardHeader>
         <CardTitle>Аккаунт</CardTitle>
-        <CardDescription>Адрес, с которым вы входите.</CardDescription>
         <CardAction>
           <Button variant="ghost" size="sm" onClick={() => void refresh()}>
             Обновить
@@ -163,7 +162,11 @@ function AccountSection() {
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2 text-sm">
-          <p className="font-medium">{identity?.email}</p>
+          {/* The caption sits right on the address it explains; up in the card header it read as the card's own. */}
+          <div className="space-y-1">
+            <p className="text-muted-foreground">Адрес, с которым вы входите.</p>
+            <p className="font-medium">{identity?.email}</p>
+          </div>
           {identity?.emailVerifiedAt === null ? (
             <div className="flex flex-wrap items-center gap-3">
               {/* The button keeps to the right, and drops under the status, still on the right, when the line is short. */}

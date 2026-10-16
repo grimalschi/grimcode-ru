@@ -137,6 +137,20 @@ test.describe('themes', () => {
     await expect.poll(() => appliedTheme(page)).toBe('light');
   });
 
+  test('is offered in Russian in the application as well', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/app/');
+
+    await page.getByRole('button', { name: 'Тема: Как в системе' }).click();
+    await expect(page.getByRole('menuitem')).toHaveText(['Светлая', 'Тёмная', 'Как в системе']);
+    await page.getByRole('menuitem', { name: 'Тёмная' }).click();
+    await expect.poll(() => appliedTheme(page)).toBe('dark');
+    await expect(page.getByRole('button', { name: 'Тема: Тёмная' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Тема: Тёмная' }).click();
+    await page.getByRole('menuitem', { name: 'Как в системе' }).click();
+  });
+
   test('survives a reload, so a dark panel does not flash white', async ({ page }) => {
     await signIn(page);
     await page.goto('/admin/');
