@@ -1,14 +1,17 @@
+import { CircleHelpIcon, MonitorIcon, SmartphoneIcon, TabletIcon } from 'lucide-react';
 import * as React from 'react';
 import { toast } from 'sonner';
 
 import { auth, messageOf, users } from '@/api';
 import { Page } from '@/components/layout/page';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { day, describeDevice, sinceNow, type DeviceKind } from '@/device';
 import { useAsync } from '@/hooks/use-async';
 import { useSession } from '@/session';
 
@@ -249,6 +252,14 @@ function AccountSection() {
   );
 }
 
+/*
+ * A button beside the card's title on a wide card; on a phone it would squeeze the title and the
+ * description into a column a word wide, so below a header of 28rem it moves under them instead.
+ */
+const HEADER_WITH_ACTION = 'has-data-[slot=card-action]:grid-cols-1 @md/card-header:has-data-[slot=card-action]:grid-cols-[1fr_auto]';
+const ACTION_IN_HEADER =
+  'col-start-1 row-span-1 row-start-3 justify-self-start @md/card-header:col-start-2 @md/card-header:row-span-2 @md/card-header:row-start-1 @md/card-header:justify-self-end';
+
 function PasswordSection() {
   const [currentPassword, setCurrentPassword] = React.useState('');
   const [newPassword, setNewPassword] = React.useState('');
@@ -309,6 +320,13 @@ function PasswordSection() {
   );
 }
 
+const DEVICE_ICONS: Record<DeviceKind, React.ComponentType<{ className?: string }>> = {
+  phone: SmartphoneIcon,
+  tablet: TabletIcon,
+  computer: MonitorIcon,
+  unknown: CircleHelpIcon,
+};
+
 function SessionsSection() {
   const state = useAsync(() => auth.listOwnSessions.query({}), []);
   const [busy, setBusy] = React.useState(false);
@@ -344,13 +362,18 @@ function SessionsSection() {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className={HEADER_WITH_ACTION}>
         <CardTitle>Где вы вошли</CardTitle>
         <CardDescription>
           Каждый браузер, в котором сейчас есть действующая сессия. Сверху — новые.
         </CardDescription>
+        <CardAction className={ACTION_IN_HEADER}>
+          <Button variant="outline" size="sm" onClick={() => void revokeOthers()} disabled={busy || others === 0}>
+            Завершить все остальные
+          </Button>
+        </CardAction>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent>
         {state.loading ? (
           <Skeleton className="h-24 w-full" />
         ) : state.error ? (
@@ -359,45 +382,66 @@ function SessionsSection() {
         ) : (
           /*
             Scrolls rather than growing: someone who signs in from a phone, a laptop and a work
-            machine builds this list up over months, and it would otherwise push the button that
-            ends them all off the screen.
+            machine builds this list up over months, and it would otherwise push the card below away.
           */
-          <ul className="max-h-72 space-y-2 overflow-y-auto pr-1 text-sm">
-            {(state.data?.sessions ?? []).map((session) => (
-              <li
-                key={session.id}
-                data-testid="own-session"
-                data-session-id={session.id}
-                className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block">
-                    Начата {new Date(session.createdAt).toLocaleString()}
-                    {session.current ? ' — этот браузер' : ''}
+          <TooltipProvider>
+          <ul className="max-h-96 divide-y overflow-y-auto pr-1 text-sm">
+            {(state.data?.sessions ?? []).map((session) => {
+              const device = describeDevice(session.userAgent);
+              const Icon = DEVICE_ICONS[device.kind];
+              return (
+                <li
+                  key={session.id}
+                  data-testid="own-session"
+                  data-session-id={session.id}
+                  className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
+                >
+                  {/* On a phone the icon would take the room the device name needs. */}
+                  <span className="bg-muted text-muted-foreground hidden size-8 shrink-0 items-center justify-center rounded-md sm:flex">
+                    <Icon className="size-4" />
                   </span>
-                  <span className="text-muted-foreground block truncate text-xs">
-                    {session.userAgent ?? 'Неизвестный браузер'}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-x-2 font-medium">
+                      {/* The raw string stays at hand for whoever needs the exact browser; the name answers the pointer so the tooltip is found. */}
+                      {session.userAgent ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span tabIndex={0} className="hover:text-muted-foreground cursor-pointer transition-colors">
+                              {device.name}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-80 break-words">{session.userAgent}</TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        device.name
+                      )}
+                      {session.current ? (
+                        <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs font-normal">
+                          Этот браузер
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="text-muted-foreground block text-xs">
+                      {sinceNow(session.lastSeenAt)} · вход {day(session.createdAt)}
+                    </span>
                   </span>
-                </span>
-                <span className="text-muted-foreground shrink-0 text-xs whitespace-nowrap">
-                  Активна {new Date(session.lastSeenAt).toLocaleString()}
-                </span>
-                {session.current ? null : (
-                  <Button variant="outline" size="sm" disabled={busy} onClick={() => void revokeOne(session.id)}>
-                    Завершить
-                  </Button>
-                )}
-              </li>
-            ))}
+                  {session.current ? null : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive shrink-0"
+                      disabled={busy}
+                      onClick={() => void revokeOne(session.id)}
+                    >
+                      Завершить
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
+          </TooltipProvider>
         )}
-
-        <Button variant="outline" onClick={() => void revokeOthers()} disabled={busy || others === 0}>
-          Завершить все остальные
-        </Button>
-        <p className="text-muted-foreground text-xs">
-          Этот браузер останется в системе. Чтобы выйти и из него — «Выйти» вверху.
-        </p>
       </CardContent>
     </Card>
   );

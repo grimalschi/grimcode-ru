@@ -169,8 +169,16 @@ test.describe('a signed-in person', () => {
 
     await page.goto('/app/settings');
     await page.getByRole('tab', { name: 'Безопасность' }).click();
-    const current = page.getByTestId('own-session').filter({ hasText: 'этот браузер' });
+    const current = page.getByTestId('own-session').filter({ hasText: 'Этот браузер' });
     await expect(current.getByRole('button', { name: 'Завершить' })).toHaveCount(0);
+    // The device is named for a person, not by its raw user-agent string.
+    await expect(current).toContainText(/Chrome, (Windows|Linux|macOS)/);
+    await expect(current).not.toContainText('Mozilla/5.0');
+    // The raw string is one hover away, on a name that shows it can be pointed at.
+    const name = current.locator('[data-slot="tooltip-trigger"]');
+    await expect.poll(() => name.evaluate((element) => getComputedStyle(element).cursor)).toBe('pointer');
+    await name.hover();
+    await expect(page.getByRole('tooltip')).toContainText('Mozilla/5.0');
     const row = page.locator(`[data-session-id="${otherId}"]`);
     await row.getByRole('button', { name: 'Завершить', exact: true }).click();
     await expect(row).toHaveCount(0);
