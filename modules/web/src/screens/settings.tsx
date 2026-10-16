@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { auth, messageOf, users } from '@/api';
 import { Page } from '@/components/layout/page';
 import { Button } from '@/components/ui/button';
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -118,10 +118,20 @@ function ProfileSection() {
 }
 
 function AccountSection() {
-  const { identity, refresh } = useSession();
+  const { identity } = useSession();
+  // The form to change the address stays folded: an address changes once in years, and two open
+  // fields under it made the card read as a form to fill in.
+  const [changing, setChanging] = React.useState(false);
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [busy, setBusy] = React.useState(false);
+  const verified = identity?.emailVerifiedAt !== null;
+
+  const close = () => {
+    setChanging(false);
+    setEmail('');
+    setPassword('');
+  };
 
   const requestChange = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -131,12 +141,12 @@ function AccountSection() {
       // The address only changes once the link in the new mailbox is opened; saying so avoids the
       // impression that it already did.
       toast.success('Подтвердите изменение по ссылке, отправленной на новый адрес');
-      setEmail('');
+      close();
     } catch (error) {
       toast.error(messageOf(error));
-    } finally {
       // The password never stays in the form; the new address does, so a mistyped password costs one field.
       setPassword('');
+    } finally {
       setBusy(false);
     }
   };
@@ -154,67 +164,86 @@ function AccountSection() {
     <Card>
       <CardHeader>
         <CardTitle>Аккаунт</CardTitle>
-        <CardAction>
-          <Button variant="ghost" size="sm" onClick={() => void refresh()}>
-            Обновить
-          </Button>
-        </CardAction>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-2 text-sm">
-          {/* The caption sits right on the address it explains; up in the card header it read as the card's own. */}
-          <div className="space-y-1">
-            <p className="text-muted-foreground">Адрес, с которым вы входите.</p>
-            <p className="font-medium">{identity?.email}</p>
-          </div>
-          {identity?.emailVerifiedAt === null ? (
-            <div className="flex flex-wrap items-center gap-3">
-              {/* The button keeps to the right, and drops under the status, still on the right, when the line is short. */}
-              <span className="text-muted-foreground">Ещё не подтверждён.</span>
-              <Button variant="outline" size="sm" className="ml-auto" onClick={() => void resend()}>
-                Отправить новую ссылку
+      <CardContent className="space-y-4 text-sm">
+        <div className="space-y-1">
+          <p className="text-muted-foreground">Адрес, с которым вы входите.</p>
+          {/* Held at the button's height, so the line does not jump when the button gives way to the form. */}
+          <div className="flex min-h-8 flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="font-medium">{identity?.email}</span>
+            <span
+              className={
+                verified
+                  ? 'rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                  : 'rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+              }
+            >
+              {verified ? 'Подтверждён' : 'Не подтверждён'}
+            </span>
+            {changing ? null : (
+              <Button variant="outline" size="sm" className="ml-auto" onClick={() => setChanging(true)}>
+                Сменить адрес
               </Button>
-            </div>
-          ) : (
-            <p className="text-muted-foreground">Подтверждён.</p>
+            )}
+          </div>
+          {/* The status follows on its own when the person comes back from the letter: SessionProvider re-reads it. */}
+          {verified ? null : (
+            <p className="text-muted-foreground pt-2">
+              Ссылка для подтверждения — в письме. Не пришло?{' '}
+              <button
+                type="button"
+                className="text-foreground underline decoration-muted-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground"
+                onClick={() => void resend()}
+              >
+                Отправить ещё раз
+              </button>
+            </p>
           )}
         </div>
 
-        <form onSubmit={requestChange} className="space-y-3">
-          {/*
-            An address and a password read as a sign-in form to a password manager, which would then
-            offer to save this password under the new, unconfirmed address. The current address,
-            marked as the username, tells it which account the password belongs to.
-          */}
-          <input type="text" name="username" autoComplete="username" value={identity?.email ?? ''} readOnly hidden />
-          <div className="space-y-2">
-            <Label htmlFor="newEmail">Сменить адрес</Label>
-            <Input
-              id="newEmail"
-              type="email"
-              autoComplete="email"
-              value={email}
-              placeholder="new@example.com"
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="emailChangePassword">Подтвердите пароль</Label>
-            <Input
-              id="emailChangePassword"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </div>
-          <p className="text-muted-foreground text-xs">
-            Новый адрес нужно подтвердить, а старому мы сообщим об изменении.
-          </p>
-          <Button type="submit" disabled={busy || email.trim() === '' || password === ''}>
-            Отправить
-          </Button>
-        </form>
+        {changing ? (
+          <form onSubmit={requestChange} className="space-y-3 border-t pt-4">
+            {/*
+              An address and a password read as a sign-in form to a password manager, which would then
+              offer to save this password under the new, unconfirmed address. The current address,
+              marked as the username, tells it which account the password belongs to.
+            */}
+            <input type="text" name="username" autoComplete="username" value={identity?.email ?? ''} readOnly hidden />
+            <div className="space-y-2">
+              <Label htmlFor="newEmail">Новый адрес</Label>
+              <Input
+                id="newEmail"
+                type="email"
+                autoComplete="email"
+                autoFocus
+                value={email}
+                placeholder="new@example.com"
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="emailChangePassword">Подтвердите пароль</Label>
+              <Input
+                id="emailChangePassword"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </div>
+            <p className="text-muted-foreground text-xs">
+              Новый адрес нужно подтвердить, а старому мы сообщим об изменении.
+            </p>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={busy || email.trim() === '' || password === ''}>
+                Отправить
+              </Button>
+              <Button type="button" variant="ghost" disabled={busy} onClick={close}>
+                Отмена
+              </Button>
+            </div>
+          </form>
+        ) : null}
       </CardContent>
     </Card>
   );

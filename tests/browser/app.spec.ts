@@ -113,7 +113,12 @@ test.describe('a signed-in person', () => {
     await page.goto('/app/settings');
     await page.getByRole('tab', { name: 'Аккаунт' }).click();
 
-    const address = page.getByLabel('Сменить адрес');
+    // The form stays folded until asked for, and the card needs no button to refresh it.
+    await expect(page.getByLabel('Новый адрес')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Обновить' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Сменить адрес' }).click();
+
+    const address = page.getByLabel('Новый адрес');
     const password = page.getByLabel('Подтвердите пароль');
     const send = page.getByRole('button', { name: 'Отправить', exact: true });
     // A password manager is told which account the password belongs to, not offered the new address.
@@ -129,6 +134,10 @@ test.describe('a signed-in person', () => {
     // The address stays for a second try; the password does not stay in the form.
     await expect(address).toHaveValue('someone-new@example.test');
     await expect(password).toHaveValue('');
+
+    await page.getByRole('button', { name: 'Отмена' }).click();
+    await expect(address).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Сменить адрес' })).toBeVisible();
 
     // The refusal of the wrong password is the one failed request the browser reports; anything else is a fault.
     expectNoPageErrors(problems.filter((problem) => !/status of 401/.test(problem)));
@@ -174,6 +183,17 @@ test.describe('a signed-in person', () => {
     await elsewhere.close();
 
     expectNoPageErrors(problems);
+  });
+
+  test('re-reads the account on coming back to the tab, so a confirmation made elsewhere shows', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/app/settings');
+    await page.getByRole('tab', { name: 'Аккаунт' }).click();
+    await expect(page.getByText('Адрес, с которым вы входите.')).toBeVisible();
+
+    const reread = page.waitForRequest('**/module/auth/rpc/currentSession');
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await reread;
   });
 
   test('is put back out when the session ends', async ({ page }) => {
