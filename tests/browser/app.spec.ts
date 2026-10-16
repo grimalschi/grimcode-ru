@@ -83,6 +83,26 @@ test.describe('a signed-in person', () => {
     // One settings screen with sections, not three separate destinations.
     await expect(page.getByRole('link', { name: 'Профиль' })).toHaveCount(0);
 
+    // Only the page that is open is marked in the header, and the home page is not lit everywhere.
+    const navigation = page.getByRole('navigation');
+    await expect(navigation.getByRole('link', { name: 'Настройки' })).toHaveAttribute('data-status', 'active');
+    await expect(navigation.getByRole('link', { name: 'Главная' })).not.toHaveAttribute('data-status', 'active');
+    // At rest the other item is grey; under the pointer it turns the colour of the open one.
+    const color = (name: string) => navigation.getByRole('link', { name }).evaluate((element) => getComputedStyle(element).color);
+    const open = await color('Настройки');
+    expect(await color('Главная')).not.toBe(open);
+    await navigation.getByRole('link', { name: 'Главная' }).hover();
+    await expect.poll(() => color('Главная')).toBe(open);
+    // The buttons beside it answer the pointer the same way.
+    const signOut = page.getByRole('button', { name: 'Выйти' });
+    const signOutColor = () => signOut.evaluate((element) => getComputedStyle(element).color);
+    expect(await signOutColor()).not.toBe(open);
+    await signOut.hover();
+    await expect.poll(signOutColor).toBe(open);
+    await navigation.getByRole('link', { name: 'Главная' }).click();
+    await expect(navigation.getByRole('link', { name: 'Главная' })).toHaveAttribute('data-status', 'active');
+    await expect(navigation.getByRole('link', { name: 'Настройки' })).not.toHaveAttribute('data-status', 'active');
+
     expectNoPageErrors(problems);
   });
 
@@ -200,6 +220,16 @@ test.describe('the recovery link', () => {
 
     await expect(page.getByLabel('Новый пароль')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Изменить пароль' })).toBeVisible();
+  });
+
+  test('darkens a link\'s grey underline under the pointer', async ({ page }) => {
+    await page.goto('/app/login');
+    const link = page.getByRole('link', { name: 'Забыли пароль?' });
+    const underline = () => link.evaluate((element) => getComputedStyle(element).textDecorationColor);
+    const text = await link.evaluate((element) => getComputedStyle(element).color);
+    expect(await underline()).not.toBe(text);
+    await link.hover();
+    await expect.poll(underline).toBe(text);
   });
 
   test('says so when the link carries no token, instead of pretending', async ({ page }) => {

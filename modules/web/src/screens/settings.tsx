@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { auth, messageOf, users } from '@/api';
 import { Page } from '@/components/layout/page';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -155,14 +155,20 @@ function AccountSection() {
       <CardHeader>
         <CardTitle>Аккаунт</CardTitle>
         <CardDescription>Адрес, с которым вы входите.</CardDescription>
+        <CardAction>
+          <Button variant="ghost" size="sm" onClick={() => void refresh()}>
+            Обновить
+          </Button>
+        </CardAction>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2 text-sm">
           <p className="font-medium">{identity?.email}</p>
           {identity?.emailVerifiedAt === null ? (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* The button keeps to the right, and drops under the status, still on the right, when the line is short. */}
               <span className="text-muted-foreground">Ещё не подтверждён.</span>
-              <Button variant="outline" size="sm" onClick={() => void resend()}>
+              <Button variant="outline" size="sm" className="ml-auto" onClick={() => void resend()}>
                 Отправить новую ссылку
               </Button>
             </div>
@@ -206,10 +212,6 @@ function AccountSection() {
             Отправить
           </Button>
         </form>
-
-        <Button variant="ghost" size="sm" onClick={() => void refresh()}>
-          Обновить
-        </Button>
       </CardContent>
     </Card>
   );

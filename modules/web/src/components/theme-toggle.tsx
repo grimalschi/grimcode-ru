@@ -33,7 +33,7 @@ export function ThemeToggle() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={`Theme: ${LABELS[preference]}`}>
+        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground data-[state=open]:text-foreground" aria-label={`Theme: ${LABELS[preference]}`}>
           <Icon />
         </Button>
       </DropdownMenuTrigger>

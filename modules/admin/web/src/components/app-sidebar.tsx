@@ -168,7 +168,7 @@ export function AppSidebar({ session, onLogout }: { session: AdminSession; onLog
             <Button
               variant="ghost"
               size="icon"
-              className="size-7"
+              className="text-muted-foreground hover:text-foreground size-7"
               onClick={onLogout}
               aria-label="Выйти"
             >

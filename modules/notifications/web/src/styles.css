@@ -143,4 +143,23 @@
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
   }
+
+  /*
+   * Tailwind 4 gives buttons the arrow cursor. Everything a person can press shows the hand instead —
+   * the owner's rule, first set for the admin shell (9 October 2026) and carried to every screen
+   * (16 October 2026). Disabled controls keep the arrow.
+   */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="switch"]:not(:disabled),
+  [role="checkbox"]:not(:disabled),
+  [role="combobox"]:not(:disabled),
+  [role="option"]:not([data-disabled]),
+  [role="menuitem"]:not([data-disabled]),
+  [role="tab"],
+  label[for],
+  label:has(> button:not(:disabled)),
+  summary {
+    cursor: pointer;
+  }
 }

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 
 import { appliedTheme, collectPageErrors, expectNoPageErrors, signIn } from './support.js';
 
@@ -252,5 +252,36 @@ test.describe('the frame protocol', () => {
     await expect(page.getByRole('button', { name: /^Тема:/ })).toBeVisible();
 
     expectNoPageErrors(problems);
+  });
+});
+
+/**
+ * Tailwind 4 gives buttons the arrow cursor; each screen restores the hand in its own stylesheet, so
+ * each one is checked: the shell, the four module admins standing alone, and the application.
+ */
+test.describe('the pointer', () => {
+  test('is a hand over what can be pressed, on every screen', async ({ page }) => {
+    const cursor = (locator: Locator) => locator.evaluate((element) => getComputedStyle(element).cursor);
+    await signIn(page);
+
+    await page.goto('/admin/');
+    expect(await cursor(page.getByRole('button', { name: /^Тема:/ })), 'admin').toBe('pointer');
+    // The icons under the sidebar are grey and darken under the pointer, as in the application header.
+    const signOut = page.getByRole('button', { name: 'Выйти' });
+    const color = () => signOut.evaluate((element) => getComputedStyle(element).color);
+    const atRest = await color();
+    await signOut.hover();
+    await expect.poll(color).not.toBe(atRest);
+
+    for (const module of ['auth', 'users', 'email', 'notifications']) {
+      await page.goto(`/admin/embed/module/${module}/`);
+      const toggle = page.getByRole('button', { name: /^Тема:/ });
+      await expect(toggle, module).toBeVisible();
+      expect(await cursor(toggle), module).toBe('pointer');
+    }
+
+    await page.goto('/app/settings');
+    expect(await cursor(page.getByRole('tab', { name: 'Аккаунт' })), 'application tab').toBe('pointer');
+    expect(await cursor(page.getByRole('button', { name: 'Выйти' })), 'application button').toBe('pointer');
   });
 });

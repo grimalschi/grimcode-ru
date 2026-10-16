@@ -61,7 +61,7 @@ function Shell() {
               <Link
                 key={tab.to}
                 to={tab.to}
-                className="[&.active]:text-foreground text-muted-foreground [&.active]:font-medium"
+                className="text-muted-foreground transition-colors hover:text-foreground [&.active]:text-foreground"
                 activeOptions={{ exact: tab.to === '/' }}
               >
                 {tab.label}

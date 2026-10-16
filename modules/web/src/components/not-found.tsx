@@ -7,7 +7,7 @@ export function NotFound() {
       <p className="text-muted-foreground mt-2">
         Возможно, в адресе опечатка или страницу удалили.
       </p>
-      <Link to="/" className="mt-6 inline-block underline underline-offset-4">
+      <Link to="/" className="mt-6 inline-block underline decoration-muted-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground">
         На главную
       </Link>
     </div>
