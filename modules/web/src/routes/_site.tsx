@@ -40,9 +40,9 @@ function SiteLayout() {
       </main>
 
       <footer className="mt-16 border-t">
-        <div className="text-muted-foreground mx-auto w-full max-w-4xl space-y-3 px-6 py-8 text-sm">
+        <div className="text-muted-foreground mx-auto w-full max-w-4xl space-y-3 px-6 py-8 text-center text-sm">
           <Separator />
-          <nav className="flex flex-wrap gap-4">
+          <nav className="flex flex-wrap justify-center gap-4">
             <Link to="/legal/terms">Условия</Link>
             <Link to="/legal/privacy">Конфиденциальность</Link>
             <Link to="/contact">Контакты</Link>

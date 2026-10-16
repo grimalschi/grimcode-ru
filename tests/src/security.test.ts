@@ -289,6 +289,17 @@ describe('sign-in attempts', () => {
   });
 });
 
+describe('a new password', () => {
+  // The form stops a short password first; the server's answer still reaches anyone calling it directly.
+  it('is refused below 12 characters, in Russian, and creates no account', async () => {
+    const email = testEmail('short-password');
+    const refused = await new Session().rpc(AUTH, 'register', { email, password: 'short' });
+    expect(refused.status).toBe(400);
+    expect(errorMessage(refused.body)).toContain('Пароль должен быть не короче 12 символов');
+    expect((await new Session().rpc(AUTH, 'login', { email, password: 'short' })).status).toBe(401);
+  });
+});
+
 describe('recovery', () => {
   /**
    * Whether an address is registered is not something the recovery form is willing to reveal, so

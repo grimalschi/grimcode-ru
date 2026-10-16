@@ -208,6 +208,19 @@ test.describe('the recovery link', () => {
     await expect(page.getByText('Ссылка неполная')).toBeVisible();
     await expect(page.getByLabel('Новый пароль')).toHaveCount(0);
   });
+
+  test('leads back to sign in from the recovery form', async ({ page }) => {
+    await page.goto('/app/reset-password');
+    await page.getByRole('link', { name: 'К входу', exact: true }).click();
+    await expect(page).toHaveURL(/\/app\/login$/);
+  });
+
+  for (const path of ['/app/verify-email', '/app/confirm-email-change']) {
+    test(`says in Russian that ${path} came without its token`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page.getByText('Ссылка неполная. Откройте её из письма ровно так, как её прислали.')).toBeVisible();
+    });
+  }
 });
 
 test.describe('the public site', () => {

@@ -213,7 +213,7 @@ export function RequestResetScreen() {
       description="Пришлём одноразовую ссылку."
       footer={
         <Link to="/app/login" search={{ next: undefined }} className="text-sm underline underline-offset-4">
-          Back to sign in
+          К входу
         </Link>
       }
     >
@@ -317,7 +317,7 @@ export function ConfirmEmailChangeScreen() {
   React.useEffect(() => {
     if (token === '') {
       setState('failed');
-      setMessage('This link is incomplete. Open it from the email exactly as it was sent.');
+      setMessage('Ссылка неполная. Откройте её из письма ровно так, как её прислали.');
       return;
     }
 
@@ -384,7 +384,7 @@ export function VerifyEmailScreen() {
   React.useEffect(() => {
     if (token === '') {
       setState('failed');
-      setMessage('This link is incomplete. Open it from the email exactly as it was sent.');
+      setMessage('Ссылка неполная. Откройте её из письма ровно так, как её прислали.');
       return;
     }
 

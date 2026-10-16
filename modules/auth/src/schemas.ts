@@ -36,4 +36,4 @@ export const authAuditEntrySchema = z.object({
   createdAt: isoDateTimeSchema,
 });
 
-export const passwordSchema = z.string().min(12, 'Password must contain at least 12 characters').max(200);
+export const passwordSchema = z.string().min(12, 'Пароль должен быть не короче 12 символов').max(200);
