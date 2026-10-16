@@ -60,12 +60,12 @@ Playwright retains a trace on failure; browser helpers collect console errors an
 | --- | --- |
 | Roles, module grants, CSRF and routing | [access.test.ts](src/access.test.ts) |
 | Sessions (ending one or all others), sign-in and current-password limits, letter windows, recovery, the password behind an email change, blocking and owner preservation | [security.test.ts](src/security.test.ts) |
-| Notifications, MJML publication and sending, profile flows | [flows.test.ts](src/flows.test.ts) |
+| Notifications, MJML publication and sending, the template journal, profile flows | [flows.test.ts](src/flows.test.ts) |
 | Admin navigation, embedded screens and theme | [admin-shell.spec.ts](browser/admin-shell.spec.ts) |
 | Administrator menus, direct links, revoked access and cross-origin requests | [admin-access.spec.ts](browser/admin-access.spec.ts) |
 | Blocking an account from the Users screen: the owner's button with a confirmation, none for the owner's own or another owner's account, none for an administrator with the grant | [users-blocking.spec.ts](browser/users-blocking.spec.ts) |
 | Database filters (conditions by column type, SQL NULL against the empty string, "or empty", И/ИЛИ chain and reordering, case switch, unfilled conditions, typing pause, calendar and time box, floating panels), multi-level sorting from its panel, column visibility from its panel, views listed read-only beside tables, following a foreign key from a cell and the row dialog, column names and row actions kept in view while the table scrolls, URL state and row editing | [database.spec.ts](browser/database.spec.ts) |
-| Email source editing, draft isolation, preview, publication and test sends | [email-admin.spec.ts](browser/email-admin.spec.ts) |
+| Email source editing, draft isolation, preview, publication, test sends and the journal tab | [email-admin.spec.ts](browser/email-admin.spec.ts) |
 | Sign-in flows, the email change form, ending another sign-in, application navigation and public SSR pages | [app.spec.ts](browser/app.spec.ts) |
 
 Keep local validation and business rules in module tests; use these suites for behavior that crosses

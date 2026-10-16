@@ -7,6 +7,7 @@ import {
   deliveryListItemSchema,
   deliverySchema,
   deliveryStatusSchema,
+  emailAuditEntrySchema,
   templateSchema,
   templateVersionSchema,
 } from '../schemas.js';
@@ -156,6 +157,7 @@ export const adminRouter = adminT.router({
           action: 'template.created',
           actorUserId: ctx.adminContext.userId,
           actorRole: ctx.adminContext.role,
+          actorEmail: ctx.adminContext.email,
           details: { key: input.key },
         });
         return created;
@@ -181,6 +183,7 @@ export const adminRouter = adminT.router({
           action: 'template.updated',
           actorUserId: ctx.adminContext.userId,
           actorRole: ctx.adminContext.role,
+          actorEmail: ctx.adminContext.email,
           details: { key: updated.key },
         });
         return updated;
@@ -219,6 +222,7 @@ export const adminRouter = adminT.router({
           action: 'version.draft.created',
           actorUserId: ctx.adminContext.userId,
           actorRole: ctx.adminContext.role,
+          actorEmail: ctx.adminContext.email,
           details: { templateKey: template.key, version: draft.version },
         });
         return draft;
@@ -233,15 +237,24 @@ export const adminRouter = adminT.router({
     )
     .output(z.object({ ok: z.literal(true), version: templateVersionSchema }))
     .mutation(async ({ input, ctx }) => {
-      try {
-        const row = await ctx.repo.saveDraft(input.id, input.subject, input.source);
-        return { ok: true as const, version: toVersion(row) };
-      } catch (error) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: error instanceof Error ? error.message : 'Draft could not be saved',
-        });
-      }
+      // «Сохранить» also runs silently before publishing and before a test send, so only a save
+      // that changed the subject or the source is recorded; the save and its entry commit together.
+      const saved = await ctx.repo.withTransaction(async (repo) => {
+        const result = await repo.saveDraft(input.id, input.subject, input.source);
+        if (result?.changed) {
+          const template = await repo.findTemplateById(result.row.template_id);
+          await repo.audit({
+            action: 'version.draft.saved',
+            actorUserId: ctx.adminContext.userId,
+            actorRole: ctx.adminContext.role,
+            actorEmail: ctx.adminContext.email,
+            details: { templateKey: template?.key, version: result.row.version },
+          });
+        }
+        return result;
+      });
+      if (!saved) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Only a draft can be edited' });
+      return { ok: true as const, version: toVersion(saved.row) };
     }),
 
   /** Validates variables and stores compiled HTML and text with the publication. */
@@ -267,6 +280,7 @@ export const adminRouter = adminT.router({
             action: 'version.published',
             actorUserId: ctx.adminContext.userId,
             actorRole: ctx.adminContext.role,
+            actorEmail: ctx.adminContext.email,
             details: { templateKey: template.key, version: published.version },
           });
           return published;
@@ -340,6 +354,7 @@ export const adminRouter = adminT.router({
           action: 'version.test-sent',
           actorUserId: ctx.adminContext.userId,
           actorRole: ctx.adminContext.role,
+          actorEmail: ctx.adminContext.email,
           details: { templateKey: template.key, to: input.to, deliveryId: opened.row.id },
         });
         return opened;
@@ -382,6 +397,28 @@ export const adminRouter = adminT.router({
           error: row.error,
           createdAt: row.created_at.toISOString(),
           sentAt: row.sent_at?.toISOString() ?? null,
+        })),
+        total,
+        limit: input.limit,
+        offset: input.offset,
+      };
+    }),
+
+  /** Who did what with templates, newest first. */
+  listAudit: adminProcedure
+    .input(paginationInputSchema)
+    .output(pageOf(emailAuditEntrySchema))
+    .query(async ({ input, ctx }) => {
+      const { rows, total } = await ctx.repo.listAudit(input.query, input.limit, input.offset);
+      return {
+        items: rows.map((row) => ({
+          id: row.id,
+          action: row.action,
+          actorUserId: row.actor_user_id,
+          actorRole: row.actor_role,
+          actorEmail: row.actor_email,
+          details: row.details ?? {},
+          createdAt: row.created_at.toISOString(),
         })),
         total,
         limit: input.limit,

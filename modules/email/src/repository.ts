@@ -46,6 +46,16 @@ export interface DeliveryRow {
   sent_at: Date | null;
 }
 
+export interface AuditRow {
+  id: string;
+  action: string;
+  actor_user_id: string | null;
+  actor_role: string | null;
+  actor_email: string | null;
+  details: Record<string, unknown> | null;
+  created_at: Date;
+}
+
 const TEMPLATE_COLUMNS = 'id, key, name, description, variables, created_at, updated_at';
 const VERSION_COLUMNS = `
   id, template_id, version, status, subject, source,
@@ -55,6 +65,7 @@ const DELIVERY_COLUMNS = `
   id, dedupe_key, template_key, template_version_id, recipient_email, subject, html, text,
   transport, status, provider_message_id, provider_status, error, created_at, sent_at
 `;
+const AUDIT_COLUMNS = 'id, action, actor_user_id, actor_role, actor_email, details, created_at';
 
 /**
  * A repository runs on the pool, or on one transaction's connection when `withTransaction` handed
@@ -228,17 +239,38 @@ export class EmailRepository {
     });
   }
 
-  async saveDraft(id: string, subject: string, source: string): Promise<VersionRow> {
-    const { rows } = await this.sql.query<VersionRow>(
-      `UPDATE template_versions
-          SET subject = $2, source = $3, updated_at = now()
-        WHERE id = $1 AND status = 'draft'
-      RETURNING ${VERSION_COLUMNS}`,
-      [id, subject, source],
-    );
-    const row = rows[0];
-    if (!row) throw new Error('Only a draft can be edited');
-    return row;
+  /**
+   * Stores a draft's subject and source if they differ from what is saved; `null` when the version
+   * is not a draft. An identical save writes nothing, not even `updated_at`, and `changed` tells the
+   * caller there is nothing to record. The row stays locked from the comparison to the write, so two
+   * saves at once are compared one after the other.
+   */
+  async saveDraft(
+    id: string,
+    subject: string,
+    source: string,
+  ): Promise<{ row: VersionRow; changed: boolean } | null> {
+    return this.inTransaction(async (client) => {
+      const { rows: current } = await client.query<VersionRow>(
+        `SELECT ${VERSION_COLUMNS} FROM template_versions
+          WHERE id = $1 AND status = 'draft' FOR UPDATE`,
+        [id],
+      );
+      const saved = current[0];
+      if (!saved) return null;
+      if (saved.subject === subject && saved.source === source) return { row: saved, changed: false };
+
+      const { rows } = await client.query<VersionRow>(
+        `UPDATE template_versions
+            SET subject = $2, source = $3, updated_at = now()
+          WHERE id = $1
+        RETURNING ${VERSION_COLUMNS}`,
+        [id, subject, source],
+      );
+      const row = rows[0];
+      if (!row) throw new Error('Draft update returned no row');
+      return { row, changed: true };
+    });
   }
 
   /**
@@ -400,20 +432,44 @@ export class EmailRepository {
       action: string;
       actorUserId: string | null;
       actorRole: string | null;
+      actorEmail: string | null;
       details?: Record<string, unknown>;
     },
   ): Promise<void> {
     await this.sql.query(
-      `INSERT INTO email_audit (id, action, actor_user_id, actor_role, details)
-       VALUES ($1, $2, $3, $4, $5::jsonb)`,
+      `INSERT INTO email_audit (id, action, actor_user_id, actor_role, actor_email, details)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
       [
         randomUUID(),
         entry.action,
         entry.actorUserId,
         entry.actorRole,
+        entry.actorEmail,
         JSON.stringify(entry.details ?? {}),
       ],
     );
+  }
+
+  async listAudit(
+    query: string | undefined,
+    limit: number,
+    offset: number,
+  ): Promise<{ rows: AuditRow[]; total: number }> {
+    const filter = query ? `%${query.toLowerCase()}%` : null;
+
+    const { rows } = await this.sql.query<AuditRow>(
+      `SELECT ${AUDIT_COLUMNS} FROM email_audit
+        WHERE $1::text IS NULL OR lower(action) LIKE $1
+        ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+      [filter, limit, offset],
+    );
+    const { rows: countRows } = await this.sql.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM email_audit
+        WHERE $1::text IS NULL OR lower(action) LIKE $1`,
+      [filter],
+    );
+
+    return { rows, total: Number(countRows[0]?.count ?? 0) };
   }
 
   /**

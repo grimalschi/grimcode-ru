@@ -189,6 +189,32 @@ test.describe('the email admin', () => {
     expectNoPageErrors(problems);
   });
 
+  test('the journal shows who saved and published a version', async ({ page }) => {
+    const problems = collectPageErrors(page);
+    const owner = await resolveOwner();
+    const id = await createEditorDraft(owner, 'Journal subject', mjml('<p>Journal body</p>'));
+    const { version } = await owner.call<{ version: { version: number } }>(moduleAdmin('email'), 'getVersion', { id });
+    await signIn(page);
+    await page.goto(`/admin/embed/module/email/versions/${id}`);
+    await expect(page.getByLabel('Тема', { exact: true })).toHaveValue('Journal subject');
+    await page.getByLabel('Тема', { exact: true }).fill('Journal subject, edited');
+    await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+    await expect(page.getByLabel('Код MJML')).toHaveAttribute('readonly', '');
+
+    await page.getByRole('link', { name: 'Журнал', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Журнал' })).toBeVisible();
+    // The database keeps its own key order in the details, so each key is matched on its own.
+    const thisVersion = new RegExp(`"version":${version.version}[,}]`);
+    const ownerEmail = process.env.ACCEPTANCE_OWNER_EMAIL?.toLowerCase() ?? '';
+    for (const action of ['version.published', 'version.draft.saved']) {
+      const row = page.getByRole('row').filter({ hasText: action })
+        .filter({ hasText: '"templateKey":"browser-editor"' }).filter({ hasText: thisVersion });
+      await expect(row, action).toHaveCount(action === 'version.draft.saved' ? 2 : 1);
+      await expect(row.first(), action).toContainText(ownerEmail);
+    }
+    expectNoPageErrors(problems);
+  });
+
   test('invalid MJML shows a preview error and keeps the source editable', async ({ page }) => {
     const owner = await resolveOwner();
     const id = await createEditorDraft(owner, 'Invalid MJML', mjml('<p>Saved body</p>'));

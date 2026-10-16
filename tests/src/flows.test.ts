@@ -210,23 +210,26 @@ describe('email templates', () => {
     const source = '<mjml><mj-body><mj-section><mj-column><mj-text>Hello {{name}}</mj-text><mj-button href="{{url}}">Confirm</mj-button></mj-column></mj-section></mj-body></mjml>';
     const templateId = await ensureFixtureTemplate(owner, 'acceptance-published-links', ['name', 'url']);
 
-    const draft = await owner.call<{ version: { id: string } }>(
+    const draft = await owner.call<{ version: { id: string; version: number } }>(
       moduleAdmin('email'),
       'createDraft',
       { templateId },
       { csrf: true },
     );
 
-    await owner.call(
-      moduleAdmin('email'),
-      'saveDraft',
-      {
-        id: draft.version.id,
-        subject: 'Hello {{name}}',
-        source,
-      },
-      { csrf: true },
-    );
+    // The second, identical save is what publishing does silently: it changes nothing and is not recorded.
+    for (let save = 0; save < 2; save += 1) {
+      await owner.call(
+        moduleAdmin('email'),
+        'saveDraft',
+        {
+          id: draft.version.id,
+          subject: 'Hello {{name}}',
+          source,
+        },
+        { csrf: true },
+      );
+    }
 
     const published = await owner.call<{
       version: { status: string; source: string; compiledHtml: string; compiledText: string };
@@ -236,6 +239,14 @@ describe('email templates', () => {
     expect(published.version.compiledHtml).toMatch(/\{\{\s*name\s*\}\}/);
     expect(published.version.compiledText).toContain('Hello {{name}}');
     expect(published.version.compiledHtml).not.toContain('<mj-text>');
+
+    const journal = await owner.call<{ items: { action: string; actorEmail: string | null; details: Record<string, unknown> }[] }>(
+      moduleAdmin('email'), 'listAudit', { limit: 100, offset: 0 },
+    );
+    const thisVersion = journal.items.filter((entry) =>
+      entry.details.templateKey === 'acceptance-published-links' && entry.details.version === draft.version.version);
+    expect(thisVersion.map((entry) => entry.action)).toEqual(['version.published', 'version.draft.saved', 'version.draft.created']);
+    for (const entry of thisVersion) expect(entry.actorEmail).toBe(process.env.ACCEPTANCE_OWNER_EMAIL?.toLowerCase());
 
     const to = testEmail('template-mjml');
     const { deliveryId } = await owner.call<{ deliveryId: string }>(

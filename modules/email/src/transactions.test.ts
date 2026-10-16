@@ -29,6 +29,8 @@ function recorder(options: { auditFails?: boolean; versionStatus?: 'draft' | 'pu
     if (text.includes('WHERE key = $1')) return { rows: [], rowCount: 0 };
     if (text.includes('FROM templates') || text.includes('INSERT INTO templates')) return { rows: [template], rowCount: 1 };
     if (text.includes("SET status = 'published'")) return { rows: [published], rowCount: 1 };
+    if (text.includes('SET subject = $2')) return { rows: [{ ...draft, subject: 'Changed' }], rowCount: 1 };
+    if (options.versionStatus === 'published' && text.includes("status = 'draft' FOR UPDATE")) return { rows: [], rowCount: 0 };
     if (text.includes('FROM template_versions')) {
       return { rows: [options.versionStatus === 'published' ? published : draft], rowCount: 1 };
     }
@@ -125,5 +127,42 @@ describe('a template change and its audit entry share one transaction', () => {
     await expect(api.testSend({ id, to: 'a@example.test', variables: {} })).rejects.toThrow('audit storage refused');
     expect(on(statements, 'tx1').at(-1)).toBe('ROLLBACK');
     expect(transport.send).not.toHaveBeenCalled();
+  });
+
+  it('saves a changed draft and records it between one BEGIN and one COMMIT, the row locked first', async () => {
+    const { api, statements } = recorder();
+    await api.saveDraft({ id, subject: 'Changed', source: mjml });
+    const inside = on(statements, 'tx1');
+    expect(inside[0]).toBe('BEGIN');
+    expect(inside.at(-1)).toBe('COMMIT');
+    expect(inside.filter((text) => text === 'BEGIN')).toHaveLength(1);
+    expect(statements.find((entry) => entry.on === 'tx1' && entry.text.includes('FROM template_versions'))?.text).toContain('FOR UPDATE');
+    expect(inside.indexOf('UPDATE template_versions SET')).toBeLessThan(inside.indexOf('INSERT INTO email_audit'));
+    expect(on(statements, 'pool')).toEqual([]);
+  });
+
+  it('writes nothing for a save identical to the stored draft', async () => {
+    const { api, statements } = recorder();
+    await api.saveDraft({ id, subject: 'Subject', source: mjml });
+    const inside = on(statements, 'tx1');
+    expect(inside).not.toContain('UPDATE template_versions SET');
+    expect(inside).not.toContain('INSERT INTO email_audit');
+    expect(inside.at(-1)).toBe('COMMIT');
+  });
+
+  it('keeps the old draft when the save cannot be recorded', async () => {
+    const { api, statements } = recorder({ auditFails: true });
+    await expect(api.saveDraft({ id, subject: 'Changed', source: mjml })).rejects.toThrow('audit storage refused');
+    const inside = on(statements, 'tx1');
+    expect(inside).toContain('UPDATE template_versions SET');
+    expect(inside.at(-1)).toBe('ROLLBACK');
+  });
+
+  it('refuses a version that is no longer a draft without touching it', async () => {
+    const { api, statements } = recorder({ versionStatus: 'published' });
+    await expect(api.saveDraft({ id, subject: 'Changed', source: mjml })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    const inside = on(statements, 'tx1');
+    expect(inside).not.toContain('UPDATE template_versions SET');
+    expect(inside).not.toContain('INSERT INTO email_audit');
   });
 });

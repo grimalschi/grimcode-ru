@@ -15,6 +15,7 @@ import { AdminThemeProvider } from '@/components/theme-provider';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Toaster } from '@/components/ui/sonner';
 import { useFrameChild } from '@/frame/use-frame-child';
+import { AuditPage } from '@/routes/audit';
 import { DeliveriesPage } from '@/routes/deliveries';
 import { TemplateDetailPage } from '@/routes/template-detail';
 import { TemplatesPage } from '@/routes/templates';
@@ -27,6 +28,7 @@ const BASE = '/admin/embed/module/email';
 const TABS = [
   { to: '/', label: 'Шаблоны' },
   { to: '/deliveries', label: 'Отправки' },
+  { to: '/audit', label: 'Журнал' },
 ];
 
 /**
@@ -93,6 +95,7 @@ const router = createRouter({
       component: VersionEditorPage,
     }),
     createRoute({ getParentRoute: () => rootRoute, path: '/deliveries', component: DeliveriesPage }),
+    createRoute({ getParentRoute: () => rootRoute, path: '/audit', component: AuditPage }),
   ]),
   basepath: BASE,
   defaultPreload: 'intent',

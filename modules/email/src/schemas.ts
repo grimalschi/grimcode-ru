@@ -55,3 +55,14 @@ export const deliverySchema = z.object({
 });
 
 export const deliveryListItemSchema = deliverySchema.omit({ html: true, text: true });
+
+/** What an administrator did with templates. `actorEmail` is the address at the time; older entries have none. */
+export const emailAuditEntrySchema = z.object({
+  id: idSchema,
+  action: z.string().max(80),
+  actorUserId: idSchema.nullable(),
+  actorRole: z.string().max(20).nullable(),
+  actorEmail: z.string().max(320).nullable(),
+  details: z.record(z.string(), z.unknown()),
+  createdAt: isoDateTimeSchema,
+});

@@ -139,6 +139,18 @@ describe('administrator access matrix', () => {
     }
     await emailAdmin.session.call(prefix, 'updateTemplate', { id: templateId, name: 'Access guard fixture' }, { csrf: true });
   });
+
+  it('shows an email administrator who changed templates, by address, and nobody without the grant', async () => {
+    const prefix = moduleAdmin('email');
+    await emailAdmin.session.call(prefix, 'updateTemplate', { id: templateId, name: 'Access guard fixture' }, { csrf: true });
+    const journal = await emailAdmin.session.call<{ items: { action: string; actorRole: string | null; actorEmail: string | null }[] }>(
+      prefix, 'listAudit', { limit: 100, offset: 0 },
+    );
+    expect(journal.items).toContainEqual(expect.objectContaining({
+      action: 'template.updated', actorRole: 'admin', actorEmail: emailAdmin.email,
+    }));
+    expect((await authAdmin.session.rpc(prefix, 'listAudit', { limit: 1, offset: 0 })).status).toBe(403);
+  });
 });
 
 async function tokenFor(session: Session, prefix: string): Promise<string> {
