@@ -337,3 +337,16 @@ test.describe('a search in a module list', () => {
     await expect(page.locator('tbody[aria-busy="false"]')).toBeVisible();
   });
 });
+
+test.describe('the events list', () => {
+  test('names each status in Russian, in the table and in the filter', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/admin/embed/module/notifications/');
+    // Registering the suite's owner raised an event that went on to Email.
+    await expect(page.getByRole('cell', { name: 'Обработано' }).first()).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'routed', exact: true })).toHaveCount(0);
+
+    await page.getByRole('combobox').filter({ hasText: 'Любой статус' }).click();
+    await expect(page.getByRole('option')).toHaveText(['Любой статус', 'Принято', 'Обработано', 'Ошибка']);
+  });
+});
