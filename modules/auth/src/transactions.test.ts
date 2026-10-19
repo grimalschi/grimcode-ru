@@ -221,12 +221,12 @@ describe('a change and its audit entry share one transaction', () => {
       }
     });
 
-    it('records a request for a registered address but answers ok without a link or a letter', async () => {
+    it('records a request for a registered address and refuses it plainly, without a link or a letter', async () => {
       const { hashPassword } = await import('./crypto.js');
       identity.password_hash = await hashPassword('current-password');
       const { pool, statements } = recorder();
       const { context, call } = request(pool, 'current-password');
-      await expect(call).resolves.toEqual({ ok: true });
+      await expect(call).rejects.toMatchObject({ code: 'CONFLICT', message: 'Этот адрес уже занят' });
       expect(statements.some(({ text }) => text.includes('INSERT INTO auth_tokens'))).toBe(false);
       const audit = statements.find(({ text }) => text.includes('INSERT INTO auth_audit'))!;
       expect(audit.values[2]).toBe('email.change_requested');

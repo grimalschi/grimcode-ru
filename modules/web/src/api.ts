@@ -31,3 +31,9 @@ export const users = createTRPCClient<UsersPublicRouter>({
 export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+/** The tRPC code of a refusal, such as `UNAUTHORIZED`, when the error carries one. */
+export function codeOf(error: unknown): string | undefined {
+  const data = (error as { data?: { code?: unknown } } | null)?.data;
+  return typeof data?.code === 'string' ? data.code : undefined;
+}

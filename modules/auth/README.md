@@ -26,11 +26,13 @@ to Admin and Users. The batch lookup accepts up to 200 IDs.
 ## Authentication behavior
 
 Registration opens a session and sends a verification link. Registering an existing email returns
-a conflict. Recovery and requests to change to an occupied email return `ok` without revealing
-whether the address exists. Changing the email, like changing the password, asks for the current
+a conflict, and so does a request to change to an occupied email: registration already tells anyone
+that an address is taken, so the change — behind the current password and the five-minute window —
+says it too instead of pretending a letter went out. Recovery returns `ok` without revealing whether
+the address exists. Changing the email, like changing the password, asks for the current
 password first — an open session is not proof of who is at the keyboard — and the address is looked
 at only after it matches. A request is recorded as `email.change_requested` (with `taken: true` for
-an occupied address, which gets no link); the change itself as `email.changed`. Login uses one rejection message for invalid credentials and verifies
+an occupied address, which is refused and gets no link); the change itself as `email.changed`. Login uses one rejection message for invalid credentials and verifies
 a dummy password hash when the identity is missing.
 
 Sign-in permits ten attempts per email within fifteen minutes; success clears the counter.

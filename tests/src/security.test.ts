@@ -563,11 +563,13 @@ describe('an email change', () => {
     expect(await requests(user.userId)).toEqual([]);
   });
 
-  it('records a request for a registered address without sending anything to it', async () => {
+  it('says a registered address is taken, as registration does, records it and sends nothing to it', async () => {
     const user = await createUser('email-change-taken');
     const other = await createUser('email-change-taken-owner');
     const before = await events(other.email);
-    expect(await user.session.call(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email: other.email })).toEqual({ ok: true });
+    const refused = await user.session.rpc(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email: other.email });
+    expect(refused.status).toBe(409);
+    expect(errorMessage(refused.body)).toBe('Этот адрес уже занят');
     expect(await events(other.email)).toBe(before);
     expect(await requests(user.userId)).toEqual([{ email: other.email, taken: true }]);
   });

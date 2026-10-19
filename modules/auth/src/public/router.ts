@@ -419,10 +419,12 @@ export const publicRouter = t.router({
 
       const taken = await ctx.repo.findIdentityByEmail(input.email);
       if (taken) {
-        // Answering `ok` here too keeps the flow from confirming that an address is registered. The
-        // attempt is still a security event, and only administrators read the journal.
+        // Said plainly, as registration says it: registration tells anyone, without a password, that an
+        // address is taken, so hiding it here — behind the password and the five-minute window — would
+        // protect nothing and only leave the person guessing why no letter came. The attempt is still
+        // recorded; the entry is written on its own, outside any transaction the refusal could undo.
         await ctx.repo.audit({ identityId: row.id, action: 'email.change_requested', details: { email: input.email, taken: true } });
-        return { ok: true as const };
+        throw new TRPCError({ code: 'CONFLICT', message: 'Этот адрес уже занят' });
       }
 
       // Another account mailed this address a moment ago: quietly `ok`, as for a taken address, so the

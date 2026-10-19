@@ -106,7 +106,7 @@ test.describe('a signed-in person', () => {
     expectNoPageErrors(problems);
   });
 
-  test('confirms an address change with the password, and keeps the address when the password is wrong', async ({ page }) => {
+  test('confirms an address change with the password, and keeps the address when the password is wrong', async ({ page, request }) => {
     const problems = collectPageErrors(page);
 
     await signIn(page);
@@ -135,12 +135,23 @@ test.describe('a signed-in person', () => {
     await expect(address).toHaveValue('someone-new@example.test');
     await expect(password).toHaveValue('');
 
+    // A taken address is said to be taken, as on registration; the form stays as it was.
+    const taken = `taken-${Date.now()}@example.test`;
+    // Registered from a context of its own, so this page stays signed in as the owner.
+    expect((await request.post('/module/auth/rpc/register', { data: { email: taken, password: 'Taken-address-pass-1' } })).ok()).toBe(true);
+    await address.fill(taken);
+    await password.fill(OWNER_PASSWORD);
+    await send.click();
+    await expect(page.getByText('Этот адрес уже занят')).toBeVisible();
+    await expect(address).toHaveValue(taken);
+    // The password was right, so it stays: only the address needs fixing.
+    await expect(password).toHaveValue(OWNER_PASSWORD);
+
     await page.getByRole('button', { name: 'Отмена' }).click();
     await expect(address).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Сменить адрес' })).toBeVisible();
 
     // The refusal of the wrong password is the one failed request the browser reports; anything else is a fault.
-    expectNoPageErrors(problems.filter((problem) => !/status of 401/.test(problem)));
+    expectNoPageErrors(problems.filter((problem) => !/status of (401|409)/.test(problem)));
   });
 
   test('returns to the page they were sent away from', async ({ page }) => {

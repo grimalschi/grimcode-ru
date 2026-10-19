@@ -2,7 +2,7 @@ import { CircleHelpIcon, MonitorIcon, SmartphoneIcon, TabletIcon } from 'lucide-
 import * as React from 'react';
 import { toast } from 'sonner';
 
-import { auth, messageOf, users } from '@/api';
+import { auth, codeOf, messageOf, users } from '@/api';
 import { Page } from '@/components/layout/page';
 import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -142,13 +142,14 @@ function AccountSection() {
     try {
       await auth.requestEmailChange.mutate({ currentPassword: password, email });
       // The address only changes once the link in the new mailbox is opened; saying so avoids the
-      // impression that it already did.
+      // impression that it already did. A taken address never gets here: Auth refuses it by name.
       toast.success('Подтвердите изменение по ссылке, отправленной на новый адрес');
       close();
     } catch (error) {
       toast.error(messageOf(error));
-      // The password never stays in the form; the new address does, so a mistyped password costs one field.
-      setPassword('');
+      // Only a refused password is cleared — it has to be typed again anyway. A taken address or the
+      // five-minute window says nothing against the password, so it stays and only the address is fixed.
+      if (codeOf(error) === 'UNAUTHORIZED') setPassword('');
     } finally {
       setBusy(false);
     }
