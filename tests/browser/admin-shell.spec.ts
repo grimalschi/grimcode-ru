@@ -1,6 +1,6 @@
 import { expect, test, type Locator } from '@playwright/test';
 
-import { appliedTheme, collectPageErrors, expectNoPageErrors, signIn } from './support.js';
+import { appliedTheme, collectPageErrors, expectNoPageErrors, OWNER_EMAIL, signIn } from './support.js';
 
 /**
  * The central Admin shell in a real browser.
@@ -297,5 +297,22 @@ test.describe('the pointer', () => {
     await page.goto('/app/settings');
     expect(await cursor(page.getByRole('tab', { name: 'Аккаунт' })), 'application tab').toBe('pointer');
     expect(await cursor(page.getByRole('button', { name: 'Выйти' })), 'application button').toBe('pointer');
+  });
+});
+
+test.describe('the user card', () => {
+  test('puts each action on the line of what it changes, and names the owner as unblockable', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/admin/embed/module/auth/');
+    await page.getByRole('row').filter({ hasText: OWNER_EMAIL }).click();
+
+    const card = page.getByRole('dialog');
+    await expect(card.getByText('Пароль и почту меняет только сам человек — отсюда можно лишь отправить ему ссылку.')).toBeVisible();
+    // Matched whole: «Роль» is also inside «Пароль».
+    const line = (label: string) => card.locator('dl > div').filter({ has: page.locator('dt', { hasText: new RegExp(`^${label}$`) }) });
+    await expect(line('Пароль').getByRole('button', { name: 'Отправить ссылку сброса' })).toBeVisible();
+    await expect(line('Сессии').getByRole('button', { name: 'Завершить все' })).toBeVisible();
+    await expect(line('Блокировка')).toHaveText(/^Блокировка\s*Нет$/);
+    await expect(line('Роль')).toContainText('Владелец панели — заблокировать нельзя');
   });
 });

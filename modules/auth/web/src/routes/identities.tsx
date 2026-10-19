@@ -175,7 +175,7 @@ function IdentityDialog({
   if (state.loading || !identity) {
     return (
       <Dialog open onOpenChange={(open) => !open && onClose()}>
-        <DialogContent onOpenAutoFocus={(event) => { event.preventDefault(); (event.currentTarget as HTMLElement).focus(); }}>
+        <DialogContent className={CARD_WIDTH} onOpenAutoFocus={(event) => { event.preventDefault(); (event.currentTarget as HTMLElement).focus(); }}>
           <DialogHeader>
             <DialogTitle>Пользователь</DialogTitle>
             <DialogDescription>{state.error ? messageOf(state.error) : 'Загружаем.'}</DialogDescription>
@@ -189,69 +189,65 @@ function IdentityDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       {/* Focus the card itself, not its first button: a ring on «Закрыть» or the cross read as a border, and differed card to card. */}
-      <DialogContent onOpenAutoFocus={(event) => { event.preventDefault(); (event.currentTarget as HTMLElement).focus(); }}>
+      <DialogContent className={CARD_WIDTH} onOpenAutoFocus={(event) => { event.preventDefault(); (event.currentTarget as HTMLElement).focus(); }}>
         <DialogHeader>
           <DialogTitle>{identity.email}</DialogTitle>
           <DialogDescription>
-            Действия здесь идут теми же путями, которыми прошёл бы сам человек.
+            Пароль и почту меняет только сам человек — отсюда можно лишь отправить ему ссылку.
           </DialogDescription>
         </DialogHeader>
 
-        <dl className="grid grid-cols-[9rem_1fr] gap-y-2 text-sm">
-          <dt className="text-muted-foreground">Подтверждён</dt>
-          <dd>
-            {identity.emailVerifiedAt
-              ? new Date(identity.emailVerifiedAt).toLocaleString()
-              : 'Ещё нет'}
-          </dd>
-          <dt className="text-muted-foreground">Заблокирован</dt>
-          <dd>{identity.blockedAt ? new Date(identity.blockedAt).toLocaleString() : 'Нет'}</dd>
-          <dt className="text-muted-foreground">Защищён от блокировки</dt>
-          <dd>{identity.blockingProtectedAt ? `Да, владелец панели с ${new Date(identity.blockingProtectedAt).toLocaleString()}` : 'Нет'}</dd>
-          <dt className="text-muted-foreground">Сессии</dt>
-          <dd>{identity.activeSessionCount}</dd>
-        </dl>
-
-        {/* One column of equal buttons: wrapping left them ragged, two on a line and one below. */}
-        <div className="flex flex-col items-stretch gap-2 sm:items-start sm:[&>button]:w-72">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            onClick={() =>
-              void run(() => api.sendRecovery.mutate({ id: identity.id }), 'Ссылка восстановления отправлена')
-            }
-          >
-            Отправить ссылку восстановления
-          </Button>
-
-          {identity.emailVerifiedAt ? null : (
+        {/* Each action sits on the line of what it changes, instead of a column of buttons apart from the facts. */}
+        <dl className="divide-y border-y text-sm">
+          <CardRow label="Почта" value={identity.emailVerifiedAt ? `Подтверждена ${new Date(identity.emailVerifiedAt).toLocaleDateString()}` : 'Не подтверждена'}>
+            {identity.emailVerifiedAt ? null : (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() =>
+                  void run(() => api.resendVerification.mutate({ id: identity.id }), 'Ссылка подтверждения отправлена')
+                }
+              >
+                Отправить ссылку ещё раз
+              </Button>
+            )}
+          </CardRow>
+          <CardRow label="Пароль" value="—">
             <Button
               variant="outline"
               size="sm"
               disabled={busy}
               onClick={() =>
-                void run(
-                  () => api.resendVerification.mutate({ id: identity.id }),
-                  'Ссылка подтверждения отправлена',
-                )
+                void run(() => api.sendRecovery.mutate({ id: identity.id }), 'Ссылка сброса пароля отправлена')
               }
             >
-              Отправить подтверждение снова
+              Отправить ссылку сброса
             </Button>
-          )}
-
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={busy || identity.activeSessionCount === 0}
-            onClick={() =>
-              void run(() => api.revokeSessions.mutate({ id: identity.id }), 'Все сессии завершены')
-            }
-          >
-            Завершить все сессии
-          </Button>
-        </div>
+          </CardRow>
+          <CardRow label="Сессии" value={sessionsLabel(identity.activeSessionCount)}>
+            {identity.activeSessionCount === 0 ? null : (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() =>
+                  void run(() => api.revokeSessions.mutate({ id: identity.id }), 'Все сессии завершены')
+                }
+              >
+                Завершить все
+              </Button>
+            )}
+          </CardRow>
+          {/* Blocking itself is done on the Users screen; here it is only a fact. */}
+          <CardRow
+            label="Блокировка"
+            value={identity.blockedAt ? <span className="text-destructive">С {new Date(identity.blockedAt).toLocaleString()}</span> : 'Нет'}
+          />
+          {identity.blockingProtectedAt ? (
+            <CardRow label="Роль" value={<Badge variant="secondary">Владелец панели — заблокировать нельзя</Badge>} />
+          ) : null}
+        </dl>
 
         <DialogFooter>
           <Button variant="ghost" size="sm" onClick={onClose}>
@@ -261,4 +257,25 @@ function IdentityDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/** The card and its loading state share one width, so the window does not widen when the data arrives. */
+const CARD_WIDTH = 'sm:max-w-xl';
+
+/** One fact of the card, and the action that changes it when there is one. Narrow, the action drops under the fact. */
+function CardRow({ label, value, children }: { label: string; value: React.ReactNode; children?: React.ReactNode }) {
+  return (
+    <div className="grid min-h-11 grid-cols-[6.5rem_1fr] items-center gap-x-3 gap-y-1.5 py-2 sm:grid-cols-[6.5rem_1fr_auto]">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd>{value}</dd>
+      {children ? <div className="col-start-2 sm:col-start-3">{children}</div> : null}
+    </div>
+  );
+}
+
+const SESSION_FORMS = new Intl.PluralRules('ru');
+const ACTIVE: Record<string, string> = { one: 'активная', few: 'активные', many: 'активных', other: 'активной' };
+
+function sessionsLabel(count: number): string {
+  return count === 0 ? 'Нет активных' : `${count} ${ACTIVE[SESSION_FORMS.select(count)]}`;
 }
