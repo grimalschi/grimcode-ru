@@ -48,7 +48,7 @@ export function DashboardScreen() {
         <CardHeader>
           <CardTitle>Ваш аккаунт</CardTitle>
           <CardDescription>
-            Учётной записью владеет Auth, профилем ниже — Users. Они разделены намеренно.
+            Учётной записью владеет раздел «Пользователи», профилем ниже — раздел «Профили». Они разделены намеренно.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
