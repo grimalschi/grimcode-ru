@@ -53,19 +53,19 @@ test('the owner blocks a person from the profile list, with a confirmation, and 
   const problems = collectPageErrors(page);
   await signIn(page);
   const row = await openProfiles(page, person.email);
-  await expect(row.getByText('Открыт', { exact: true })).toBeVisible();
+  await expect(row.getByText('Нет', { exact: true })).toBeVisible();
   await row.getByRole('button', { name: `Заблокировать ${person.email}`, exact: true }).click();
   const confirm = frame(page).getByRole('dialog', { name: /^Заблокировать / });
   await expect(confirm).toBeVisible();
   await confirm.getByRole('button', { name: 'Заблокировать', exact: true }).click();
   await expect(frame(page).getByText('Аккаунт заблокирован', { exact: true })).toBeVisible();
-  await expect(row.getByText(/^Заблокирован с /)).toBeVisible();
+  await expect(row.getByText(/^С \d/)).toBeVisible();
   // Blocked means out: the person's session is gone.
   expect((await person.session.rpc(USERS, 'getOwnProfile')).status).toBe(401);
 
   await row.getByRole('button', { name: `Разблокировать ${person.email}`, exact: true }).click();
   await expect(frame(page).getByText('Аккаунт разблокирован', { exact: true })).toBeVisible();
-  await expect(row.getByText('Открыт', { exact: true })).toBeVisible();
+  await expect(row.getByText('Нет', { exact: true })).toBeVisible();
   expectNoPageErrors(problems);
 });
 
@@ -94,5 +94,5 @@ test('an administrator granted Users sees the list without any blocking', async 
   const row = await openProfiles(page, person.email);
   await expect(row).toBeVisible();
   await expect(frame(page).getByRole('button', { name: /^(Заблокировать|Разблокировать) / })).toHaveCount(0);
-  await expect(frame(page).getByRole('columnheader', { name: 'Вход', exact: true })).toBeVisible();
+  await expect(frame(page).getByRole('columnheader', { name: 'Блокировка', exact: true })).toBeVisible();
 });

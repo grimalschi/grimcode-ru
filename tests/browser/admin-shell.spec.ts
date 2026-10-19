@@ -316,3 +316,24 @@ test.describe('the user card', () => {
     await expect(line('Роль')).toContainText('Владелец панели — заблокировать нельзя');
   });
 });
+
+test.describe('a search in a module list', () => {
+  test('keeps the rows on screen, dimmed, while the answer is on its way', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/admin/embed/module/auth/');
+    const owner = page.getByRole('row').filter({ hasText: OWNER_EMAIL });
+    await expect(owner).toBeVisible();
+
+    // Hold the search's answer back, so the in-between state can be looked at.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    await page.route('**/rpc/listIdentities*', async (route) => { await held; await route.continue(); });
+    await page.getByPlaceholder('Поиск по адресу').fill(OWNER_EMAIL.slice(0, 5));
+
+    await expect(page.locator('tbody[aria-busy="true"]')).toBeVisible();
+    await expect(owner).toBeVisible();
+    await expect(page.locator('tbody [data-slot="skeleton"]')).toHaveCount(0);
+    release();
+    await expect(page.locator('tbody[aria-busy="false"]')).toBeVisible();
+  });
+});

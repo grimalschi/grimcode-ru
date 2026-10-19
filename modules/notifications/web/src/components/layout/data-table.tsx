@@ -38,6 +38,12 @@ export function DataTable<T>({
   empty?: React.ReactNode
   onRowClick?: (row: T) => void
 }) {
+  // Placeholders only before the first answer. Afterwards a new search or page keeps the rows on screen,
+  // dimmed, until the next answer: swapping them for placeholders made the table jump with every keystroke.
+  const answered = React.useRef(false)
+  if (!loading) answered.current = true
+  const waiting = loading && !answered.current
+
   return (
     <div className="overflow-x-auto rounded-lg border">
       <Table>
@@ -50,8 +56,8 @@ export function DataTable<T>({
             ))}
           </TableRow>
         </TableHeader>
-        <TableBody>
-          {loading
+        <TableBody aria-busy={loading} className={cn("transition-opacity", loading && !waiting && "opacity-50")}>
+          {waiting
             ? Array.from({ length: 5 }, (_, index) => (
                 <TableRow key={`skeleton-${index}`}>
                   {columns.map((column) => (
@@ -75,7 +81,7 @@ export function DataTable<T>({
                 </TableRow>
               ))}
 
-          {!loading && rows.length === 0 ? (
+          {!waiting && rows.length === 0 ? (
             <TableRow>
               <TableCell colSpan={columns.length} className="text-muted-foreground h-24 text-center">
                 {empty ?? "Пока пусто."}

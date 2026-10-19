@@ -80,7 +80,7 @@ export function ProfilesPage() {
   return (
     <AdminPage
       title="Профили"
-      description="Кто эти люди внутри продукта. Данные для входа принадлежат Auth."
+      description="Кто эти люди внутри продукта. Данные для входа принадлежат разделу «Пользователи»."
       actions={
         <Input
           value={query}
@@ -106,14 +106,14 @@ export function ProfilesPage() {
                 <span className="text-muted-foreground text-xs">
                   {row.email && row.displayName ? row.displayName : null}
                   {/* Auth no longer has this identity, so the profile outlived the account. */}
-                  {row.email === null ? 'В Auth нет аккаунта для этого профиля' : null}
+                  {row.email === null ? 'В «Пользователях» нет аккаунта для этого профиля' : null}
                 </span>
               </div>
             ),
           },
           {
             key: 'access',
-            header: 'Вход',
+            header: 'Блокировка',
             className: 'whitespace-nowrap',
             cell: (row) => <AccessState profile={row} />,
           },
@@ -178,9 +178,9 @@ export function ProfilesPage() {
 function AccessState({ profile }: { profile: Profile }) {
   if (profile.email === null) return <span className="text-muted-foreground">—</span>;
   if (profile.blockedAt) {
-    return <span className="text-destructive">Заблокирован с {new Date(profile.blockedAt).toLocaleDateString()}</span>;
+    return <span className="text-destructive">С {new Date(profile.blockedAt).toLocaleDateString()}</span>;
   }
-  return <span className="text-muted-foreground">Открыт</span>;
+  return <span className="text-muted-foreground">Нет</span>;
 }
 
 /**
@@ -232,12 +232,10 @@ function ProfileDialog({ id, onClose }: { id: string; onClose: () => void }) {
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       {/* Focus the card itself, not its first button: a ring on «Закрыть» or the cross read as a border, and differed card to card. */}
-      <DialogContent onOpenAutoFocus={(event) => { event.preventDefault(); (event.currentTarget as HTMLElement).focus(); }}>
+      {/* No description: a card with nothing to edit needs no note saying so. Radix is told there is none on purpose. */}
+      <DialogContent aria-describedby={undefined} onOpenAutoFocus={(event) => { event.preventDefault(); (event.currentTarget as HTMLElement).focus(); }}>
         <DialogHeader>
           <DialogTitle>{profile?.email ?? profile?.displayName ?? 'Профиль'}</DialogTitle>
-          <DialogDescription>
-            Профиль редактирует сам человек. Здесь он только для чтения.
-          </DialogDescription>
         </DialogHeader>
 
         {state.error ? (
@@ -247,8 +245,8 @@ function ProfileDialog({ id, onClose }: { id: string; onClose: () => void }) {
         ) : (
         <dl className="grid grid-cols-[9rem_1fr] gap-y-2 text-sm">
           <dt className="text-muted-foreground">Почта</dt>
-          <dd>{profile.email ?? 'В Auth нет аккаунта'}</dd>
-          <dt className="text-muted-foreground">Вход</dt>
+          <dd>{profile.email ?? 'В «Пользователях» нет аккаунта'}</dd>
+          <dt className="text-muted-foreground">Блокировка</dt>
           <dd><AccessState profile={profile} /></dd>
           <dt className="text-muted-foreground">Отображаемое имя</dt>
           <dd>{profile.displayName ?? '—'}</dd>
