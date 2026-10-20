@@ -66,7 +66,7 @@ test.describe('the email admin', () => {
     await expect(page.getByRole('status')).toHaveCount(0);
   });
 
-  test('names version statuses in Russian and explains the variables', async ({ page }) => {
+  test('names statuses in Russian and explains the variables', async ({ page }) => {
     await signIn(page);
     await page.goto('/admin/embed/module/email/');
     await page.getByRole('row').filter({ hasText: 'auth-password-reset' }).click();
@@ -74,6 +74,14 @@ test.describe('the email admin', () => {
     await expect(page.getByText('published', { exact: true })).toHaveCount(0);
     await expect(page.getByText('{{resetUrl}}', { exact: true })).toBeVisible();
     await expect(page.getByText('ссылка для сброса пароля', { exact: true })).toBeVisible();
+
+    await page.goto('/admin/embed/module/email/deliveries');
+    // The suite runs with the local transport: a letter it took is «Сохранено», not «Отправлено» beside «без отправки».
+    const letter = page.getByRole('row').filter({ hasText: 'локально, без отправки' }).first();
+    await expect(letter).toContainText('Сохранено');
+    await expect(letter).not.toContainText('Отправлено');
+    await page.getByRole('combobox').filter({ hasText: 'Любой статус' }).click();
+    await expect(page.getByRole('option')).toHaveText(['Любой статус', 'В очереди', 'Отправлено', 'Ошибка']);
   });
 
   test('opens published source for reading and copying', async ({ page }) => {

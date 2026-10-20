@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAsync } from '@/hooks/use-async';
+import { DELIVERY_STATUS_LABEL, deliveryStatusLabel, TRANSPORT_LABEL } from '@/status-labels';
 
 const LIMIT = 50;
 const ANY = 'any';
@@ -83,7 +84,7 @@ export function DeliveriesPage() {
   return (
     <AdminPage
       title="Отправки"
-      description="Каждое письмо, покинувшее систему, ровно в том виде, в каком его отправили."
+      description="Письма пользователям и их статус. Откройте строку, чтобы увидеть письмо целиком."
       actions={
         <div className="flex gap-2">
           <Input
@@ -106,7 +107,7 @@ export function DeliveriesPage() {
               <SelectItem value={ANY}>Любой статус</SelectItem>
               {STATUSES.map((value) => (
                 <SelectItem key={value} value={value}>
-                  {value}
+                  {DELIVERY_STATUS_LABEL[value]}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -154,9 +155,9 @@ export function DeliveriesPage() {
                     aria-hidden
                     className={`size-2 shrink-0 rounded-full ${STATUS_DOT[row.status]}`}
                   />
-                  {row.status}
+                  {deliveryStatusLabel(row.status, row.transport)}
                 </span>
-                <span className="text-muted-foreground text-xs">{row.transport}</span>
+                <span className="text-muted-foreground text-xs">{TRANSPORT_LABEL[row.transport] ?? row.transport}</span>
               </div>
             ),
           },
@@ -187,7 +188,7 @@ function DeliveryDialog({ id, onClose }: { id: string; onClose: () => void }) {
           <DialogTitle>{delivery?.subject ?? 'Письмо'}</DialogTitle>
           <DialogDescription>
             {delivery
-              ? `Кому ${delivery.recipientEmail} · ${delivery.transport} · ${delivery.status}`
+              ? `Кому ${delivery.recipientEmail} · ${TRANSPORT_LABEL[delivery.transport] ?? delivery.transport} · ${deliveryStatusLabel(delivery.status, delivery.transport)}`
               : 'Загружаем'}
           </DialogDescription>
         </DialogHeader>
