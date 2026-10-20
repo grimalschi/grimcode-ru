@@ -28,7 +28,7 @@ const BASE = '/admin/embed/module/email';
 const TABS = [
   { to: '/', label: 'Шаблоны' },
   { to: '/deliveries', label: 'Отправки' },
-  { to: '/audit', label: 'Журнал' },
+  { to: '/audit', label: 'История шаблонов' },
 ];
 
 /**

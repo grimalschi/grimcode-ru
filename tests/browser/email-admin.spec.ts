@@ -287,17 +287,31 @@ test.describe('the email admin', () => {
     await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
     await expect(page.getByLabel('Код MJML')).toHaveAttribute('readonly', '');
 
-    await page.getByRole('link', { name: 'Журнал', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Журнал' })).toBeVisible();
-    // The database keeps its own key order in the details, so each key is matched on its own.
-    const thisVersion = new RegExp(`"version":${version.version}[,}]`);
+    await page.getByRole('link', { name: 'История шаблонов', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'История шаблонов' })).toBeVisible();
+    // Details are not raw JSON in the table any more; a click on the row opens them by name in a window.
+    await expect(page.getByText('"templateKey"')).toHaveCount(0);
     const ownerEmail = process.env.ACCEPTANCE_OWNER_EMAIL?.toLowerCase() ?? '';
-    for (const action of ['version.published', 'version.draft.saved']) {
-      const row = page.getByRole('row').filter({ hasText: action })
-        .filter({ hasText: '"templateKey":"browser-editor"' }).filter({ hasText: thisVersion });
-      await expect(row, action).toHaveCount(action === 'version.draft.saved' ? 2 : 1);
-      await expect(row.first(), action).toContainText(ownerEmail);
-    }
+    const thisVersion = new RegExp(`Версия\\s*${version.version}(\\D|$)`);
+    // Other tests write here at the same time, so the entry for this version is looked for among the rows.
+    const entriesOf = async (action: string) => {
+      const rows = page.getByRole('row').filter({ hasText: action });
+      let found = 0;
+      for (let index = 0; index < await rows.count(); index += 1) {
+        await rows.nth(index).click();
+        const card = page.getByRole('dialog');
+        const text = await card.innerText();
+        if (text.includes('browser-editor') && thisVersion.test(text)) {
+          found += 1;
+          expect(text, action).toContain(ownerEmail);
+        }
+        await card.getByRole('button', { name: 'Закрыть' }).click();
+        await expect(card).toHaveCount(0);
+      }
+      return found;
+    };
+    expect(await entriesOf('version.published')).toBe(1);
+    expect(await entriesOf('version.draft.saved')).toBe(2);
     expectNoPageErrors(problems);
   });
 

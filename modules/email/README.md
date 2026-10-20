@@ -110,7 +110,7 @@ not look accounts up; the address is the one the panel passed with the request (
 an entry keeps the address the administrator had at that moment. Entries written before migration 2
 have no address and the screen names the role instead. A save is compared with the stored draft
 while its row is locked: an identical save — the editor saves silently before publishing and before
-a test send — writes nothing and is not recorded. The «Журнал» tab (`listAudit`) shows the entries,
+a test send — writes nothing and is not recorded. The «История шаблонов» tab (`listAudit`) shows the entries,
 newest first, to everyone the module is open to; the letters people receive are under «Отправки».
 A change and its audit entry commit together or not at all: the procedure asks
 the repository for a transaction (`repo.withTransaction`) and writes both through the repository
