@@ -91,6 +91,50 @@ test.describe('the email admin', () => {
 
     expectNoPageErrors(problems);
   });
+  test('switches versions from the corner, asking before unsaved edits are dropped', async ({ page }) => {
+    const owner = await resolveOwner();
+    const first = await createEditorDraft(owner, 'Switch A', mjml('<p>Switch A</p>'));
+    const second = await createEditorDraft(owner, 'Switch B', mjml('<p>Switch B</p>'));
+    const numbers = await Promise.all([first, second].map(async (id) =>
+      (await owner.call<{ version: { version: number } }>(moduleAdmin('email'), 'getVersion', { id })).version.version));
+    await signIn(page);
+    await page.goto(`/admin/embed/module/email/versions/${first}`);
+    await expect(page.getByLabel('Тема', { exact: true })).toHaveValue('Switch A');
+
+    const pick = async () => {
+      await page.getByRole('combobox', { name: 'Версия' }).click();
+      await page.getByRole('option', { name: `Версия ${numbers[1]} · Черновик` }).click();
+    };
+    await page.getByLabel('Тема', { exact: true }).fill('Switch A, unsaved');
+    await pick();
+    await page.getByRole('button', { name: 'Остаться' }).click();
+    await expect(page.getByLabel('Тема', { exact: true })).toHaveValue('Switch A, unsaved');
+
+    // Hold the next version back: the page stays — title, switcher, the old text dimmed — instead of blanking.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    await page.route('**/rpc/getVersion*', async (route) => { await held; await route.continue(); });
+    const title = await page.getByRole('heading', { level: 1 }).textContent();
+    await pick();
+    await page.getByRole('button', { name: 'Перейти', exact: true }).click();
+    await expect(page.locator('[aria-busy="true"]')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(title ?? '');
+    await expect(page.getByRole('combobox', { name: 'Версия' })).toBeVisible();
+    release();
+    await expect(page).toHaveURL(new RegExp(`/versions/${second}$`));
+    await expect(page.getByLabel('Тема', { exact: true })).toHaveValue('Switch B');
+  });
+
+  test('shows a draft\'s plain text, unsaved edits included', async ({ page }) => {
+    const owner = await resolveOwner();
+    const id = await createEditorDraft(owner, 'Text subject', mjml('<p>Saved words</p>'));
+    await signIn(page);
+    await page.goto(`/admin/embed/module/email/versions/${id}`);
+    await page.getByLabel('Код MJML').fill(mjml('<p>Unsaved words</p>'));
+    await page.getByRole('tab', { name: 'Текст', exact: true }).click();
+    await expect(page.getByRole('tabpanel')).toContainText('Unsaved words');
+  });
+
   test('switching versions keeps unsaved content out of the other draft', async ({ page }) => {
     const problems = collectPageErrors(page);
     const owner = await resolveOwner();

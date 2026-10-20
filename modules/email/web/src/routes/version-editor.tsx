@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 
 import { api, messageOf } from '@/api';
 import { AdminPage, ErrorState } from '@/components/layout/admin-page';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -16,42 +15,83 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PageLoader } from '@/components/layout/page-loader';
 import { useAsync } from '@/hooks/use-async';
+import { useLate } from '@/hooks/use-late';
+import { cn } from '@/lib/utils';
+import { VERSION_STATUS_LABEL } from '@/status-labels';
 
 type Draft = Omit<Parameters<typeof api.saveDraft.mutate>[0], 'id'>;
 
 export function VersionEditorPage() {
   const { versionId } = useParams({ from: '/versions/$versionId' });
-  return <VersionEditor key={versionId} versionId={versionId} />;
+  // Not remounted per version: switching keeps the page — title, switcher, the previous version dimmed —
+  // until the next one arrives, instead of blanking everything to a placeholder and back.
+  return <VersionEditor versionId={versionId} />;
 }
 
 function VersionEditor({ versionId }: { versionId: string }) {
-  const navigate = useNavigate();
-
   const state = useAsync(() => api.getVersion.query({ id: versionId }), [versionId]);
 
-  const [draft, setDraft] = React.useState<Draft | null>(null);
+  // Edits belong to the version they were made in. Another version starts from its own saved text, so
+  // unsaved edits never travel to it; the same version keeps them when its metadata reloads.
+  const [edits, setEdits] = React.useState<(Draft & { for: string }) | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const [tab, setTab] = React.useState('edit');
+  const late = useLate(!state.data && !state.error);
 
-  // Keep unsaved changes when version metadata reloads.
-  React.useEffect(() => {
-    if (draft || !state.data) return;
-    const { subject, source } = state.data.version;
-    setDraft({ subject, source });
-  }, [draft, state.data]);
-
+  // The version on screen: while the next one loads, the previous one stays, dimmed.
   const version = state.data?.version;
+  const current = version?.id === versionId;
+  // Memoised: the preview asks the server again whenever this object changes, so it may change only
+  // with the version or an edit, not with every render.
+  const draft: Draft | null = React.useMemo(
+    () => (version
+      ? edits?.for === version.id ? { subject: edits.subject, source: edits.source } : { subject: version.subject, source: version.source }
+      : null),
+    [version, edits],
+  );
+  const setDraft = (next: Draft) => version && setEdits({ ...next, for: version.id });
   const editable = version?.status === 'draft';
+  // Unsaved: the form differs from what the draft holds. Leaving for another version would drop it.
+  const dirty = Boolean(editable && version && draft && (draft.subject !== version.subject || draft.source !== version.source));
+
+  // The template's versions, for the switcher in the corner and the template's name as the title.
+  const navigate = useNavigate();
+  const templateId = version?.templateId;
+  const template = useAsync(
+    () => (templateId ? api.getTemplate.query({ id: templateId }) : Promise.resolve(null)),
+    [templateId],
+  );
+  const templateName = template.data?.template.name;
+  const versions = template.data?.versions;
+  const [leaving, setLeaving] = React.useState<string | null>(null);
+  // The switcher names the version asked for at once, even before its text arrives.
+  const chosen = versions?.find((item) => item.id === versionId) ?? version;
+  const open = (id: string) => void navigate({ to: '/versions/$versionId', params: { versionId: id } });
+  const switchTo = (id: string) => {
+    if (id === versionId) return;
+    if (dirty) setLeaving(id);
+    else open(id);
+  };
 
   const save = async (publish = false) => {
-    if (!draft) return;
+    if (!draft || !current) return;
     setBusy(true);
     try {
       await api.saveDraft.mutate({ id: versionId, ...draft });
       if (publish) await api.publishDraft.mutate({ id: versionId });
       toast.success(publish ? 'Опубликовано — новые письма пойдут по этой версии' : 'Черновик сохранён');
+      setEdits(null);
       state.reload();
     } catch (error) {
       toast.error(messageOf(error));
@@ -59,6 +99,10 @@ function VersionEditor({ versionId }: { versionId: string }) {
       setBusy(false);
     }
   };
+
+  // The first open appears whole once the version arrives; a loader only if that takes a while. Switching
+  // between versions afterwards keeps the previous one on screen instead.
+  if (!version && !state.error) return <PageLoader late={late} />;
 
   if (state.error) {
     return (
@@ -70,37 +114,30 @@ function VersionEditor({ versionId }: { versionId: string }) {
 
   return (
     <AdminPage
-      title={version ? `Версия ${version.version}` : 'Версия'}
+      title={templateName ?? (version ? `Версия ${version.version}` : 'Версия')}
       description={
-        version ? (
-          <span className="flex items-center gap-2">
-            <Badge variant={editable ? 'secondary' : 'outline'}>{version.status}</Badge>
-            <span>
-              {editable
-                ? 'Изменения вступят в силу после публикации.'
-                : 'Для изменений создайте новый черновик.'}
-            </span>
-          </span>
-        ) : null
+        version
+          ? editable
+            ? 'Изменения вступят в силу после публикации.'
+            : 'Для изменений создайте новый черновик.'
+          : null
       }
       actions={
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => void navigate({ to: '/' })}>
-            Все шаблоны
-          </Button>
+        // The tabs above lead back to the templates; the versions are switched above the subject.
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {editable && draft ? (
             <>
               <TestSend
                 versionId={versionId}
-                disabled={busy}
+                disabled={busy || !current}
                 beforeSend={async () => {
                   await api.saveDraft.mutate({ id: versionId, ...draft });
                 }}
               />
-              <Button variant="outline" onClick={() => void save()} disabled={busy}>
+              <Button variant="outline" onClick={() => void save()} disabled={busy || !current}>
                 Сохранить
               </Button>
-              <Button onClick={() => void save(true)} disabled={busy}>
+              <Button onClick={() => void save(true)} disabled={busy || !current}>
                 Опубликовать
               </Button>
             </>
@@ -111,7 +148,24 @@ function VersionEditor({ versionId }: { versionId: string }) {
       {!version || !draft ? (
         <Skeleton className="h-96 w-full" />
       ) : (
-        <>
+        <div aria-busy={!current} className={cn('flex flex-col gap-6 transition-opacity', !current && 'pointer-events-none opacity-50')}>
+          {/* The version and its status, as a switcher between the template's versions. */}
+          <div className="space-y-2">
+            <Label htmlFor="version">Версия</Label>
+            <Select value={versionId} onValueChange={switchTo}>
+              <SelectTrigger id="version" className="w-64">
+                <SelectValue>{`Версия ${(chosen ?? version).version} · ${VERSION_STATUS_LABEL[(chosen ?? version).status]}`}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {(versions ?? [version]).map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {`Версия ${item.version} · ${VERSION_STATUS_LABEL[item.status]}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="subject">Тема</Label>
             <Input
@@ -126,10 +180,11 @@ function VersionEditor({ versionId }: { versionId: string }) {
             </p>
           </div>
 
-          <Tabs defaultValue="edit">
+          <Tabs value={tab} onValueChange={setTab}>
             <TabsList>
               <TabsTrigger value="edit">MJML</TabsTrigger>
               <TabsTrigger value="preview">Предпросмотр</TabsTrigger>
+              <TabsTrigger value="text">Текст</TabsTrigger>
             </TabsList>
 
             <TabsContent value="preview">
@@ -154,31 +209,49 @@ function VersionEditor({ versionId }: { versionId: string }) {
                 />
               </div>
             </TabsContent>
-          </Tabs>
 
-          {version.compiledHtml ? (
-            <details className="rounded-lg border p-4">
-              <summary className="cursor-pointer text-sm font-medium">
-                Текстовая версия
-              </summary>
-              <pre className="mt-3 max-h-64 overflow-auto rounded bg-muted p-3 text-xs">
-                {version.compiledText}
-              </pre>
-            </details>
-          ) : null}
-        </>
+            {/* The same server rendering as the preview: a draft shows the text its current code would produce. */}
+            <TabsContent value="text">
+              <VersionPreview versionId={versionId} draft={editable ? draft : undefined} show="text" />
+            </TabsContent>
+          </Tabs>
+        </div>
       )}
+      <Dialog open={leaving !== null} onOpenChange={(isOpen) => !isOpen && setLeaving(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Перейти без сохранения?</DialogTitle>
+            <DialogDescription>Несохранённые правки в этом черновике пропадут.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setLeaving(null)}>
+              Остаться
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                const id = leaving;
+                setLeaving(null);
+                if (id) open(id);
+              }}
+            >
+              Перейти
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminPage>
   );
 }
 
-function VersionPreview({ versionId, draft }: { versionId: string; draft?: Draft }) {
+function VersionPreview({ versionId, draft, show = 'html' }: { versionId: string; draft?: Draft; show?: 'html' | 'text' }) {
   const state = useAsync(
     () => api.previewVersion.query({ id: versionId, variables: {}, ...(draft ? { draft } : {}) }),
     [versionId, draft],
   );
 
-  if (state.loading) return <Skeleton className="h-96 w-full" />;
+  // A placeholder only before the first preview: afterwards the last one stays, dimmed, until the next.
+  if (state.loading && !state.data) return <Skeleton className="h-96 w-full" />;
   if (state.error) {
     return (
       <p className="border-destructive/40 bg-destructive/5 rounded-md border p-3 text-sm">
@@ -187,8 +260,21 @@ function VersionPreview({ versionId, draft }: { versionId: string; draft?: Draft
     );
   }
 
+  if (show === 'text') {
+    return (
+      <div className={cn('space-y-2 transition-opacity', state.loading && 'opacity-50')}>
+        <p className="text-muted-foreground text-xs">
+          Так письмо увидят почтовые программы, которые не показывают оформление.
+        </p>
+        <pre className="bg-muted max-h-[32rem] overflow-auto rounded-md p-4 text-sm break-words whitespace-pre-wrap">
+          {state.data?.text}
+        </pre>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-2">
+    <div className={cn('space-y-2 transition-opacity', state.loading && 'opacity-50')}>
       <p className="text-muted-foreground text-sm">
         Тема: <span className="text-foreground">{state.data?.subject}</span>
       </p>
