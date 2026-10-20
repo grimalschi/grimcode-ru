@@ -34,6 +34,14 @@ test.describe('the email admin', () => {
     expectNoPageErrors(problems);
   });
 
+  test('opens a template from anywhere on its row', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/admin/embed/module/email/');
+    // Not the name: a cell elsewhere on the row.
+    await page.getByRole('row').filter({ hasText: 'auth-password-reset' }).getByRole('cell').nth(1).click();
+    await expect(page).toHaveURL(/\/templates\/[0-9a-f-]{36}$/);
+  });
+
   test('opens published source for reading and copying', async ({ page }) => {
     const problems = collectPageErrors(page);
 

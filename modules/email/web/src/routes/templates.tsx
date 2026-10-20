@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import * as React from 'react';
 
 import { api } from '@/api';
@@ -23,6 +23,7 @@ const LIMIT = 25;
  * appear on the next start. What this screen is for is the wording.
  */
 export function TemplatesPage() {
+  const navigate = useNavigate();
   const [query, setQuery] = React.useState('');
   const [search, setSearch] = React.useState('');
   const [offset, setOffset] = React.useState(0);
@@ -51,12 +52,12 @@ export function TemplatesPage() {
   return (
     <AdminPage
       title="Шаблоны"
-      description="Все письма, которые может отправить продукт. Содержимое живёт в версиях."
+      description="Все письма, которые может отправить продукт. Откройте шаблон, чтобы поправить текст письма."
       actions={
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Поиск"
+          placeholder="Поиск по названию"
           className="w-56"
         />
       }
@@ -66,6 +67,8 @@ export function TemplatesPage() {
         rows={list.data?.items ?? []}
         rowKey={(row) => row.id}
         empty="Шаблонов пока нет."
+        // The whole row opens the template; the name stays a link for the keyboard and a new tab.
+        onRowClick={(row) => void navigate({ to: '/templates/$templateId', params: { templateId: row.id } })}
         columns={[
           {
             key: 'name',
@@ -76,7 +79,7 @@ export function TemplatesPage() {
                 params={{ templateId: row.id }}
                 className="flex flex-col"
               >
-                <span className="font-medium underline-offset-4 hover:underline">{row.name}</span>
+                <span className="font-medium">{row.name}</span>
                 <code className="text-muted-foreground text-xs">{row.key}</code>
               </Link>
             ),
