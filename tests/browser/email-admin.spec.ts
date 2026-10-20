@@ -34,12 +34,46 @@ test.describe('the email admin', () => {
     expectNoPageErrors(problems);
   });
 
-  test('opens a template from anywhere on its row', async ({ page }) => {
+  test('opens a template, and then a version, from anywhere on its row', async ({ page }) => {
     await signIn(page);
     await page.goto('/admin/embed/module/email/');
     // Not the name: a cell elsewhere on the row.
     await page.getByRole('row').filter({ hasText: 'auth-password-reset' }).getByRole('cell').nth(1).click();
     await expect(page).toHaveURL(/\/templates\/[0-9a-f-]{36}$/);
+    await page.getByRole('row').filter({ hasText: 'Версия 1' }).getByRole('cell').nth(1).click();
+    await expect(page).toHaveURL(/\/versions\/[0-9a-f-]{36}$/);
+    // A published version shows its plain-text alternative in a tab of its own.
+    await page.getByRole('tab', { name: 'Текст', exact: true }).click();
+    await expect(page.getByRole('tabpanel')).toContainText('Восстановление пароля');
+  });
+
+  test('opens a template whole, with a loader only while its answer is late', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/admin/embed/module/email/');
+    await expect(page.getByRole('row').filter({ hasText: 'auth-password-reset' })).toBeVisible();
+
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    await page.route('**/rpc/getTemplate*', async (route) => { await held; await route.continue(); });
+    await page.getByRole('row').filter({ hasText: 'auth-password-reset' }).click();
+
+    // No half-made page in between: no stand-in title, no placeholder rows — a loader once it is late.
+    await expect(page.getByRole('status')).toHaveText('Загружаем…');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(0);
+    await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0);
+    release();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Восстановление пароля');
+    await expect(page.getByRole('status')).toHaveCount(0);
+  });
+
+  test('names version statuses in Russian and explains the variables', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/admin/embed/module/email/');
+    await page.getByRole('row').filter({ hasText: 'auth-password-reset' }).click();
+    await expect(page.getByText('Опубликована', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('published', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('{{resetUrl}}', { exact: true })).toBeVisible();
+    await expect(page.getByText('ссылка для сброса пароля', { exact: true })).toBeVisible();
   });
 
   test('opens published source for reading and copying', async ({ page }) => {
