@@ -95,16 +95,43 @@ describe('sessions', () => {
     expect(user.session.hasSession).toBe(true);
   });
 
-  it('closes protected endpoints as soon as it is revoked', async () => {
+  it('closes protected endpoints as soon as it is revoked, while the browser that asked stays in', async () => {
     const user = await createUser('revoked');
 
     // Works while the session is valid.
     await user.session.call(USERS, 'getOwnProfile');
 
-    await user.session.call(AUTH, 'revokeOwnSessions');
+    const elsewhere = await signIn(user.email);
+    await elsewhere.call(AUTH, 'revokeOtherSessions');
 
     const after = await user.session.rpc(USERS, 'getOwnProfile');
     expect(after.status).toBe(401);
+    expect((await elsewhere.rpc(USERS, 'getOwnProfile')).status).toBe(200);
+  });
+
+  it('ends one sign-in from the list and leaves the others — and never another account\'s', async () => {
+    type Listed = { sessions: { id: string; current: boolean }[] };
+    const own = async (session: Session) => (await session.call<Listed>(AUTH, 'listOwnSessions')).sessions.find((entry) => entry.current)!.id;
+    const user = await createUser('one-session');
+    const second = await signIn(user.email);
+    const third = await signIn(user.email);
+
+    expect(await user.session.call(AUTH, 'revokeOwnSession', { id: await own(second) })).toEqual({ ok: true });
+    expect((await second.rpc(USERS, 'getOwnProfile')).status).toBe(401);
+    expect((await third.rpc(USERS, 'getOwnProfile')).status).toBe(200);
+    expect((await user.session.rpc(USERS, 'getOwnProfile')).status).toBe(200);
+
+    // This browser is ended by signing out, not from the list.
+    expect((await user.session.rpc(AUTH, 'revokeOwnSession', { id: await own(user.session) })).status).toBe(400);
+
+    // Another account's session id ends nothing, and the answer does not say it exists.
+    const other = await createUser('one-session-other');
+    expect(await user.session.call(AUTH, 'revokeOwnSession', { id: await own(other.session) })).toEqual({ ok: true });
+    expect((await other.session.rpc(USERS, 'getOwnProfile')).status).toBe(200);
+
+    const { rows } = await database.query<{ action: string }>(
+      "SELECT action FROM auth.auth_audit WHERE identity_id = $1 AND action LIKE 'session%' ORDER BY created_at", [user.userId]);
+    expect(rows.map((row) => row.action)).toEqual(['session.revoked.self']);
   });
 
   /**
@@ -226,6 +253,50 @@ describe('sign-in attempts', () => {
     // And another address is unaffected.
     const other = await createUser('unaffected');
     expect(other.session.hasSession).toBe(true);
+  });
+
+  /**
+   * An open session is not proof of the password: guessing the current password through the email
+   * and password changes is counted per account, one allowance for both, apart from sign-in.
+   */
+  it('count guessing the current password from an open session, without locking sign-in', async () => {
+    const user = await createUser('current-password-guess');
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const procedure = attempt % 2 ? 'changePassword' : 'requestEmailChange';
+      const input = procedure === 'changePassword'
+        ? { currentPassword: `wrong-${attempt}`, password: `${PASSWORD}-new` }
+        : { currentPassword: `wrong-${attempt}`, email: testEmail('current-password-guess-new') };
+      statuses.push((await user.session.rpc(AUTH, procedure, input)).status);
+    }
+    expect(statuses).toEqual(Array(10).fill(401));
+
+    // The right password is refused too while the window lasts, through either procedure.
+    const right = await user.session.rpc(AUTH, 'changePassword', { currentPassword: PASSWORD, password: `${PASSWORD}-new` });
+    expect(right.status).toBe(429);
+    expect(errorMessage(right.body)).toBe('Слишком много попыток. Попробуйте позже');
+    expect((await user.session.rpc(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email: testEmail('current-password-guess-new') })).status).toBe(429);
+
+    // One journal entry for the moment the limit was reached, not one per refusal.
+    const { rows } = await database.query<{ details: Record<string, unknown> }>(
+      "SELECT details FROM auth.auth_audit WHERE identity_id = $1 AND action = 'password.check.limited'", [user.userId]);
+    expect(rows).toEqual([{ details: { procedure: 'changePassword' } }]);
+
+    // Signing in with the password still works, and another account still can change its own.
+    expect((await signIn(user.email)).hasSession).toBe(true);
+    const other = await createUser('current-password-unaffected');
+    expect((await other.session.rpc(AUTH, 'changePassword', { currentPassword: PASSWORD, password: `${PASSWORD}-new` })).status).toBe(200);
+  });
+});
+
+describe('a new password', () => {
+  // The form stops a short password first; the server's answer still reaches anyone calling it directly.
+  it('is refused below 12 characters, in Russian, and creates no account', async () => {
+    const email = testEmail('short-password');
+    const refused = await new Session().rpc(AUTH, 'register', { email, password: 'short' });
+    expect(refused.status).toBe(400);
+    expect(errorMessage(refused.body)).toContain('Пароль должен быть не короче 12 символов');
+    expect((await new Session().rpc(AUTH, 'login', { email, password: 'short' })).status).toBe(401);
   });
 });
 
@@ -442,7 +513,7 @@ describe('recovery token lifecycle across modules', () => {
     const email = testEmail('new-mailbox');
     await new Session().call(AUTH, 'requestPasswordReset', { email: user.email });
     const oldToken = await notificationToken(user.email, 'auth.password.reset_requested', 'resetUrl');
-    await user.session.call(AUTH, 'requestEmailChange', { email });
+    await user.session.call(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email });
     const token = await notificationToken(email, 'auth.email.change_requested', 'confirmUrl');
     await user.session.call(AUTH, 'confirmEmailChange', { token });
     const stale = await new Session().rpc(AUTH, 'resetPassword', { token: oldToken, password: `${PASSWORD}-stale` });
@@ -463,6 +534,96 @@ interface BatchReply {
   result?: { data: unknown };
   error?: { data: { code: string } };
 }
+
+describe('an email change', () => {
+  const events = async (email: string) => (await database.query(
+    'SELECT 1 FROM notifications.events WHERE recipient_email = $1', [email])).rowCount;
+  const requests = async (identityId: string) => (await database.query<{ details: Record<string, unknown> }>(
+    "SELECT details FROM auth.auth_audit WHERE identity_id = $1 AND action = 'email.change_requested' ORDER BY created_at",
+    [identityId])).rows.map((row) => row.details);
+
+  it('needs the current password: without it or with a wrong one nothing is sent or recorded', async () => {
+    const user = await createUser('email-change-password');
+    const email = testEmail('email-change-password-new');
+    expect((await user.session.rpc(AUTH, 'requestEmailChange', { email })).status).toBe(400);
+    const wrong = await user.session.rpc(AUTH, 'requestEmailChange', { currentPassword: `${PASSWORD}-wrong`, email });
+    expect(wrong.status).toBe(401);
+    expect(errorMessage(wrong.body)).toBe('Текущий пароль неверен');
+    expect(await events(email)).toBe(0);
+    expect(await requests(user.userId)).toEqual([]);
+    // The session survives a wrong password: it is a refusal, not a sign-out.
+    expect(await user.session.call(AUTH, 'currentSession')).toMatchObject({ identity: { id: user.userId } });
+  });
+
+  it('answers a registered address with a wrong password like any other wrong password', async () => {
+    const user = await createUser('email-change-taken-wrong');
+    const other = await createUser('email-change-taken-other');
+    const wrong = await user.session.rpc(AUTH, 'requestEmailChange', { currentPassword: `${PASSWORD}-wrong`, email: other.email });
+    expect(wrong.status).toBe(401);
+    expect(await requests(user.userId)).toEqual([]);
+  });
+
+  it('says a registered address is taken, as registration does, records it and sends nothing to it', async () => {
+    const user = await createUser('email-change-taken');
+    const other = await createUser('email-change-taken-owner');
+    const before = await events(other.email);
+    const refused = await user.session.rpc(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email: other.email });
+    expect(refused.status).toBe(409);
+    expect(errorMessage(refused.body)).toBe('Этот адрес уже занят');
+    expect(await events(other.email)).toBe(before);
+    expect(await requests(user.userId)).toEqual([{ email: other.email, taken: true }]);
+  });
+
+  it('sends one link per account in five minutes, and says so to the person asking again', async () => {
+    const user = await createUser('email-change-twice');
+    const email = testEmail('email-change-twice-new');
+    expect(await user.session.call(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email })).toEqual({ ok: true });
+    const again = await user.session.rpc(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email: testEmail('email-change-twice-other') });
+    expect(again.status).toBe(429);
+    expect(errorMessage(again.body)).toBe('Письмо уже отправлено. Новое можно запросить не раньше чем через 5 минут');
+    expect(await events(testEmail('email-change-twice-other'))).toBe(0);
+    expect(await requests(user.userId)).toEqual([{ email }, { email: testEmail('email-change-twice-other'), limited: 'account' }]);
+  });
+
+  it('sends one link to an address in five minutes, whichever accounts ask for it, without telling them', async () => {
+    const first = await createUser('email-change-shared-1');
+    const second = await createUser('email-change-shared-2');
+    const email = testEmail('email-change-shared-target');
+    await first.session.call(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email });
+    expect(await second.session.call(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email })).toEqual({ ok: true });
+    expect(await events(email)).toBe(1);
+    expect(await requests(second.userId)).toEqual([{ email, limited: 'address' }]);
+  });
+
+  it('with the password, records the request and sends the link that changes the address', async () => {
+    const user = await createUser('email-change-ok');
+    const email = testEmail('email-change-ok-new');
+    expect(await user.session.call(AUTH, 'requestEmailChange', { currentPassword: PASSWORD, email })).toEqual({ ok: true });
+    expect(await requests(user.userId)).toEqual([{ email }]);
+    const token = await notificationToken(email, 'auth.email.change_requested', 'confirmUrl');
+    await new Session().call(AUTH, 'confirmEmailChange', { token });
+    expect((await signIn(email)).hasSession).toBe(true);
+  });
+});
+
+describe('a fresh verification link', () => {
+  it('is sent once in five minutes, counting the one in the welcome letter, and the person asking again is told so', async () => {
+    const user = await createUser('verification-resend');
+    const sent = async () => (await database.query(
+      "SELECT 1 FROM notifications.events WHERE recipient_email = $1 AND type = 'auth.email.verification_requested'", [user.email])).rowCount;
+    // Registration has just mailed a link of its own.
+    const early = await user.session.rpc(AUTH, 'resendOwnVerification', {});
+    expect(early.status).toBe(429);
+    expect(errorMessage(early.body)).toBe('Письмо уже отправлено. Новое можно запросить не раньше чем через 5 минут');
+    // Test database only: the welcome link is made six minutes old, as if the window had passed.
+    await database.query(
+      "UPDATE auth.auth_tokens SET created_at = created_at - interval '6 minutes' WHERE identity_id = $1 AND purpose = 'email-verification'",
+      [user.userId]);
+    expect(await user.session.call(AUTH, 'resendOwnVerification', {})).toEqual({ ok: true });
+    expect((await user.session.rpc(AUTH, 'resendOwnVerification', {})).status).toBe(429);
+    expect(await sent()).toBe(1);
+  });
+});
 
 describe('module HTTP boundaries', () => {
   it.each([

@@ -73,10 +73,10 @@ export function LoginScreen() {
       title="Вход"
       footer={
         <>
-          <Link to="/app/register" className="text-sm underline underline-offset-4">
+          <Link to="/app/register" className="text-sm underline decoration-muted-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground">
             Создать аккаунт
           </Link>
-          <Link to="/app/reset-password" className="text-sm underline underline-offset-4">
+          <Link to="/app/reset-password" className="text-sm underline decoration-muted-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground">
             Забыли пароль?
           </Link>
         </>
@@ -135,7 +135,7 @@ export function RegisterScreen() {
       title="Создание аккаунта"
       description="На этот адрес придёт ссылка для подтверждения."
       footer={
-        <Link to="/app/login" search={{ next: undefined }} className="text-sm underline underline-offset-4">
+        <Link to="/app/login" search={{ next: undefined }} className="text-sm underline decoration-muted-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground">
           У меня уже есть аккаунт
         </Link>
       }
@@ -197,7 +197,7 @@ export function RequestResetScreen() {
         title="Проверьте почту"
         description="Если у этого адреса есть аккаунт, ссылка для восстановления уже в пути. Она работает один раз и истекает."
         footer={
-          <Link to="/app/login" search={{ next: undefined }} className="text-sm underline underline-offset-4">
+          <Link to="/app/login" search={{ next: undefined }} className="text-sm underline decoration-muted-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground">
             К входу
           </Link>
         }
@@ -212,8 +212,8 @@ export function RequestResetScreen() {
       title="Восстановление пароля"
       description="Пришлём одноразовую ссылку."
       footer={
-        <Link to="/app/login" search={{ next: undefined }} className="text-sm underline underline-offset-4">
-          Back to sign in
+        <Link to="/app/login" search={{ next: undefined }} className="text-sm underline decoration-muted-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground">
+          К входу
         </Link>
       }
     >
@@ -264,7 +264,7 @@ export function ResetPasswordScreen() {
         title="Ссылка неполная"
         description="Откройте ссылку из письма ровно так, как её прислали, или запросите новую."
         footer={
-          <Link to="/app/reset-password" className="text-sm underline underline-offset-4">
+          <Link to="/app/reset-password" className="text-sm underline decoration-muted-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground">
             Запросить новую ссылку
           </Link>
         }
@@ -317,7 +317,7 @@ export function ConfirmEmailChangeScreen() {
   React.useEffect(() => {
     if (token === '') {
       setState('failed');
-      setMessage('This link is incomplete. Open it from the email exactly as it was sent.');
+      setMessage('Ссылка неполная. Откройте её из письма ровно так, как её прислали.');
       return;
     }
 
@@ -345,7 +345,7 @@ export function ConfirmEmailChangeScreen() {
         title="Ссылка не сработала"
         description={message}
         footer={
-          <Link to="/app/settings" className="text-sm underline underline-offset-4">
+          <Link to="/app/settings" className="text-sm underline decoration-muted-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground">
             Попробовать снова из настроек
           </Link>
         }
@@ -361,7 +361,7 @@ export function ConfirmEmailChangeScreen() {
     <AuthCard
       title="Адрес изменён"
       footer={
-        <Link to="/app/" className="text-sm underline underline-offset-4">
+        <Link to="/app/" className="text-sm underline decoration-muted-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground">
           Продолжить
         </Link>
       }
@@ -384,7 +384,7 @@ export function VerifyEmailScreen() {
   React.useEffect(() => {
     if (token === '') {
       setState('failed');
-      setMessage('This link is incomplete. Open it from the email exactly as it was sent.');
+      setMessage('Ссылка неполная. Откройте её из письма ровно так, как её прислали.');
       return;
     }
 
@@ -410,7 +410,7 @@ export function VerifyEmailScreen() {
         title="Ссылка не сработала"
         description={message}
         footer={
-          <Link to="/app/login" search={{ next: undefined }} className="text-sm underline underline-offset-4">
+          <Link to="/app/login" search={{ next: undefined }} className="text-sm underline decoration-muted-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground">
             Перейти ко входу
           </Link>
         }
@@ -426,7 +426,7 @@ export function VerifyEmailScreen() {
     <AuthCard
       title="Почта подтверждена"
       footer={
-        <Link to="/app/" className="text-sm underline underline-offset-4">
+        <Link to="/app/" className="text-sm underline decoration-muted-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground">
           Продолжить
         </Link>
       }

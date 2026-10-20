@@ -26,12 +26,33 @@ to Admin and Users. The batch lookup accepts up to 200 IDs.
 ## Authentication behavior
 
 Registration opens a session and sends a verification link. Registering an existing email returns
-a conflict. Recovery and requests to change to an occupied email return `ok` without revealing
-whether the address exists. Login uses one rejection message for invalid credentials and verifies
+a conflict, and so does a request to change to an occupied email: registration already tells anyone
+that an address is taken, so the change — behind the current password and the five-minute window —
+says it too instead of pretending a letter went out. Recovery returns `ok` without revealing whether
+the address exists. Changing the email, like changing the password, asks for the current
+password first — an open session is not proof of who is at the keyboard — and the address is looked
+at only after it matches. A request is recorded as `email.change_requested` (with `taken: true` for
+an occupied address, which is refused and gets no link); the change itself as `email.changed`. Login uses one rejection message for invalid credentials and verifies
 a dummy password hash when the identity is missing.
 
 Sign-in permits ten attempts per email within fifteen minutes; success clears the counter.
-The counter belongs to the process, so multiple application processes each have that allowance.
+The current password asked by the email and password changes has its own allowance: ten checks per
+account within fifteen minutes, shared by both procedures and separate from sign-in. Past it the
+password is not checked (`TOO_MANY_REQUESTS`), and the first refusal in a window is recorded once as
+`password.check.limited`. Both limits are constants in [`public/index.ts`](src/public/index.ts).
+
+Letters a person can trigger are limited where an account is known. Recovery sends one link per
+account in fifteen minutes and always answers `ok`. A fresh verification link and an email-change link
+go out at most once per account in five minutes; asking again inside the window gets
+`TOO_MANY_REQUESTS` saying so; the link in the welcome letter counts, so a fresh one can be asked for
+five minutes after registering. An email-change link also goes to one address at most once in five
+minutes whichever accounts ask, answered with a quiet `ok` like a taken address and journaled as
+`limited: 'address'` (`limited: 'account'` for the account window). These windows are rows in the
+database, so they survive a restart. **Registration is not limited:** an address registers once, so
+one person gets one welcome letter at most, but a script can register many addresses. Protecting it —
+a rate limit by client address at the edge proxy, a CAPTCHA, bot protection — belongs to whoever
+deploys the product; the application does not see the client address.
+The counters belong to the process, so multiple application processes each have that allowance.
 Configure client-address rate limits at the edge proxy.
 
 Verification links last 24 hours; recovery and email-change links last one hour. Tokens are
@@ -39,8 +60,11 @@ consumed in the same transaction as the account change. Credential operations se
 identity row; login rechecks the verified password hash and email before creating a session.
 Issuing a replacement invalidates earlier tokens for the same purpose.
 Password and email changes revoke all sessions and outstanding account links. A password change
-opens a fresh session on the current device; an email change requires signing in again. Users can
-also list and revoke their own sessions.
+opens a fresh session on the current device; an email change requires signing in again. Users see
+their own sessions and end any one of them (`revokeOwnSession`, journaled as `session.revoked.self`)
+or every one but the current browser (`revokeOtherSessions`, `sessions.revoked.others` with the count);
+the current browser is ended by signing out. Another account's session id ends nothing and still
+answers `ok`.
 The public API accepts JSON RPC requests; cookies use `SameSite=Lax`.
 
 ### Session cookies

@@ -47,6 +47,10 @@ export function Protected({ children }: { children: React.ReactNode }) {
   return <AppFrame>{children}</AppFrame>;
 }
 
+/** Grey at rest, darker under the pointer, dark and underlined for the open page; no bold, so nothing shifts. */
+const NAV_LINK =
+  "text-muted-foreground underline-offset-4 transition-colors hover:text-foreground [&.active]:text-foreground [&.active]:underline";
+
 function AppFrame({ children }: { children: React.ReactNode }) {
   const { identity } = useSession();
 
@@ -63,17 +67,22 @@ function AppFrame({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-svh flex-col">
       <header className="flex h-14 items-center justify-between gap-4 border-b px-4">
         <nav className="flex items-center gap-4 text-sm">
-          <Link to="/app/" className="font-medium [&.active]:underline underline-offset-4">
+          {/* Exact: every application path starts with /app/, so without it Главная would stay lit everywhere. */}
+          <Link
+            to="/app/"
+            activeOptions={{ exact: true }}
+            className={NAV_LINK}
+          >
             Главная
           </Link>
-          <Link to="/app/settings" className="[&.active]:underline underline-offset-4">
+          <Link to="/app/settings" className={NAV_LINK}>
             Настройки
           </Link>
         </nav>
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground hidden text-sm sm:inline">{identity?.email}</span>
           <ThemeToggle />
-          <Button variant="ghost" size="sm" onClick={logout}>
+          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" onClick={logout}>
             Выйти
           </Button>
         </div>

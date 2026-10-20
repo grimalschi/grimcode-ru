@@ -38,6 +38,13 @@ const ANY = 'any';
 
 const STATUSES = ['accepted', 'routed', 'failed'] as const;
 
+/** What a person reads; the stored value stays as it is. */
+const STATUS_LABEL: Record<Event['status'], string> = {
+  accepted: 'Принято',
+  routed: 'Обработано',
+  failed: 'Ошибка',
+};
+
 /** A dot rather than a filled badge: inside a clickable row a badge reads as a button. */
 const STATUS_DOT: Record<Event['status'], string> = {
   accepted: 'bg-muted-foreground',
@@ -85,7 +92,7 @@ export function EventsPage() {
   return (
     <AdminPage
       title="События"
-      description="О чём продукт просил уведомить и дошло ли это до Email."
+      description="События, по которым пользователям уходят письма — например, регистрация, подтверждение почты, сброс пароля, смена почты. В колонке «Статус» — создано ли по событию письмо. Сами письма — в разделе «Письма»."
       actions={
         <div className="flex gap-2">
           <Select value={type} onValueChange={changeFilter(setType)}>
@@ -110,7 +117,7 @@ export function EventsPage() {
               <SelectItem value={ANY}>Любой статус</SelectItem>
               {STATUSES.map((value) => (
                 <SelectItem key={value} value={value}>
-                  {value}
+                  {STATUS_LABEL[value]}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -142,7 +149,7 @@ export function EventsPage() {
                   aria-hidden
                   className={`size-2 shrink-0 rounded-full ${STATUS_DOT[row.status]}`}
                 />
-                {row.status}
+                {STATUS_LABEL[row.status]}
               </span>
             ),
           },
@@ -187,19 +194,17 @@ function EventDialog({ id, onClose }: { id: string; onClose: () => void }) {
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       {/* Focus the card itself, not its first button: a ring on «Закрыть» or the cross read as a border, and differed card to card. */}
-      <DialogContent onOpenAutoFocus={(event) => { event.preventDefault(); (event.currentTarget as HTMLElement).focus(); }}>
+      {/* No description: a card with nothing to edit needs no note saying so. Radix is told there is none on purpose. */}
+      <DialogContent aria-describedby={undefined} onOpenAutoFocus={(event) => { event.preventDefault(); (event.currentTarget as HTMLElement).focus(); }}>
         <DialogHeader>
           <DialogTitle>{event.type}</DialogTitle>
-          <DialogDescription>
-            Запись об одном событии. Изменить здесь ничего нельзя.
-          </DialogDescription>
         </DialogHeader>
 
         <dl className="grid grid-cols-[9rem_1fr] gap-y-2 text-sm">
           <dt className="text-muted-foreground">Получатель</dt>
           <dd>{event.recipientEmail}</dd>
           <dt className="text-muted-foreground">Статус</dt>
-          <dd>{event.status}</dd>
+          <dd>{STATUS_LABEL[event.status]}</dd>
           <dt className="text-muted-foreground">Принято</dt>
           <dd>{new Date(event.createdAt).toLocaleString()}</dd>
           <dt className="text-muted-foreground">Отправлено</dt>
@@ -209,7 +214,7 @@ function EventDialog({ id, onClose }: { id: string; onClose: () => void }) {
             {/* The message itself lives in Email; this is only the link between the two. */}
             {event.deliveryId ? <code className="text-xs">{event.deliveryId}</code> : '—'}
           </dd>
-          <dt className="text-muted-foreground">Ключ идемпотентности</dt>
+          <dt className="text-muted-foreground">Код от повторов</dt>
           <dd className="truncate">
             <code className="text-xs">{event.dedupeKey}</code>
           </dd>

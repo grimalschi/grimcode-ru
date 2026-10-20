@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 
-import { appliedTheme, collectPageErrors, expectNoPageErrors, signIn } from './support.js';
+import { appliedTheme, collectPageErrors, expectNoPageErrors, OWNER_EMAIL, signIn } from './support.js';
 
 /**
  * The central Admin shell in a real browser.
@@ -137,6 +137,20 @@ test.describe('themes', () => {
     await expect.poll(() => appliedTheme(page)).toBe('light');
   });
 
+  test('is offered in Russian in the application as well', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/app/');
+
+    await page.getByRole('button', { name: 'Тема: Как в системе' }).click();
+    await expect(page.getByRole('menuitem')).toHaveText(['Светлая', 'Тёмная', 'Как в системе']);
+    await page.getByRole('menuitem', { name: 'Тёмная' }).click();
+    await expect.poll(() => appliedTheme(page)).toBe('dark');
+    await expect(page.getByRole('button', { name: 'Тема: Тёмная' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Тема: Тёмная' }).click();
+    await page.getByRole('menuitem', { name: 'Как в системе' }).click();
+  });
+
   test('survives a reload, so a dark panel does not flash white', async ({ page }) => {
     await signIn(page);
     await page.goto('/admin/');
@@ -252,5 +266,87 @@ test.describe('the frame protocol', () => {
     await expect(page.getByRole('button', { name: /^Тема:/ })).toBeVisible();
 
     expectNoPageErrors(problems);
+  });
+});
+
+/**
+ * Tailwind 4 gives buttons the arrow cursor; each screen restores the hand in its own stylesheet, so
+ * each one is checked: the shell, the four module admins standing alone, and the application.
+ */
+test.describe('the pointer', () => {
+  test('is a hand over what can be pressed, on every screen', async ({ page }) => {
+    const cursor = (locator: Locator) => locator.evaluate((element) => getComputedStyle(element).cursor);
+    await signIn(page);
+
+    await page.goto('/admin/');
+    expect(await cursor(page.getByRole('button', { name: /^Тема:/ })), 'admin').toBe('pointer');
+    // The icons under the sidebar are grey and darken under the pointer, as in the application header.
+    const signOut = page.getByRole('button', { name: 'Выйти' });
+    const color = () => signOut.evaluate((element) => getComputedStyle(element).color);
+    const atRest = await color();
+    await signOut.hover();
+    await expect.poll(color).not.toBe(atRest);
+
+    for (const module of ['auth', 'users', 'email', 'notifications']) {
+      await page.goto(`/admin/embed/module/${module}/`);
+      const toggle = page.getByRole('button', { name: /^Тема:/ });
+      await expect(toggle, module).toBeVisible();
+      expect(await cursor(toggle), module).toBe('pointer');
+    }
+
+    await page.goto('/app/settings');
+    expect(await cursor(page.getByRole('tab', { name: 'Аккаунт' })), 'application tab').toBe('pointer');
+    expect(await cursor(page.getByRole('button', { name: 'Выйти' })), 'application button').toBe('pointer');
+  });
+});
+
+test.describe('the user card', () => {
+  test('puts each action on the line of what it changes, and names the owner as unblockable', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/admin/embed/module/auth/');
+    await page.getByRole('row').filter({ hasText: OWNER_EMAIL }).click();
+
+    const card = page.getByRole('dialog');
+    await expect(card.getByText('Пароль и почту меняет только сам человек — отсюда можно лишь отправить ему ссылку.')).toBeVisible();
+    // Matched whole: «Роль» is also inside «Пароль».
+    const line = (label: string) => card.locator('dl > div').filter({ has: page.locator('dt', { hasText: new RegExp(`^${label}$`) }) });
+    await expect(line('Пароль').getByRole('button', { name: 'Отправить ссылку сброса' })).toBeVisible();
+    await expect(line('Сессии').getByRole('button', { name: 'Завершить все' })).toBeVisible();
+    await expect(line('Блокировка')).toHaveText(/^Блокировка\s*Нет$/);
+    await expect(line('Роль')).toContainText('Владелец панели — заблокировать нельзя');
+  });
+});
+
+test.describe('a search in a module list', () => {
+  test('keeps the rows on screen, dimmed, while the answer is on its way', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/admin/embed/module/auth/');
+    const owner = page.getByRole('row').filter({ hasText: OWNER_EMAIL });
+    await expect(owner).toBeVisible();
+
+    // Hold the search's answer back, so the in-between state can be looked at.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    await page.route('**/rpc/listIdentities*', async (route) => { await held; await route.continue(); });
+    await page.getByPlaceholder('Поиск по адресу').fill(OWNER_EMAIL.slice(0, 5));
+
+    await expect(page.locator('tbody[aria-busy="true"]')).toBeVisible();
+    await expect(owner).toBeVisible();
+    await expect(page.locator('tbody [data-slot="skeleton"]')).toHaveCount(0);
+    release();
+    await expect(page.locator('tbody[aria-busy="false"]')).toBeVisible();
+  });
+});
+
+test.describe('the events list', () => {
+  test('names each status in Russian, in the table and in the filter', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/admin/embed/module/notifications/');
+    // Registering the suite's owner raised an event that went on to Email.
+    await expect(page.getByRole('cell', { name: 'Обработано' }).first()).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'routed', exact: true })).toHaveCount(0);
+
+    await page.getByRole('combobox').filter({ hasText: 'Любой статус' }).click();
+    await expect(page.getByRole('option')).toHaveText(['Любой статус', 'Принято', 'Обработано', 'Ошибка']);
   });
 });

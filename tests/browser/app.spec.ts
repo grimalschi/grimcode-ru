@@ -83,7 +83,75 @@ test.describe('a signed-in person', () => {
     // One settings screen with sections, not three separate destinations.
     await expect(page.getByRole('link', { name: 'Профиль' })).toHaveCount(0);
 
+    // Only the page that is open is marked in the header, and the home page is not lit everywhere.
+    const navigation = page.getByRole('navigation');
+    await expect(navigation.getByRole('link', { name: 'Настройки' })).toHaveAttribute('data-status', 'active');
+    await expect(navigation.getByRole('link', { name: 'Главная' })).not.toHaveAttribute('data-status', 'active');
+    // At rest the other item is grey; under the pointer it turns the colour of the open one.
+    const color = (name: string) => navigation.getByRole('link', { name }).evaluate((element) => getComputedStyle(element).color);
+    const open = await color('Настройки');
+    expect(await color('Главная')).not.toBe(open);
+    await navigation.getByRole('link', { name: 'Главная' }).hover();
+    await expect.poll(() => color('Главная')).toBe(open);
+    // The buttons beside it answer the pointer the same way.
+    const signOut = page.getByRole('button', { name: 'Выйти' });
+    const signOutColor = () => signOut.evaluate((element) => getComputedStyle(element).color);
+    expect(await signOutColor()).not.toBe(open);
+    await signOut.hover();
+    await expect.poll(signOutColor).toBe(open);
+    await navigation.getByRole('link', { name: 'Главная' }).click();
+    await expect(navigation.getByRole('link', { name: 'Главная' })).toHaveAttribute('data-status', 'active');
+    await expect(navigation.getByRole('link', { name: 'Настройки' })).not.toHaveAttribute('data-status', 'active');
+
     expectNoPageErrors(problems);
+  });
+
+  test('confirms an address change with the password, and keeps the address when the password is wrong', async ({ page, request }) => {
+    const problems = collectPageErrors(page);
+
+    await signIn(page);
+    await page.goto('/app/settings');
+    await page.getByRole('tab', { name: 'Аккаунт' }).click();
+
+    // The form stays folded until asked for, and the card needs no button to refresh it.
+    await expect(page.getByLabel('Новый адрес')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Обновить' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Сменить адрес' }).click();
+
+    const address = page.getByLabel('Новый адрес');
+    const password = page.getByLabel('Подтвердите пароль');
+    const send = page.getByRole('button', { name: 'Отправить', exact: true });
+    // A password manager is told which account the password belongs to, not offered the new address.
+    await expect(page.locator('input[autocomplete="username"]')).toHaveValue(OWNER_EMAIL);
+    await expect(address).toHaveAttribute('autocomplete', 'email');
+    await expect(password).toHaveAttribute('autocomplete', 'current-password');
+
+    await address.fill('someone-new@example.test');
+    await expect(send).toBeDisabled();
+    await password.fill(`${OWNER_PASSWORD}-wrong`);
+    await send.click();
+    await expect(page.getByText('Текущий пароль неверен')).toBeVisible();
+    // The address stays for a second try; the password does not stay in the form.
+    await expect(address).toHaveValue('someone-new@example.test');
+    await expect(password).toHaveValue('');
+
+    // A taken address is said to be taken, as on registration; the form stays as it was.
+    const taken = `taken-${Date.now()}@example.test`;
+    // Registered from a context of its own, so this page stays signed in as the owner.
+    expect((await request.post('/module/auth/rpc/register', { data: { email: taken, password: 'Taken-address-pass-1' } })).ok()).toBe(true);
+    await address.fill(taken);
+    await password.fill(OWNER_PASSWORD);
+    await send.click();
+    await expect(page.getByText('Этот адрес уже занят')).toBeVisible();
+    await expect(address).toHaveValue(taken);
+    // The password was right, so it stays: only the address needs fixing.
+    await expect(password).toHaveValue(OWNER_PASSWORD);
+
+    await page.getByRole('button', { name: 'Отмена' }).click();
+    await expect(address).toHaveCount(0);
+
+    // The refusal of the wrong password is the one failed request the browser reports; anything else is a fault.
+    expectNoPageErrors(problems.filter((problem) => !/status of (401|409)/.test(problem)));
   });
 
   test('returns to the page they were sent away from', async ({ page }) => {
@@ -96,6 +164,55 @@ test.describe('a signed-in person', () => {
 
     await page.waitForURL(/\/app\/settings/);
     await expect(page.getByRole('tab', { name: 'Безопасность' })).toBeVisible();
+  });
+
+  test('ends one other sign-in from the list, and keeps this browser in', async ({ page, browser, baseURL }) => {
+    const problems = collectPageErrors(page);
+    await signIn(page);
+
+    // A second browser of the same person; its own list says which session it is.
+    const elsewhere = await browser.newContext({ baseURL });
+    const other = await elsewhere.newPage();
+    await signIn(other);
+    const listed = await other.request.post('/module/auth/rpc/listOwnSessions', { data: {} });
+    const { sessions } = (await listed.json() as { result: { data: { sessions: { id: string; current: boolean }[] } } }).result.data;
+    const otherId = sessions.find((session) => session.current)!.id;
+
+    await page.goto('/app/settings');
+    await page.getByRole('tab', { name: 'Безопасность' }).click();
+    const current = page.getByTestId('own-session').filter({ hasText: 'Этот браузер' });
+    await expect(current.getByRole('button', { name: 'Завершить' })).toHaveCount(0);
+    // The device is named for a person, not by its raw user-agent string.
+    await expect(current).toContainText(/Chrome, (Windows|Linux|macOS)/);
+    await expect(current).not.toContainText('Mozilla/5.0');
+    // The raw string is one hover away, on a name that shows it can be pointed at.
+    const name = current.locator('[data-slot="tooltip-trigger"]');
+    await expect.poll(() => name.evaluate((element) => getComputedStyle(element).cursor)).toBe('pointer');
+    await name.hover();
+    await expect(page.getByRole('tooltip')).toContainText('Mozilla/5.0');
+    const row = page.locator(`[data-session-id="${otherId}"]`);
+    await row.getByRole('button', { name: 'Завершить', exact: true }).click();
+    await expect(row).toHaveCount(0);
+
+    // That browser is out; this one is not.
+    await other.goto('/app/settings');
+    await other.waitForURL(/\/app\/login/);
+    await page.reload();
+    await expect(page.getByRole('tab', { name: 'Безопасность' })).toBeVisible();
+    await elsewhere.close();
+
+    expectNoPageErrors(problems);
+  });
+
+  test('re-reads the account on coming back to the tab, so a confirmation made elsewhere shows', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/app/settings');
+    await page.getByRole('tab', { name: 'Аккаунт' }).click();
+    await expect(page.getByText('Адрес, с которым вы входите.')).toBeVisible();
+
+    const reread = page.waitForRequest('**/module/auth/rpc/currentSession');
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await reread;
   });
 
   test('is put back out when the session ends', async ({ page }) => {
@@ -144,12 +261,35 @@ test.describe('the recovery link', () => {
     await expect(page.getByRole('button', { name: 'Изменить пароль' })).toBeVisible();
   });
 
+  test('darkens a link\'s grey underline under the pointer', async ({ page }) => {
+    await page.goto('/app/login');
+    const link = page.getByRole('link', { name: 'Забыли пароль?' });
+    const underline = () => link.evaluate((element) => getComputedStyle(element).textDecorationColor);
+    const text = await link.evaluate((element) => getComputedStyle(element).color);
+    expect(await underline()).not.toBe(text);
+    await link.hover();
+    await expect.poll(underline).toBe(text);
+  });
+
   test('says so when the link carries no token, instead of pretending', async ({ page }) => {
     await page.goto('/app/reset-password/confirm');
 
     await expect(page.getByText('Ссылка неполная')).toBeVisible();
     await expect(page.getByLabel('Новый пароль')).toHaveCount(0);
   });
+
+  test('leads back to sign in from the recovery form', async ({ page }) => {
+    await page.goto('/app/reset-password');
+    await page.getByRole('link', { name: 'К входу', exact: true }).click();
+    await expect(page).toHaveURL(/\/app\/login$/);
+  });
+
+  for (const path of ['/app/verify-email', '/app/confirm-email-change']) {
+    test(`says in Russian that ${path} came without its token`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page.getByText('Ссылка неполная. Откройте её из письма ровно так, как её прислали.')).toBeVisible();
+    });
+  }
 });
 
 test.describe('the public site', () => {

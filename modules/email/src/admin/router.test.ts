@@ -18,6 +18,8 @@ function caller() {
     markFailed: vi.fn().mockResolvedValue(undefined),
     audit: vi.fn().mockResolvedValue(undefined),
     publish: vi.fn<EmailRepository['publish']>(),
+    saveDraft: vi.fn<EmailRepository['saveDraft']>(),
+    listAudit: vi.fn<EmailRepository['listAudit']>(),
     withTransaction: (operation: (bound: unknown) => Promise<unknown>) => operation(repo),
   };
   const transport = { name: 'log', send: vi.fn().mockResolvedValue({ providerMessageId: null, providerStatus: 'logged' }) };
@@ -93,5 +95,46 @@ describe('Email administration', () => {
     await expect(api.testSend({ id, to: 'a@example.com' })).rejects.toThrow('connection lost');
     expect(transport.send).toHaveBeenCalledOnce();
     expect(repo.markFailed).not.toHaveBeenCalled();
+  });
+
+  it('records a save that changed the draft, with the administrator\'s address, and stays silent otherwise', async () => {
+    const { api, repo } = caller();
+    const row = { id, template_id: id, version: 3, status: 'draft' as const, subject: 'Saved', source: mjml('Saved body'),
+      compiled_html: null, compiled_text: null, published_at: null, created_at: new Date(), updated_at: new Date() };
+    repo.saveDraft.mockResolvedValueOnce({ row, changed: false });
+    await api.saveDraft({ id, subject: 'Saved', source: mjml('Saved body') });
+    expect(repo.audit).not.toHaveBeenCalled();
+
+    repo.saveDraft.mockResolvedValueOnce({ row, changed: true });
+    await api.saveDraft({ id, subject: 'Saved', source: mjml('Changed body') });
+    expect(repo.audit).toHaveBeenCalledExactlyOnceWith({
+      action: 'version.draft.saved', actorUserId: id, actorRole: 'owner', actorEmail: 'owner@example.com',
+      details: { templateKey: 'welcome', version: 3 },
+    });
+  });
+
+  it('refuses to save a version that is not a draft and records nothing', async () => {
+    const { api, repo } = caller();
+    repo.saveDraft.mockResolvedValue(null);
+    await expect(api.saveDraft({ id, subject: 'Saved', source: mjml('Body') }))
+      .rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Only a draft can be edited' });
+    expect(repo.audit).not.toHaveBeenCalled();
+  });
+
+  it('lists the journal newest first as stored, an entry from before addresses with none', async () => {
+    const { api, repo } = caller();
+    const at = new Date('2026-10-15T10:00:00Z');
+    repo.listAudit.mockResolvedValue({ total: 2, rows: [
+      { id, action: 'version.published', actor_user_id: id, actor_role: 'admin', actor_email: 'admin@example.com',
+        details: { templateKey: 'welcome', version: 2 }, created_at: at },
+      { id, action: 'template.created', actor_user_id: id, actor_role: 'owner', actor_email: null, details: null, created_at: at },
+    ] });
+    const page = await api.listAudit({ limit: 50, offset: 0 });
+    expect(repo.listAudit).toHaveBeenCalledWith(undefined, 50, 0);
+    expect(page).toEqual({ total: 2, limit: 50, offset: 0, items: [
+      { id, action: 'version.published', actorUserId: id, actorRole: 'admin', actorEmail: 'admin@example.com',
+        details: { templateKey: 'welcome', version: 2 }, createdAt: at.toISOString() },
+      { id, action: 'template.created', actorUserId: id, actorRole: 'owner', actorEmail: null, details: {}, createdAt: at.toISOString() },
+    ] });
   });
 });

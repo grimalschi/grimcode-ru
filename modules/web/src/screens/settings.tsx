@@ -1,14 +1,17 @@
+import { CircleHelpIcon, MonitorIcon, SmartphoneIcon, TabletIcon } from 'lucide-react';
 import * as React from 'react';
 import { toast } from 'sonner';
 
-import { auth, messageOf, users } from '@/api';
+import { auth, codeOf, messageOf, users } from '@/api';
 import { Page } from '@/components/layout/page';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { day, describeDevice, sinceNow, type DeviceKind } from '@/device';
 import { useAsync } from '@/hooks/use-async';
 import { useSession } from '@/session';
 
@@ -118,21 +121,35 @@ function ProfileSection() {
 }
 
 function AccountSection() {
-  const { identity, refresh } = useSession();
+  const { identity } = useSession();
+  // The form to change the address stays folded: an address changes once in years, and two open
+  // fields under it made the card read as a form to fill in.
+  const [changing, setChanging] = React.useState(false);
   const [email, setEmail] = React.useState('');
+  const [password, setPassword] = React.useState('');
   const [busy, setBusy] = React.useState(false);
+  const verified = identity?.emailVerifiedAt !== null;
+
+  const close = () => {
+    setChanging(false);
+    setEmail('');
+    setPassword('');
+  };
 
   const requestChange = async (event: React.FormEvent) => {
     event.preventDefault();
     setBusy(true);
     try {
-      await auth.requestEmailChange.mutate({ email });
+      await auth.requestEmailChange.mutate({ currentPassword: password, email });
       // The address only changes once the link in the new mailbox is opened; saying so avoids the
-      // impression that it already did.
+      // impression that it already did. A taken address never gets here: Auth refuses it by name.
       toast.success('Подтвердите изменение по ссылке, отправленной на новый адрес');
-      setEmail('');
+      close();
     } catch (error) {
       toast.error(messageOf(error));
+      // Only a refused password is cleared — it has to be typed again anyway. A taken address or the
+      // five-minute window says nothing against the password, so it stays and only the address is fixed.
+      if (codeOf(error) === 'UNAUTHORIZED') setPassword('');
     } finally {
       setBusy(false);
     }
@@ -151,49 +168,98 @@ function AccountSection() {
     <Card>
       <CardHeader>
         <CardTitle>Аккаунт</CardTitle>
-        <CardDescription>Адрес, с которым вы входите.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-2 text-sm">
-          <p className="font-medium">{identity?.email}</p>
-          {identity?.emailVerifiedAt === null ? (
-            <div className="flex items-center gap-3">
-              <span className="text-muted-foreground">Ещё не подтверждён.</span>
-              <Button variant="outline" size="sm" onClick={() => void resend()}>
-                Отправить новую ссылку
+      <CardContent className="space-y-4 text-sm">
+        <div className="space-y-1">
+          <p className="text-muted-foreground">Адрес, с которым вы входите.</p>
+          {/* Held at the button's height, so the line does not jump when the button gives way to the form. */}
+          <div className="flex min-h-8 flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="font-medium">{identity?.email}</span>
+            <span
+              className={
+                verified
+                  ? 'rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                  : 'rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+              }
+            >
+              {verified ? 'Подтверждён' : 'Не подтверждён'}
+            </span>
+            {changing ? null : (
+              <Button variant="outline" size="sm" className="ml-auto" onClick={() => setChanging(true)}>
+                Сменить адрес
               </Button>
-            </div>
-          ) : (
-            <p className="text-muted-foreground">Подтверждён.</p>
+            )}
+          </div>
+          {/* The status follows on its own when the person comes back from the letter: SessionProvider re-reads it. */}
+          {verified ? null : (
+            <p className="text-muted-foreground pt-2">
+              Ссылка для подтверждения — в письме. Не пришло?{' '}
+              <button
+                type="button"
+                className="text-foreground underline decoration-muted-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground"
+                onClick={() => void resend()}
+              >
+                Отправить ещё раз
+              </button>
+            </p>
           )}
         </div>
 
-        <form onSubmit={requestChange} className="space-y-2">
-          <Label htmlFor="newEmail">Сменить адрес</Label>
-          <div className="flex gap-2">
-            <Input
-              id="newEmail"
-              type="email"
-              value={email}
-              placeholder="new@example.com"
-              onChange={(event) => setEmail(event.target.value)}
-            />
-            <Button type="submit" disabled={busy || email.trim() === ''}>
-              Отправить
-            </Button>
-          </div>
-          <p className="text-muted-foreground text-xs">
-            Новый адрес нужно подтвердить, а старому мы сообщим об изменении.
-          </p>
-        </form>
-
-        <Button variant="ghost" size="sm" onClick={() => void refresh()}>
-          Обновить
-        </Button>
+        {changing ? (
+          <form onSubmit={requestChange} className="space-y-3 border-t pt-4">
+            {/*
+              An address and a password read as a sign-in form to a password manager, which would then
+              offer to save this password under the new, unconfirmed address. The current address,
+              marked as the username, tells it which account the password belongs to.
+            */}
+            <input type="text" name="username" autoComplete="username" value={identity?.email ?? ''} readOnly hidden />
+            <div className="space-y-2">
+              <Label htmlFor="newEmail">Новый адрес</Label>
+              <Input
+                id="newEmail"
+                type="email"
+                autoComplete="email"
+                autoFocus
+                value={email}
+                placeholder="new@example.com"
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="emailChangePassword">Подтвердите пароль</Label>
+              <Input
+                id="emailChangePassword"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </div>
+            <p className="text-muted-foreground text-xs">
+              Новый адрес нужно подтвердить, а старому мы сообщим об изменении.
+            </p>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={busy || email.trim() === '' || password === ''}>
+                Отправить
+              </Button>
+              <Button type="button" variant="ghost" disabled={busy} onClick={close}>
+                Отмена
+              </Button>
+            </div>
+          </form>
+        ) : null}
       </CardContent>
     </Card>
   );
 }
+
+/*
+ * A button beside the card's title on a wide card; on a phone it would squeeze the title and the
+ * description into a column a word wide, so below a header of 28rem it moves under them instead.
+ */
+const HEADER_WITH_ACTION = 'has-data-[slot=card-action]:grid-cols-1 @md/card-header:has-data-[slot=card-action]:grid-cols-[1fr_auto]';
+const ACTION_IN_HEADER =
+  'col-start-1 row-span-1 row-start-3 justify-self-start @md/card-header:col-start-2 @md/card-header:row-span-2 @md/card-header:row-start-1 @md/card-header:justify-self-end';
 
 function PasswordSection() {
   const [currentPassword, setCurrentPassword] = React.useState('');
@@ -255,32 +321,60 @@ function PasswordSection() {
   );
 }
 
+const DEVICE_ICONS: Record<DeviceKind, React.ComponentType<{ className?: string }>> = {
+  phone: SmartphoneIcon,
+  tablet: TabletIcon,
+  computer: MonitorIcon,
+  unknown: CircleHelpIcon,
+};
+
 function SessionsSection() {
   const state = useAsync(() => auth.listOwnSessions.query({}), []);
   const [busy, setBusy] = React.useState(false);
+  const others = (state.data?.sessions ?? []).filter((session) => !session.current).length;
 
-  // Auth revokes every session of the caller, this browser included — that is what makes it a
-  // useful answer to "someone else may have my session".
-  const revokeAll = async () => {
+  // One sign-in ended from its row: an unfamiliar device goes, every other stays.
+  const revokeOne = async (id: string) => {
     setBusy(true);
     try {
-      await auth.revokeOwnSessions.mutate({});
-      window.location.assign('/app/login');
+      await auth.revokeOwnSession.mutate({ id });
+      state.reload();
     } catch (error) {
       toast.error(messageOf(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Every sign-in but this browser's — someone else's session ends, the person asking stays in.
+  // This browser itself is ended by "Выйти".
+  const revokeOthers = async () => {
+    setBusy(true);
+    try {
+      await auth.revokeOtherSessions.mutate({});
+      toast.success('Остальные сессии завершены');
+      state.reload();
+    } catch (error) {
+      toast.error(messageOf(error));
+    } finally {
       setBusy(false);
     }
   };
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className={HEADER_WITH_ACTION}>
         <CardTitle>Где вы вошли</CardTitle>
         <CardDescription>
           Каждый браузер, в котором сейчас есть действующая сессия. Сверху — новые.
         </CardDescription>
+        <CardAction className={ACTION_IN_HEADER}>
+          <Button variant="outline" size="sm" onClick={() => void revokeOthers()} disabled={busy || others === 0}>
+            Завершить все остальные
+          </Button>
+        </CardAction>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent>
         {state.loading ? (
           <Skeleton className="h-24 w-full" />
         ) : state.error ? (
@@ -289,38 +383,66 @@ function SessionsSection() {
         ) : (
           /*
             Scrolls rather than growing: someone who signs in from a phone, a laptop and a work
-            machine builds this list up over months, and it would otherwise push the button that
-            ends them all off the screen.
+            machine builds this list up over months, and it would otherwise push the card below away.
           */
-          <ul className="max-h-72 space-y-2 overflow-y-auto pr-1 text-sm">
-            {(state.data?.sessions ?? []).map((session) => (
-              <li
-                key={session.id}
-                className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block">
-                    Начата {new Date(session.createdAt).toLocaleString()}
-                    {session.current ? ' — этот браузер' : ''}
+          <TooltipProvider>
+          <ul className="max-h-96 divide-y overflow-y-auto pr-1 text-sm">
+            {(state.data?.sessions ?? []).map((session) => {
+              const device = describeDevice(session.userAgent);
+              const Icon = DEVICE_ICONS[device.kind];
+              return (
+                <li
+                  key={session.id}
+                  data-testid="own-session"
+                  data-session-id={session.id}
+                  className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
+                >
+                  {/* On a phone the icon would take the room the device name needs. */}
+                  <span className="bg-muted text-muted-foreground hidden size-8 shrink-0 items-center justify-center rounded-md sm:flex">
+                    <Icon className="size-4" />
                   </span>
-                  <span className="text-muted-foreground block truncate text-xs">
-                    {session.userAgent ?? 'Неизвестный браузер'}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-x-2 font-medium">
+                      {/* The raw string stays at hand for whoever needs the exact browser; the name answers the pointer so the tooltip is found. */}
+                      {session.userAgent ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span tabIndex={0} className="hover:text-muted-foreground cursor-pointer transition-colors">
+                              {device.name}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-80 break-words">{session.userAgent}</TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        device.name
+                      )}
+                      {session.current ? (
+                        <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs font-normal">
+                          Этот браузер
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="text-muted-foreground block text-xs">
+                      {sinceNow(session.lastSeenAt)} · вход {day(session.createdAt)}
+                    </span>
                   </span>
-                </span>
-                <span className="text-muted-foreground shrink-0 text-xs whitespace-nowrap">
-                  Активна {new Date(session.lastSeenAt).toLocaleString()}
-                </span>
-              </li>
-            ))}
+                  {session.current ? null : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive shrink-0"
+                      disabled={busy}
+                      onClick={() => void revokeOne(session.id)}
+                    >
+                      Завершить
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
+          </TooltipProvider>
         )}
-
-        <Button variant="outline" onClick={() => void revokeAll()} disabled={busy}>
-          Выйти везде
-        </Button>
-        <p className="text-muted-foreground text-xs">
-          Завершит сессии во всех браузерах, включая этот.
-        </p>
       </CardContent>
     </Card>
   );

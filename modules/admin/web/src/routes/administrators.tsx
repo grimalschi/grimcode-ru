@@ -240,7 +240,7 @@ function AddAdministrator({ onAdded }: { onAdded: () => void }) {
                 Добавляем <span className="font-medium">{email}</span>.{' '}
                 <button
                   type="button"
-                  className="underline underline-offset-4"
+                  className="underline decoration-muted-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground"
                   onClick={() => setEmail('')}
                 >
                   Выбрать другого

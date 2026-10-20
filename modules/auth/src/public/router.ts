@@ -1,6 +1,6 @@
 import type { inferRouterInputs } from '@trpc/server';
 import type { AuthPublicRouter as PublicContract, Identity } from '@template/contracts/modules/auth';
-import { emailSchema, okSchema } from '../primitives.js';
+import { emailSchema, idSchema, okSchema } from '../primitives.js';
 import { z } from 'zod';
 import { expiredSessionCookie, parseCookies, sessionCookie } from '../http/cookies.js';
 import type { RpcContext } from '../trpc/context.js';
@@ -27,11 +27,24 @@ export interface PublicContext extends RpcContext {
    * application instead of one per module load, and its limits are constants in this surface’s factory.
    */
   loginAttempts: RateLimiter;
+  /**
+   * Guessing the current password from an open session, counted per account and shared by every
+   * procedure that asks for it, so alternating them does not double the allowance. Separate from
+   * sign-in: running out here does not lock the person out of signing in, nor the other way round.
+   */
+  passwordChecks: RateLimiter;
 }
 
 const VERIFICATION_TTL_SECONDS = 60 * 60 * 24;
 
 const RESET_REQUEST_WINDOW_SECONDS = 15 * 60;
+/**
+ * Letters a signed-in person asks for — a fresh verification link, an email-change link — at most one
+ * per account in this window, and an email-change link at most one per target address. Without it the
+ * buttons mail any address in a loop.
+ */
+const RESEND_WINDOW_SECONDS = 5 * 60;
+const RESEND_REFUSAL = 'Письмо уже отправлено. Новое можно запросить не раньше чем через 5 минут';
 
 const RESET_TTL_SECONDS = 60 * 60;
 const EMAIL_CHANGE_TTL_SECONDS = 60 * 60;
@@ -50,7 +63,7 @@ const t = initTRPC.context<PublicContext>().create({
   }),
 });
 
-async function currentIdentity(ctx: PublicContext): Promise<{ row: IdentityRow; token: string }> {
+async function currentIdentity(ctx: PublicContext): Promise<{ row: IdentityRow; token: string; sessionId: string }> {
   const token = parseCookies(ctx.request.headers.get('cookie'))[ctx.env.sessionCookieName];
   if (!token) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Сессия не активна' });
 
@@ -58,7 +71,7 @@ async function currentIdentity(ctx: PublicContext): Promise<{ row: IdentityRow; 
   if (!resolved || resolved.identity.blocked_at !== null) {
     throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Сессия не активна' });
   }
-  return { row: resolved.identity, token };
+  return { row: resolved.identity, token, sessionId: resolved.session.id };
 }
 
 function appUrl(publicOrigin: string, path: string, token: string): string {
@@ -71,6 +84,25 @@ function appUrl(publicOrigin: string, path: string, token: string): string {
  * takes the session row back, but not a header already added to the response, and a browser would
  * replace its working cookie with the token of a session that does not exist.
  */
+/**
+ * The current password, asked before changing what recovers the account. Past the allowance it is
+ * not checked at all, as with sign-in; the first refusal in a window is journaled once, the ones
+ * after it are not. A match clears the count.
+ */
+async function checkCurrentPassword(ctx: PublicContext, row: IdentityRow, password: string, procedure: string): Promise<void> {
+  const allowance = ctx.passwordChecks.check(row.id);
+  if (allowance !== 'allowed') {
+    if (allowance === 'first-refusal') {
+      await ctx.repo.audit({ identityId: row.id, action: 'password.check.limited', details: { procedure } });
+    }
+    throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Слишком много попыток. Попробуйте позже' });
+  }
+  if (!(await verifyPassword(password, row.password_hash))) {
+    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Текущий пароль неверен' });
+  }
+  ctx.passwordChecks.clear(row.id);
+}
+
 async function openSession(ctx: PublicContext, repo: AuthRepository, identity: IdentityRow): Promise<string> {
   const token = newToken();
   const ttl = ctx.env.sessionTtlSeconds;
@@ -212,17 +244,40 @@ export const publicRouter = t.router({
     },
   ),
 
-  revokeOwnSessions: t.procedure
+  /**
+   * One sign-in of the caller's own, ended from the list — an unfamiliar device closed while every
+   * other stays. Not this browser: that is "sign out". Another account's id, or one already ended in
+   * another tab, matches nothing and still answers `ok`: nothing about other sessions is told.
+   */
+  revokeOwnSession: t.procedure
+    .input(z.object({ id: idSchema }))
+    .output(okSchema)
+    .mutation(
+    async ({ input, ctx }) => {
+      const { row, sessionId } = await currentIdentity(ctx);
+      if (input.id === sessionId) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Это текущий браузер — используйте «Выйти»' });
+      }
+      await ctx.repo.withTransaction(async (repo) => {
+        if (await repo.revokeSession(row.id, input.id)) {
+          await repo.audit({ identityId: row.id, action: 'session.revoked.self', details: { sessionId: input.id } });
+        }
+      });
+      return { ok: true as const };
+    },
+  ),
+
+  /** Every sign-in but this browser's: the answer to "someone else may have my session" that keeps you in. */
+  revokeOtherSessions: t.procedure
     .input(z.object({}))
     .output(okSchema)
     .mutation(
     async ({ ctx }) => {
-      const { row } = await currentIdentity(ctx);
+      const { row, sessionId } = await currentIdentity(ctx);
       await ctx.repo.withTransaction(async (repo) => {
-        await repo.revokeAllSessions(row.id);
-        await repo.audit({ identityId: row.id, action: 'sessions.revoked.self' });
+        const count = await repo.revokeOtherSessions(row.id, sessionId);
+        if (count) await repo.audit({ identityId: row.id, action: 'sessions.revoked.others', details: { count } });
       });
-      ctx.resHeaders.append('set-cookie', expiredSessionCookie(ctx.env));
       return { ok: true as const };
     },
   ),
@@ -238,9 +293,10 @@ export const publicRouter = t.router({
       if (identity && identity.blocked_at === null) {
         const token = newToken();
         const issued = await ctx.repo.withTransaction(async (repo) => {
+          // Too soon or not, the answer is the same `ok`: recovery never says whether an address is registered.
           const done = await repo.issueToken(identity.id, 'password-reset', token, RESET_TTL_SECONDS, {
             email: identity.email, resendAfterSeconds: RESET_REQUEST_WINDOW_SECONDS,
-          });
+          }) === 'issued';
           if (done) await repo.audit({ identityId: identity.id, action: 'password.reset.requested' });
           return done;
         });
@@ -287,10 +343,7 @@ export const publicRouter = t.router({
     .mutation(
     async ({ input, ctx }) => {
       const { row } = await currentIdentity(ctx);
-
-      if (!(await verifyPassword(input.currentPassword, row.password_hash))) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Текущий пароль неверен' });
-      }
+      await checkCurrentPassword(ctx, row, input.currentPassword, 'changePassword');
 
       const passwordHash = await hashPassword(input.password);
       const cookie = await ctx.repo.withTransaction(async (repo) => {
@@ -330,9 +383,12 @@ export const publicRouter = t.router({
     if (row.email_verified_at !== null) return { ok: true as const };
 
     const token = newToken();
-    if (!await ctx.repo.issueToken(row.id, 'email-verification', token, VERIFICATION_TTL_SECONDS, { email: row.email })) {
-      throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Данные входа изменились. Войдите снова' });
-    }
+    const issued = await ctx.repo.issueToken(row.id, 'email-verification', token, VERIFICATION_TTL_SECONDS, {
+      email: row.email, resendAfterSeconds: RESEND_WINDOW_SECONDS,
+    });
+    // Said plainly: the person is signed in and asks about their own address.
+    if (issued === 'too-soon') throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: RESEND_REFUSAL });
+    if (issued === 'stale') throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Данные входа изменились. Войдите снова' });
 
     await ctx.notifier.emit(
       {
@@ -350,21 +406,48 @@ export const publicRouter = t.router({
   }),
 
   requestEmailChange: t.procedure
-    .input(z.object({ email: emailSchema }))
+    .input(z.object({ currentPassword: z.string().min(1).max(200), email: emailSchema }))
     .output(okSchema)
     .mutation(
     async ({ input, ctx }) => {
       const { row } = await currentIdentity(ctx);
 
+      // An open session is not proof of who is at the keyboard, and the address is what recovers the
+      // password. Asked first, before the address is looked at: without the password nothing about
+      // the address is told. The token below is bound to this very hash, so a change in between fails.
+      await checkCurrentPassword(ctx, row, input.currentPassword, 'requestEmailChange');
+
       const taken = await ctx.repo.findIdentityByEmail(input.email);
-      // Answering `ok` here too keeps the flow from confirming that an address is registered.
-      if (taken) return { ok: true as const };
+      if (taken) {
+        // Said plainly, as registration says it: registration tells anyone, without a password, that an
+        // address is taken, so hiding it here — behind the password and the five-minute window — would
+        // protect nothing and only leave the person guessing why no letter came. The attempt is still
+        // recorded; the entry is written on its own, outside any transaction the refusal could undo.
+        await ctx.repo.audit({ identityId: row.id, action: 'email.change_requested', details: { email: input.email, taken: true } });
+        throw new TRPCError({ code: 'CONFLICT', message: 'Этот адрес уже занят' });
+      }
+
+      // Another account mailed this address a moment ago: quietly `ok`, as for a taken address, so the
+      // answer does not tell that someone asked for it. Many accounts cannot take turns at one mailbox.
+      if (await ctx.repo.recentEmailChangeTo(input.email, row.id, RESEND_WINDOW_SECONDS)) {
+        await ctx.repo.audit({ identityId: row.id, action: 'email.change_requested', details: { email: input.email, limited: 'address' } });
+        return { ok: true as const };
+      }
 
       const token = newToken();
-      const issued = await ctx.repo.issueToken(row.id, 'email-change', token, EMAIL_CHANGE_TTL_SECONDS, {
-        payload: { email: input.email }, passwordHash: row.password_hash, email: row.email,
+      // Requested and changed are two entries, as with password recovery; the link and its entry commit together.
+      const issued = await ctx.repo.withTransaction(async (repo) => {
+        const outcome = await repo.issueToken(row.id, 'email-change', token, EMAIL_CHANGE_TTL_SECONDS, {
+          payload: { email: input.email }, passwordHash: row.password_hash, email: row.email, resendAfterSeconds: RESEND_WINDOW_SECONDS,
+        });
+        if (outcome === 'issued') await repo.audit({ identityId: row.id, action: 'email.change_requested', details: { email: input.email } });
+        return outcome;
       });
-      if (!issued) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Данные входа изменились. Войдите снова' });
+      if (issued === 'too-soon') {
+        await ctx.repo.audit({ identityId: row.id, action: 'email.change_requested', details: { email: input.email, limited: 'account' } });
+        throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: RESEND_REFUSAL });
+      }
+      if (issued === 'stale') throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Данные входа изменились. Войдите снова' });
 
       await ctx.notifier.emit(
         {

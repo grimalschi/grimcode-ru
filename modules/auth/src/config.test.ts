@@ -40,7 +40,7 @@ function dependencies() {
     touchLogin: vi.fn(async () => undefined),
     audit: vi.fn(async () => undefined),
     revokeSessionByToken: vi.fn(async () => undefined),
-    issueToken: vi.fn(async () => true),
+    issueToken: vi.fn(async (): Promise<'issued' | 'too-soon' | 'stale'> => 'issued'),
     withTransaction: (operation: (bound: unknown) => Promise<unknown>) => operation(repo),
   };
   const notifier = { emit: vi.fn(async () => undefined) };
@@ -57,6 +57,7 @@ function publicContext(deps: ReturnType<typeof dependencies>, cookie?: string): 
     resHeaders: new Headers(),
     env,
     loginAttempts: createRateLimiter({ limit: 10, windowMs: 60_000 }),
+    passwordChecks: createRateLimiter({ limit: 10, windowMs: 60_000 }),
   };
 }
 
@@ -80,7 +81,7 @@ function adminContext(deps: ReturnType<typeof dependencies>, cookie: string): Ad
 describe('configuration passed to Auth', () => {
   it('keeps a throttled recovery request from emitting a replacement link', async () => {
     const deps = dependencies();
-    deps.repo.issueToken.mockResolvedValue(false);
+    deps.repo.issueToken.mockResolvedValue('too-soon');
     await expect(publicRouter.createCaller(publicContext(deps)).requestPasswordReset({ email: identity.email }))
       .resolves.toEqual({ ok: true });
     expect(deps.notifier.emit).not.toHaveBeenCalled();

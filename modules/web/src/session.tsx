@@ -7,7 +7,7 @@ interface SessionValue {
   identity: Identity | null;
   /** False once Auth has answered, so a guard never acts on an unknown state. */
   loading: boolean;
-  /** Re-reads the session from Auth after email changes or on request from settings. */
+  /** Re-reads the session from Auth, as after an email change; returning to the tab does it too. */
   refresh: () => Promise<Identity | null>;
 }
 
@@ -50,6 +50,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Coming back to the tab re-reads the answer: an address confirmed from the letter in another tab
+  // shows as confirmed without a button to press, and a session ended elsewhere ends here too. A
+  // failure to reach Auth on the way back changes nothing — a laptop waking up offline is not a sign-out.
+  React.useEffect(() => {
+    const revisit = () => {
+      if (document.visibilityState !== 'visible') return;
+      auth.currentSession
+        .query({})
+        .then((result) => setIdentity(result.identity ?? null))
+        .catch(() => {});
+    };
+    document.addEventListener('visibilitychange', revisit);
+    return () => document.removeEventListener('visibilitychange', revisit);
+  }, []);
 
   const value = React.useMemo(
     () => ({ identity, loading, refresh }),

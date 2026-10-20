@@ -36,7 +36,7 @@ export function ThemeToggle() {
         <Button
           variant="ghost"
           size="icon"
-          className="size-7"
+          className="text-muted-foreground hover:text-foreground data-[state=open]:text-foreground size-7"
           aria-label={`Тема: ${LABELS[preference]}`}
         >
           <Icon />

@@ -23,7 +23,10 @@ const identity = {
   email_verified_at: null, blocked_at: null, blocking_protected_at: null as Date | null, created_at: new Date('2026-01-01T00:00:00Z'), last_login_at: null,
 };
 
-function recorder(options: { auditFails?: boolean; commitFails?: boolean; addressTaken?: boolean } = {}) {
+const CURRENT_SESSION = '00000000-0000-4000-8000-0000000000c1';
+const OTHER_SESSION = '00000000-0000-4000-8000-0000000000c2';
+
+function recorder(options: { auditFails?: boolean; commitFails?: boolean; addressTaken?: boolean; recentLink?: boolean; recentAddress?: boolean; sessionGone?: boolean } = {}) {
   /** Statements in order, tagged with the connection they ran on: `pool` or `tx<n>`. */
   const statements: { on: string; text: string; values: unknown[] }[] = [];
   let transactions = 0;
@@ -32,9 +35,16 @@ function recorder(options: { auditFails?: boolean; commitFails?: boolean; addres
     if (options.commitFails && text === 'COMMIT') throw new Error('commit lost');
     // The password change is visible to the session opened right after it, as it would be in one transaction.
     if (text.includes('SET password_hash = $2')) identity.password_hash = String(values[1]);
+    // The resend windows: a live link of this account issued a moment ago, or another account's to this address.
+    if (text.includes('make_interval') && text.includes("payload->>'email'")) return { rows: [], rowCount: options.recentAddress ? 1 : 0 };
+    if (text.includes('make_interval') && text.includes('AND used_at IS NULL')) return { rows: [], rowCount: options.recentLink ? 1 : 0 };
     // The "is this address registered" read: empty for a registration, the known account otherwise.
     if (text.includes('WHERE email = $1')) return options.addressTaken === false ? { rows: [], rowCount: 0 } : { rows: [identity], rowCount: 1 };
-    if (text.includes('FROM identities') || text.includes('INSERT INTO identities') || text.includes('UPDATE sessions s')) {
+    // Ending one session by id: nothing matches when it is another account's or already ended.
+    if (text.includes('UPDATE sessions SET revoked_at = now() WHERE id = $1')) return { rows: [], rowCount: options.sessionGone ? 0 : 1 };
+    // The session behind the cookie resolves to this browser's own session.
+    if (text.includes('UPDATE sessions s')) return { rows: [{ ...identity, session_id: CURRENT_SESSION }], rowCount: 1 };
+    if (text.includes('FROM identities') || text.includes('INSERT INTO identities')) {
       return { rows: [identity], rowCount: 1 };
     }
     if (text.includes('FROM auth_tokens WHERE token_hash')) return { rows: [{ identity_id: identity.id }], rowCount: 1 };
@@ -61,6 +71,7 @@ function publicContext(pool: Pool, cookie?: string): PublicContext {
     repo: new AuthRepository(pool), notifier: { emit: vi.fn(async () => undefined) } as unknown as Notifier,
     request: new Request('https://example.test/module/auth/rpc', { headers: cookie ? { cookie } : {} }),
     resHeaders: new Headers(), env, loginAttempts: createRateLimiter({ limit: 10, windowMs: 60_000 }),
+    passwordChecks: createRateLimiter({ limit: 10, windowMs: 60_000 }),
   };
 }
 
@@ -166,6 +177,188 @@ describe('a change and its audit entry share one transaction', () => {
       expect(transaction(statements)).toContain('UPDATE identities SET');
       if (!('auditFails' in options)) expect(transaction(statements)).toContain('INSERT INTO sessions');
     }
+  });
+
+  describe('an email change asks for the password', () => {
+    const request = (pool: Pool, currentPassword: string, context = publicContext(pool, 'session=some-token')) => ({
+      context, call: publicRouter.createCaller(context).requestEmailChange({ currentPassword, email: 'new@example.test' }),
+    });
+
+    it('refuses a wrong password before looking at the address, writing and sending nothing', async () => {
+      const { hashPassword } = await import('./crypto.js');
+      identity.password_hash = await hashPassword('current-password');
+      const { pool, statements } = recorder({ addressTaken: false });
+      const { context, call } = request(pool, 'not-the-password');
+      await expect(call).rejects.toMatchObject({ code: 'UNAUTHORIZED', message: 'Текущий пароль неверен' });
+      // The address was never read: who lacks the password learns nothing about it.
+      expect(statements.some(({ text }) => text.includes('WHERE email = $1'))).toBe(false);
+      expect(statements.some(({ text }) => text.trim().startsWith('INSERT'))).toBe(false);
+      expect(context.notifier.emit).not.toHaveBeenCalled();
+    });
+
+    it('issues the link and records the request in one transaction, and only then hands it to Notifications', async () => {
+      const { hashPassword } = await import('./crypto.js');
+      for (const auditFails of [false, true]) {
+        identity.password_hash = await hashPassword('current-password');
+        const { pool, statements } = recorder({ addressTaken: false, auditFails });
+        const { context, call } = request(pool, 'current-password');
+        if (auditFails) await expect(call).rejects.toThrow('audit storage refused');
+        else await expect(call).resolves.toEqual({ ok: true });
+
+        const inside = transaction(statements);
+        expect(inside[0]).toBe('BEGIN');
+        expect(inside.filter((text) => text === 'BEGIN')).toHaveLength(1);
+        expect(inside).toEqual(expect.arrayContaining(['INSERT INTO auth_tokens', 'INSERT INTO auth_audit']));
+        expect(inside.at(-1)).toBe(auditFails ? 'ROLLBACK' : 'COMMIT');
+        if (auditFails) {
+          expect(context.notifier.emit).not.toHaveBeenCalled();
+        } else {
+          const audit = statements.find(({ text }) => text.includes('INSERT INTO auth_audit'))!;
+          expect(audit.values.slice(1, 3)).toEqual([identity.id, 'email.change_requested']);
+          expect(JSON.parse(String(audit.values[5]))).toEqual({ email: 'new@example.test' });
+          expect(context.notifier.emit).toHaveBeenCalledOnce();
+        }
+      }
+    });
+
+    it('records a request for a registered address and refuses it plainly, without a link or a letter', async () => {
+      const { hashPassword } = await import('./crypto.js');
+      identity.password_hash = await hashPassword('current-password');
+      const { pool, statements } = recorder();
+      const { context, call } = request(pool, 'current-password');
+      await expect(call).rejects.toMatchObject({ code: 'CONFLICT', message: 'Этот адрес уже занят' });
+      expect(statements.some(({ text }) => text.includes('INSERT INTO auth_tokens'))).toBe(false);
+      const audit = statements.find(({ text }) => text.includes('INSERT INTO auth_audit'))!;
+      expect(audit.values[2]).toBe('email.change_requested');
+      expect(JSON.parse(String(audit.values[5]))).toEqual({ email: 'new@example.test', taken: true });
+      expect(context.notifier.emit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('a person ends their own sign-ins', () => {
+    const audits = (statements: { text: string; values: unknown[] }[]) => statements
+      .filter(({ text }) => text.includes('INSERT INTO auth_audit'))
+      .map(({ on, values }) => ({ on, action: values[2], details: JSON.parse(String(values[5])) as unknown }));
+
+    it('ends one other sign-in and records it in the same transaction', async () => {
+      const { pool, statements } = recorder();
+      await expect(publicRouter.createCaller(publicContext(pool, 'session=some-token')).revokeOwnSession({ id: OTHER_SESSION }))
+        .resolves.toEqual({ ok: true });
+      const inside = transaction(statements);
+      expect(inside).toEqual(['BEGIN', 'UPDATE sessions SET', 'INSERT INTO auth_audit', 'COMMIT']);
+      const revoke = statements.find(({ text }) => text.includes('WHERE id = $1 AND identity_id = $2'))!;
+      // Bound to the caller's account: another account's session id matches nothing.
+      expect(revoke.values).toEqual([OTHER_SESSION, identity.id]);
+      expect(audits(statements)).toEqual([{ on: 'tx1', action: 'session.revoked.self', details: { sessionId: OTHER_SESSION } }]);
+    });
+
+    it('answers ok and records nothing when the id matches no live session of the caller', async () => {
+      const { pool, statements } = recorder({ sessionGone: true });
+      await expect(publicRouter.createCaller(publicContext(pool, 'session=some-token')).revokeOwnSession({ id: OTHER_SESSION }))
+        .resolves.toEqual({ ok: true });
+      expect(audits(statements)).toEqual([]);
+    });
+
+    it('does not end this browser from the list: that is signing out', async () => {
+      const { pool, statements } = recorder();
+      await expect(publicRouter.createCaller(publicContext(pool, 'session=some-token')).revokeOwnSession({ id: CURRENT_SESSION }))
+        .rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Это текущий браузер — используйте «Выйти»' });
+      expect(statements.some(({ text }) => text.includes('SET revoked_at'))).toBe(false);
+    });
+
+    it('ends every other sign-in, keeps this one and its cookie, and records how many', async () => {
+      const { pool, statements } = recorder();
+      const context = publicContext(pool, 'session=some-token');
+      await expect(publicRouter.createCaller(context).revokeOtherSessions({})).resolves.toEqual({ ok: true });
+      const revoke = statements.find(({ text }) => text.includes('AND id <> $2'))!;
+      expect(revoke.values).toEqual([identity.id, CURRENT_SESSION]);
+      expect(audits(statements)).toEqual([{ on: 'tx1', action: 'sessions.revoked.others', details: { count: 1 } }]);
+      expect(context.resHeaders.get('set-cookie')).toBeNull();
+    });
+  });
+
+  describe('letters a signed-in person asks for are limited', () => {
+    const audited = (statements: { text: string; values: unknown[] }[]) => statements
+      .filter(({ text }) => text.includes('INSERT INTO auth_audit'))
+      .map(({ values }) => ({ action: values[2], details: JSON.parse(String(values[5])) as unknown }));
+
+    it('refuses a fresh verification link inside the window, saying so, and sends nothing', async () => {
+      const { pool, statements } = recorder({ recentLink: true });
+      const context = publicContext(pool, 'session=some-token');
+      await expect(publicRouter.createCaller(context).resendOwnVerification({}))
+        .rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS', message: 'Письмо уже отправлено. Новое можно запросить не раньше чем через 5 минут' });
+      expect(statements.some(({ text }) => text.includes('INSERT INTO auth_tokens'))).toBe(false);
+      expect(context.notifier.emit).not.toHaveBeenCalled();
+    });
+
+    it('refuses an email-change link inside the account window, journals it, and sends nothing', async () => {
+      const { hashPassword } = await import('./crypto.js');
+      identity.password_hash = await hashPassword('current-password');
+      const { pool, statements } = recorder({ addressTaken: false, recentLink: true });
+      const context = publicContext(pool, 'session=some-token');
+      await expect(publicRouter.createCaller(context).requestEmailChange({ currentPassword: 'current-password', email: 'new@example.test' }))
+        .rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS' });
+      expect(statements.some(({ text }) => text.includes('INSERT INTO auth_tokens'))).toBe(false);
+      expect(audited(statements)).toEqual([{ action: 'email.change_requested', details: { email: 'new@example.test', limited: 'account' } }]);
+      expect(context.notifier.emit).not.toHaveBeenCalled();
+    });
+
+    it('answers ok without a letter when another account mailed the same address a moment ago', async () => {
+      const { hashPassword } = await import('./crypto.js');
+      identity.password_hash = await hashPassword('current-password');
+      const { pool, statements } = recorder({ addressTaken: false, recentAddress: true });
+      const context = publicContext(pool, 'session=some-token');
+      await expect(publicRouter.createCaller(context).requestEmailChange({ currentPassword: 'current-password', email: 'new@example.test' }))
+        .resolves.toEqual({ ok: true });
+      expect(statements.some(({ text }) => text.includes('INSERT INTO auth_tokens'))).toBe(false);
+      expect(audited(statements)).toEqual([{ action: 'email.change_requested', details: { email: 'new@example.test', limited: 'address' } }]);
+      expect(context.notifier.emit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('guessing the current password is counted per account', () => {
+    /** One context, so its counter carries across calls; two attempts allowed to keep the cases short. */
+    const counted = async () => {
+      const { hashPassword } = await import('./crypto.js');
+      identity.password_hash = await hashPassword('current-password');
+      const { pool, statements } = recorder({ addressTaken: false });
+      const context = { ...publicContext(pool, 'session=some-token'), passwordChecks: createRateLimiter({ limit: 2, windowMs: 60_000 }) };
+      const caller = publicRouter.createCaller(context);
+      return {
+        statements,
+        change: (currentPassword: string) => caller.changePassword({ currentPassword, password: 'another-long-password' }),
+        email: (currentPassword: string) => caller.requestEmailChange({ currentPassword, email: 'new@example.test' }),
+        limited: () => statements.filter(({ text, values }) => text.includes('INSERT INTO auth_audit') && values[2] === 'password.check.limited'),
+      };
+    };
+
+    it('refuses past the allowance without checking, even the right password, and journals the first refusal once', async () => {
+      const { change, limited } = await counted();
+      await expect(change('wrong-1')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(change('wrong-2')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(change('current-password')).rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS', message: 'Слишком много попыток. Попробуйте позже' });
+      await expect(change('current-password')).rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS' });
+      expect(limited()).toHaveLength(1);
+      expect(limited()[0]!.values[1]).toBe(identity.id);
+      expect(JSON.parse(String(limited()[0]!.values[5]))).toEqual({ procedure: 'changePassword' });
+    });
+
+    it('shares one allowance between the email change and the password change', async () => {
+      const { change, email, limited } = await counted();
+      await expect(email('wrong-1')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(change('wrong-2')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(email('current-password')).rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS' });
+      expect(JSON.parse(String(limited()[0]!.values[5]))).toEqual({ procedure: 'requestEmailChange' });
+    });
+
+    it('starts the count over after the right password', async () => {
+      const { email, limited } = await counted();
+      await expect(email('wrong-1')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(email('current-password')).resolves.toEqual({ ok: true });
+      await expect(email('wrong-2')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(email('wrong-3')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      expect(limited()).toEqual([]);
+    });
   });
 
   it('verifies the address and records it together, joining the token transaction instead of opening a second one', async () => {

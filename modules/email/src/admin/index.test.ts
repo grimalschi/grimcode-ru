@@ -64,13 +64,13 @@ describe('Email administrator request bindings', () => {
       expect(fast.status).toBe(200);
       expect(repo.audit).toHaveBeenCalledWith({
         action: 'template.created', actorUserId: administrator.userId,
-        actorRole: 'admin', details: { key: 'fast' },
+        actorRole: 'admin', actorEmail: administrator.email, details: { key: 'fast' },
       });
     } finally { release(); }
     expect((await slow).status).toBe(200);
     expect(repo.audit).toHaveBeenLastCalledWith({
       action: 'template.created', actorUserId: owner.userId,
-      actorRole: 'owner', details: { key: 'slow' },
+      actorRole: 'owner', actorEmail: owner.email, details: { key: 'slow' },
     });
   });
 

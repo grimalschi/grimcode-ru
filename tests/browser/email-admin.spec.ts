@@ -34,6 +34,56 @@ test.describe('the email admin', () => {
     expectNoPageErrors(problems);
   });
 
+  test('opens a template, and then a version, from anywhere on its row', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/admin/embed/module/email/');
+    // Not the name: a cell elsewhere on the row.
+    await page.getByRole('row').filter({ hasText: 'auth-password-reset' }).getByRole('cell').nth(1).click();
+    await expect(page).toHaveURL(/\/templates\/[0-9a-f-]{36}$/);
+    await page.getByRole('row').filter({ hasText: 'Версия 1' }).getByRole('cell').nth(1).click();
+    await expect(page).toHaveURL(/\/versions\/[0-9a-f-]{36}$/);
+    // A published version shows its plain-text alternative in a tab of its own.
+    await page.getByRole('tab', { name: 'Текст', exact: true }).click();
+    await expect(page.getByRole('tabpanel')).toContainText('Восстановление пароля');
+  });
+
+  test('opens a template whole, with a loader only while its answer is late', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/admin/embed/module/email/');
+    await expect(page.getByRole('row').filter({ hasText: 'auth-password-reset' })).toBeVisible();
+
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    await page.route('**/rpc/getTemplate*', async (route) => { await held; await route.continue(); });
+    await page.getByRole('row').filter({ hasText: 'auth-password-reset' }).click();
+
+    // No half-made page in between: no stand-in title, no placeholder rows — a loader once it is late.
+    await expect(page.getByRole('status')).toHaveText('Загружаем…');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(0);
+    await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0);
+    release();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Восстановление пароля');
+    await expect(page.getByRole('status')).toHaveCount(0);
+  });
+
+  test('names statuses in Russian and explains the variables', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/admin/embed/module/email/');
+    await page.getByRole('row').filter({ hasText: 'auth-password-reset' }).click();
+    await expect(page.getByText('Опубликована', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('published', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('{{resetUrl}}', { exact: true })).toBeVisible();
+    await expect(page.getByText('ссылка для сброса пароля', { exact: true })).toBeVisible();
+
+    await page.goto('/admin/embed/module/email/deliveries');
+    // The suite runs with the local transport: a letter it took is «Сохранено», not «Отправлено» beside «без отправки».
+    const letter = page.getByRole('row').filter({ hasText: 'локально, без отправки' }).first();
+    await expect(letter).toContainText('Сохранено');
+    await expect(letter).not.toContainText('Отправлено');
+    await page.getByRole('combobox').filter({ hasText: 'Любой статус' }).click();
+    await expect(page.getByRole('option')).toHaveText(['Любой статус', 'В очереди', 'Отправлено', 'Ошибка']);
+  });
+
   test('opens published source for reading and copying', async ({ page }) => {
     const problems = collectPageErrors(page);
 
@@ -83,6 +133,50 @@ test.describe('the email admin', () => {
 
     expectNoPageErrors(problems);
   });
+  test('switches versions from the corner, asking before unsaved edits are dropped', async ({ page }) => {
+    const owner = await resolveOwner();
+    const first = await createEditorDraft(owner, 'Switch A', mjml('<p>Switch A</p>'));
+    const second = await createEditorDraft(owner, 'Switch B', mjml('<p>Switch B</p>'));
+    const numbers = await Promise.all([first, second].map(async (id) =>
+      (await owner.call<{ version: { version: number } }>(moduleAdmin('email'), 'getVersion', { id })).version.version));
+    await signIn(page);
+    await page.goto(`/admin/embed/module/email/versions/${first}`);
+    await expect(page.getByLabel('Тема', { exact: true })).toHaveValue('Switch A');
+
+    const pick = async () => {
+      await page.getByRole('combobox', { name: 'Версия' }).click();
+      await page.getByRole('option', { name: `Версия ${numbers[1]} · Черновик` }).click();
+    };
+    await page.getByLabel('Тема', { exact: true }).fill('Switch A, unsaved');
+    await pick();
+    await page.getByRole('button', { name: 'Остаться' }).click();
+    await expect(page.getByLabel('Тема', { exact: true })).toHaveValue('Switch A, unsaved');
+
+    // Hold the next version back: the page stays — title, switcher, the old text dimmed — instead of blanking.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    await page.route('**/rpc/getVersion*', async (route) => { await held; await route.continue(); });
+    const title = await page.getByRole('heading', { level: 1 }).textContent();
+    await pick();
+    await page.getByRole('button', { name: 'Перейти', exact: true }).click();
+    await expect(page.locator('[aria-busy="true"]')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(title ?? '');
+    await expect(page.getByRole('combobox', { name: 'Версия' })).toBeVisible();
+    release();
+    await expect(page).toHaveURL(new RegExp(`/versions/${second}$`));
+    await expect(page.getByLabel('Тема', { exact: true })).toHaveValue('Switch B');
+  });
+
+  test('shows a draft\'s plain text, unsaved edits included', async ({ page }) => {
+    const owner = await resolveOwner();
+    const id = await createEditorDraft(owner, 'Text subject', mjml('<p>Saved words</p>'));
+    await signIn(page);
+    await page.goto(`/admin/embed/module/email/versions/${id}`);
+    await page.getByLabel('Код MJML').fill(mjml('<p>Unsaved words</p>'));
+    await page.getByRole('tab', { name: 'Текст', exact: true }).click();
+    await expect(page.getByRole('tabpanel')).toContainText('Unsaved words');
+  });
+
   test('switching versions keeps unsaved content out of the other draft', async ({ page }) => {
     const problems = collectPageErrors(page);
     const owner = await resolveOwner();
@@ -186,6 +280,46 @@ test.describe('the email admin', () => {
     expect(version).toMatchObject({ status: 'published', subject: 'Published subject', source });
     expect(version.compiledHtml).toContain('Published MJML');
     expect(version.compiledHtml).not.toContain('<mj-text>');
+    expectNoPageErrors(problems);
+  });
+
+  test('the journal shows who saved and published a version', async ({ page }) => {
+    const problems = collectPageErrors(page);
+    const owner = await resolveOwner();
+    const id = await createEditorDraft(owner, 'Journal subject', mjml('<p>Journal body</p>'));
+    const { version } = await owner.call<{ version: { version: number } }>(moduleAdmin('email'), 'getVersion', { id });
+    await signIn(page);
+    await page.goto(`/admin/embed/module/email/versions/${id}`);
+    await expect(page.getByLabel('Тема', { exact: true })).toHaveValue('Journal subject');
+    await page.getByLabel('Тема', { exact: true }).fill('Journal subject, edited');
+    await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+    await expect(page.getByLabel('Код MJML')).toHaveAttribute('readonly', '');
+
+    await page.getByRole('link', { name: 'История шаблонов', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'История шаблонов' })).toBeVisible();
+    // Details are not raw JSON in the table any more; a click on the row opens them by name in a window.
+    await expect(page.getByText('"templateKey"')).toHaveCount(0);
+    const ownerEmail = process.env.ACCEPTANCE_OWNER_EMAIL?.toLowerCase() ?? '';
+    const thisVersion = new RegExp(`Версия\\s*${version.version}(\\D|$)`);
+    // Other tests write here at the same time, so the entry for this version is looked for among the rows.
+    const entriesOf = async (action: string) => {
+      const rows = page.getByRole('row').filter({ hasText: action });
+      let found = 0;
+      for (let index = 0; index < await rows.count(); index += 1) {
+        await rows.nth(index).click();
+        const card = page.getByRole('dialog');
+        const text = await card.innerText();
+        if (text.includes('browser-editor') && thisVersion.test(text)) {
+          found += 1;
+          expect(text, action).toContain(ownerEmail);
+        }
+        await card.getByRole('button', { name: 'Закрыть' }).click();
+        await expect(card).toHaveCount(0);
+      }
+      return found;
+    };
+    expect(await entriesOf('version.published')).toBe(1);
+    expect(await entriesOf('version.draft.saved')).toBe(2);
     expectNoPageErrors(problems);
   });
 

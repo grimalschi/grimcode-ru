@@ -34,7 +34,7 @@ export function DashboardScreen() {
             */}
             <p>
               Откройте ссылку из письма или запросите новую в{' '}
-              <Link to="/app/settings" className="underline underline-offset-4">
+              <Link to="/app/settings" className="underline decoration-muted-foreground/50 underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground">
                 настройках
               </Link>
               .
@@ -48,7 +48,7 @@ export function DashboardScreen() {
         <CardHeader>
           <CardTitle>Ваш аккаунт</CardTitle>
           <CardDescription>
-            Учётной записью владеет Auth, профилем ниже — Users. Они разделены намеренно.
+            Учётной записью владеет раздел «Пользователи», профилем ниже — раздел «Профили». Они разделены намеренно.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">

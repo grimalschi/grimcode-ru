@@ -72,7 +72,7 @@ export function ErrorState({ error, retry }: { error: unknown; retry?: () => voi
         <button
           type="button"
           onClick={retry}
-          className="text-sm font-medium underline underline-offset-4"
+          className="text-sm font-medium underline decoration-muted-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground"
         >
           Повторить
         </button>

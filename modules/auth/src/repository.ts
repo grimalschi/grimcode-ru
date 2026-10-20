@@ -319,6 +319,24 @@ export class AuthRepository {
     );
   }
 
+  /** One live session of this account; another account's id matches nothing. */
+  async revokeSession(identityId: string, sessionId: string): Promise<number> {
+    const { rowCount } = await this.sql.query(
+      'UPDATE sessions SET revoked_at = now() WHERE id = $1 AND identity_id = $2 AND revoked_at IS NULL',
+      [sessionId, identityId],
+    );
+    return rowCount ?? 0;
+  }
+
+  /** Every live session of this account but the one given — the browser asking stays signed in. */
+  async revokeOtherSessions(identityId: string, keepSessionId: string): Promise<number> {
+    const { rowCount } = await this.sql.query(
+      'UPDATE sessions SET revoked_at = now() WHERE identity_id = $1 AND id <> $2 AND revoked_at IS NULL',
+      [identityId, keepSessionId],
+    );
+    return rowCount ?? 0;
+  }
+
   async revokeAllSessions(identityId: string): Promise<number> {
     const { rowCount } = await this.sql.query(
       'UPDATE sessions SET revoked_at = now() WHERE identity_id = $1 AND revoked_at IS NULL',
@@ -329,6 +347,11 @@ export class AuthRepository {
 
   // --- Single-use tokens ----------------------------------------------------
 
+  /**
+   * `too-soon`: a live link of this purpose was issued inside `resendAfterSeconds` — the caller may say
+   * so or stay quiet. `stale`: the account is gone, blocked, or its email or password moved since the
+   * caller read them — sign in again.
+   */
   async issueToken(
     identityId: string,
     purpose: TokenPurpose,
@@ -340,19 +363,19 @@ export class AuthRepository {
       email?: string;
       passwordHash?: string;
     } = {},
-  ): Promise<boolean> {
+  ): Promise<'issued' | 'too-soon' | 'stale'> {
     return this.inTransaction(async (client) => {
       const identity = await this.lockIdentity(client, identityId);
       if (!identity || identity.blocked_at ||
           (options.email !== undefined && identity.email !== options.email) ||
-          (options.passwordHash !== undefined && identity.password_hash !== options.passwordHash)) return false;
+          (options.passwordHash !== undefined && identity.password_hash !== options.passwordHash)) return 'stale';
       if (options.resendAfterSeconds) {
         const { rowCount } = await client.query(
           `SELECT 1 FROM auth_tokens WHERE identity_id = $1 AND purpose = $2
              AND used_at IS NULL AND expires_at > now()
              AND created_at > now() - make_interval(secs => $3)`,
           [identityId, purpose, options.resendAfterSeconds]);
-        if (rowCount) return false;
+        if (rowCount) return 'too-soon';
       }
       await client.query(
         `UPDATE auth_tokens SET used_at = now()
@@ -362,8 +385,22 @@ export class AuthRepository {
         `INSERT INTO auth_tokens (id, identity_id, purpose, token_hash, payload, expires_at)
          VALUES ($1, $2, $3, $4, $5::jsonb, now() + make_interval(secs => $6))`,
         [randomUUID(), identityId, purpose, sha256(token), JSON.stringify(options.payload ?? {}), ttlSeconds]);
-      return true;
+      return 'issued';
     });
+  }
+
+  /**
+   * Whether another account asked for an email change to this address inside the window. Counted
+   * whatever became of the link — replaced or used — so many accounts cannot take turns at one mailbox.
+   */
+  async recentEmailChangeTo(email: string, exceptIdentityId: string, windowSeconds: number): Promise<boolean> {
+    const { rowCount } = await this.sql.query(
+      `SELECT 1 FROM auth_tokens
+        WHERE purpose = 'email-change' AND payload->>'email' = $1 AND identity_id <> $2
+          AND created_at > now() - make_interval(secs => $3)
+        LIMIT 1`,
+      [email, exceptIdentityId, windowSeconds]);
+    return Boolean(rowCount);
   }
 
   private async lockIdentity(client: PoolClient, identityId: string): Promise<IdentityRow | null> {

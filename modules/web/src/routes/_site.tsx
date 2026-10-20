@@ -23,7 +23,7 @@ function SiteLayout() {
               <Link
                 key={item.to}
                 to={item.to}
-                className="[&.active]:text-foreground text-muted-foreground"
+                className="text-muted-foreground transition-colors hover:text-foreground [&.active]:text-foreground"
               >
                 {item.label}
               </Link>
@@ -40,12 +40,12 @@ function SiteLayout() {
       </main>
 
       <footer className="mt-16 border-t">
-        <div className="text-muted-foreground mx-auto w-full max-w-4xl space-y-3 px-6 py-8 text-sm">
+        <div className="text-muted-foreground mx-auto w-full max-w-4xl space-y-3 px-6 py-8 text-center text-sm">
           <Separator />
-          <nav className="flex flex-wrap gap-4">
-            <Link to="/legal/terms">Условия</Link>
-            <Link to="/legal/privacy">Конфиденциальность</Link>
-            <Link to="/contact">Контакты</Link>
+          <nav className="flex flex-wrap justify-center gap-4">
+            <Link to="/legal/terms" className="transition-colors hover:text-foreground">Условия</Link>
+            <Link to="/legal/privacy" className="transition-colors hover:text-foreground">Конфиденциальность</Link>
+            <Link to="/contact" className="transition-colors hover:text-foreground">Контакты</Link>
           </nav>
           <p>© Шаблон</p>
         </div>
